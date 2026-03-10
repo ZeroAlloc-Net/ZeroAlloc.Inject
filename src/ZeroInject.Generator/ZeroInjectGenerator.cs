@@ -114,6 +114,24 @@ namespace ZeroInject.Generator
                             Location.None,
                             svc.TypeName));
                     }
+
+                    if (svc.HasMultipleConstructors)
+                    {
+                        spc.ReportDiagnostic(Diagnostic.Create(
+                            DiagnosticDescriptors.MultipleConstructorsNoAttribute,
+                            Location.None,
+                            svc.TypeName));
+                    }
+
+                    if (svc.PrimitiveParameterName != null)
+                    {
+                        spc.ReportDiagnostic(Diagnostic.Create(
+                            DiagnosticDescriptors.PrimitiveConstructorParameter,
+                            Location.None,
+                            svc.PrimitiveParameterName,
+                            svc.TypeName,
+                            svc.PrimitiveParameterType));
+                    }
                 }
 
                 if (allServices.Count == 0)
@@ -278,6 +296,82 @@ namespace ZeroInject.Generator
                 }
             }
 
+            // Constructor analysis for factory lambda generation
+            var publicCtors = new List<IMethodSymbol>();
+            foreach (var ctor in typeSymbol.InstanceConstructors)
+            {
+                if (ctor.DeclaredAccessibility == Accessibility.Public)
+                {
+                    publicCtors.Add(ctor);
+                }
+            }
+
+            IMethodSymbol? chosenCtor = null;
+            bool hasMultipleConstructors = false;
+            var constructorParameters = new List<ConstructorParameterInfo>();
+            string? primitiveParameterName = null;
+            string? primitiveParameterType = null;
+
+            if (publicCtors.Count == 1)
+            {
+                chosenCtor = publicCtors[0];
+            }
+            else if (publicCtors.Count > 1)
+            {
+                // Look for [ActivatorUtilitiesConstructor]
+                IMethodSymbol? attributedCtor = null;
+                foreach (var ctor in publicCtors)
+                {
+                    foreach (var ctorAttr in ctor.GetAttributes())
+                    {
+                        if (ctorAttr.AttributeClass != null &&
+                            ctorAttr.AttributeClass.Name == "ActivatorUtilitiesConstructorAttribute")
+                        {
+                            attributedCtor = ctor;
+                            break;
+                        }
+                    }
+                    if (attributedCtor != null) break;
+                }
+
+                if (attributedCtor != null)
+                {
+                    chosenCtor = attributedCtor;
+                }
+                else
+                {
+                    hasMultipleConstructors = true;
+                }
+            }
+
+            if (chosenCtor != null)
+            {
+                foreach (var param in chosenCtor.Parameters)
+                {
+                    var paramTypeFqn = param.Type.ToDisplayString(FullyQualifiedFormat);
+                    bool isOptional = param.HasExplicitDefaultValue;
+
+                    constructorParameters.Add(new ConstructorParameterInfo(
+                        paramTypeFqn,
+                        param.Name,
+                        isOptional));
+
+                    // Check for primitive/value types
+                    if (primitiveParameterName == null)
+                    {
+                        if (param.Type.IsValueType ||
+                            paramTypeFqn == "global::System.String" ||
+                            paramTypeFqn == "global::System.Uri" ||
+                            paramTypeFqn == "global::System.Threading.CancellationToken" ||
+                            paramTypeFqn == "string")
+                        {
+                            primitiveParameterName = param.Name;
+                            primitiveParameterType = paramTypeFqn;
+                        }
+                    }
+                }
+            }
+
             return new ServiceRegistrationInfo(
                 ns,
                 typeName,
@@ -289,7 +383,11 @@ namespace ZeroInject.Generator
                 allowMultiple,
                 isOpenGeneric,
                 openGenericArity,
-                hasPublicConstructor);
+                hasPublicConstructor,
+                constructorParameters,
+                hasMultipleConstructors,
+                primitiveParameterName,
+                primitiveParameterType);
         }
 
         private static string GenerateExtensionClass(
@@ -354,6 +452,38 @@ namespace ZeroInject.Generator
             return sb.ToString();
         }
 
+        private static string BuildFactoryLambda(string implType, List<ConstructorParameterInfo> parameters)
+        {
+            if (parameters.Count == 0)
+            {
+                return "sp => new " + implType + "()";
+            }
+
+            var factorySb = new StringBuilder();
+            factorySb.Append("sp => new ");
+            factorySb.Append(implType);
+            factorySb.Append("(\n");
+
+            for (int i = 0; i < parameters.Count; i++)
+            {
+                var param = parameters[i];
+                var method = param.IsOptional ? "GetService" : "GetRequiredService";
+                factorySb.Append("                sp.");
+                factorySb.Append(method);
+                factorySb.Append("<");
+                factorySb.Append(param.FullyQualifiedTypeName);
+                factorySb.Append(">()");
+                if (i < parameters.Count - 1)
+                {
+                    factorySb.Append(",");
+                }
+                factorySb.Append("\n");
+            }
+
+            factorySb.Append("            )");
+            return factorySb.ToString();
+        }
+
         private static void EmitRegistration(StringBuilder sb, ServiceRegistrationInfo svc)
         {
             var lifetime = svc.Lifetime;
@@ -363,18 +493,18 @@ namespace ZeroInject.Generator
             if (svc.AsType != null)
             {
                 // Only register as the specified type
-                EmitSingleRegistration(sb, lifetime, svc.AsType, fqn, svc.Key, useAdd, svc.IsOpenGeneric);
+                EmitSingleRegistration(sb, lifetime, svc.AsType, fqn, svc.Key, useAdd, svc.IsOpenGeneric, svc.ConstructorParameters);
                 return;
             }
 
             // Register all non-filtered interfaces
             foreach (var iface in svc.Interfaces)
             {
-                EmitSingleRegistration(sb, lifetime, iface, fqn, svc.Key, useAdd, svc.IsOpenGeneric);
+                EmitSingleRegistration(sb, lifetime, iface, fqn, svc.Key, useAdd, svc.IsOpenGeneric, svc.ConstructorParameters);
             }
 
             // Always register concrete type
-            EmitConcreteRegistration(sb, lifetime, fqn, svc.Key, useAdd, svc.IsOpenGeneric);
+            EmitConcreteRegistration(sb, lifetime, fqn, svc.Key, useAdd, svc.IsOpenGeneric, svc.ConstructorParameters);
         }
 
         private static void EmitSingleRegistration(
@@ -384,7 +514,8 @@ namespace ZeroInject.Generator
             string implType,
             string? key,
             bool useAdd,
-            bool isOpenGeneric)
+            bool isOpenGeneric,
+            List<ConstructorParameterInfo> constructorParameters)
         {
             if (isOpenGeneric)
             {
@@ -406,9 +537,10 @@ namespace ZeroInject.Generator
             else
             {
                 var method = useAdd ? "Add" + lifetime : "TryAdd" + lifetime;
+                var factory = BuildFactoryLambda(implType, constructorParameters);
                 sb.AppendLine(string.Format(
-                    "            services.{0}<{1}, {2}>();",
-                    method, serviceType, implType));
+                    "            services.{0}<{1}>({2});",
+                    method, serviceType, factory));
             }
         }
 
@@ -418,7 +550,8 @@ namespace ZeroInject.Generator
             string implType,
             string? key,
             bool useAdd,
-            bool isOpenGeneric)
+            bool isOpenGeneric,
+            List<ConstructorParameterInfo> constructorParameters)
         {
             if (isOpenGeneric)
             {
@@ -439,9 +572,10 @@ namespace ZeroInject.Generator
             else
             {
                 var method = useAdd ? "Add" + lifetime : "TryAdd" + lifetime;
+                var factory = BuildFactoryLambda(implType, constructorParameters);
                 sb.AppendLine(string.Format(
-                    "            services.{0}<{1}>();",
-                    method, implType));
+                    "            services.{0}({1});",
+                    method, factory));
             }
         }
     }
