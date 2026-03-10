@@ -1,0 +1,68 @@
+namespace ZeroInject.Tests;
+
+public class AttributeTests
+{
+    [Fact]
+    public void TransientAttribute_IsServiceAttribute()
+    {
+        var attr = new TransientAttribute();
+        Assert.IsAssignableFrom<ServiceAttribute>(attr);
+    }
+
+    [Fact]
+    public void ScopedAttribute_IsServiceAttribute()
+    {
+        var attr = new ScopedAttribute();
+        Assert.IsAssignableFrom<ServiceAttribute>(attr);
+    }
+
+    [Fact]
+    public void SingletonAttribute_IsServiceAttribute()
+    {
+        var attr = new SingletonAttribute();
+        Assert.IsAssignableFrom<ServiceAttribute>(attr);
+    }
+
+    [Fact]
+    public void ServiceAttribute_DefaultValues()
+    {
+        var attr = new TransientAttribute();
+        Assert.Null(attr.As);
+        Assert.Null(attr.Key);
+        Assert.False(attr.AllowMultiple);
+    }
+
+    [Fact]
+    public void ServiceAttribute_SetProperties()
+    {
+        var attr = new TransientAttribute
+        {
+            As = typeof(IDisposable),
+            Key = "mykey",
+            AllowMultiple = true
+        };
+        Assert.Equal(typeof(IDisposable), attr.As);
+        Assert.Equal("mykey", attr.Key);
+        Assert.True(attr.AllowMultiple);
+    }
+
+    [Fact]
+    public void ZeroInjectAttribute_StoresMethodName()
+    {
+        var attr = new ZeroInjectAttribute("AddMyServices");
+        Assert.Equal("AddMyServices", attr.MethodName);
+    }
+
+    [Fact]
+    public void TransientAttribute_TargetsClassOnly()
+    {
+        var usage = typeof(TransientAttribute)
+            .GetCustomAttributes(typeof(AttributeUsageAttribute), false)
+            .Cast<AttributeUsageAttribute>()
+            .Single();
+
+        Assert.Equal(AttributeTargets.Class, usage.ValidOn);
+        Assert.False(usage.AllowMultiple);
+        Assert.False(usage.Inherited);
+    }
+}
