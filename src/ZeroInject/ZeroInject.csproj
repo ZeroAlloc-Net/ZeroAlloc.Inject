@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <RootNamespace>ZeroInject</RootNamespace>
+    <PackageId>ZeroInject</PackageId>
+  </PropertyGroup>
+</Project>
