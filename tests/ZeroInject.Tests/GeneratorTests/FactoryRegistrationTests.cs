@@ -254,4 +254,217 @@ public class FactoryRegistrationTests
         Assert.Contains("(sp, _) => new global::TestApp.RedisCache(", output);
         Assert.Contains("sp.GetRequiredService<global::TestApp.ISerializer>()", output);
     }
+
+    [Fact]
+    public void MultipleConstructors_WithActivatorUtilitiesConstructor_UsesMarked()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+
+            namespace Microsoft.Extensions.DependencyInjection
+            {
+                [System.AttributeUsage(System.AttributeTargets.Constructor)]
+                public class ActivatorUtilitiesConstructorAttribute : System.Attribute { }
+            }
+
+            public interface IMyService { }
+            public interface IRepo { }
+
+            [Transient]
+            public class MyService : IMyService
+            {
+                public MyService() { }
+
+                [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
+                public MyService(IRepo repo) { }
+            }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.Contains("sp.GetRequiredService<global::TestApp.IRepo>()", output);
+        Assert.DoesNotContain(diagnostics, d => d.Id == "ZI009");
+    }
+
+    [Fact]
+    public void ConcreteOnly_WithParameters_GeneratesFactoryLambda()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+
+            public interface ILogger { }
+
+            [Transient]
+            public class PlainService
+            {
+                public PlainService(ILogger logger) { }
+            }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.Contains("TryAddTransient(sp => new global::TestApp.PlainService(", output);
+        Assert.Contains("sp.GetRequiredService<global::TestApp.ILogger>()", output);
+    }
+
+    [Fact]
+    public void AsProperty_WithParameters_GeneratesFactoryLambda()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+
+            public interface IFoo { }
+            public interface IBar { }
+            public interface ILogger { }
+
+            [Transient(As = typeof(IFoo))]
+            public class MyService : IFoo, IBar
+            {
+                public MyService(ILogger logger) { }
+            }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.Contains("TryAddTransient<global::TestApp.IFoo>(sp => new global::TestApp.MyService(", output);
+        Assert.Contains("sp.GetRequiredService<global::TestApp.ILogger>()", output);
+        Assert.DoesNotContain("IBar", output);
+    }
+
+    [Fact]
+    public void InterfaceParameter_DoesNotProduceZI010()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+
+            public interface IMyService { }
+            public interface IRepo { }
+
+            [Transient]
+            public class MyService : IMyService
+            {
+                public MyService(IRepo repo) { }
+            }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "ZI010");
+    }
+
+    [Fact]
+    public void ClassParameter_DoesNotProduceZI010()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+
+            public interface IMyService { }
+            public class SomeDependency { }
+
+            [Transient]
+            public class MyService : IMyService
+            {
+                public MyService(SomeDependency dep) { }
+            }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "ZI010");
+        Assert.Contains("sp.GetRequiredService<global::TestApp.SomeDependency>()", output);
+    }
+
+    [Fact]
+    public void PrimitiveParameter_Bool_ProducesZI010()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+
+            public interface IMyService { }
+
+            [Transient]
+            public class MyService : IMyService
+            {
+                public MyService(bool enabled) { }
+            }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.Contains(diagnostics, d => d.Id == "ZI010");
+    }
+
+    [Fact]
+    public void PrimitiveParameter_Enum_ProducesZI010()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+
+            public interface IMyService { }
+            public enum Mode { Fast, Slow }
+
+            [Transient]
+            public class MyService : IMyService
+            {
+                public MyService(Mode mode) { }
+            }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.Contains(diagnostics, d => d.Id == "ZI010");
+    }
+
+    [Fact]
+    public void PrimitiveParameter_Struct_ProducesZI010()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+
+            public interface IMyService { }
+            public struct Config { public int Value; }
+
+            [Transient]
+            public class MyService : IMyService
+            {
+                public MyService(Config config) { }
+            }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.Contains(diagnostics, d => d.Id == "ZI010");
+    }
+
+    [Fact]
+    public void KeyedService_WithOptionalParameter_GeneratesGetService()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+
+            public interface ICache { }
+            public interface ISerializer { }
+
+            [Singleton(Key = "redis")]
+            public class RedisCache : ICache
+            {
+                public RedisCache(ISerializer? serializer = null) { }
+            }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.Contains("(sp, _) => new global::TestApp.RedisCache(", output);
+        Assert.Contains("sp.GetService<global::TestApp.ISerializer>()", output);
+        Assert.DoesNotContain("GetRequiredService", output);
+    }
 }
