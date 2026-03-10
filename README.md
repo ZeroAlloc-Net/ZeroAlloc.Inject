@@ -110,6 +110,8 @@ ZeroInject reports issues at compile time:
 | ZI006 | Warning | No public constructor |
 | ZI007 | Warning | No interfaces (concrete-only registration) |
 | ZI008 | Warning | Missing `Microsoft.Extensions.DependencyInjection.Abstractions` |
+| ZI009 | Error | Multiple public constructors without `[ActivatorUtilitiesConstructor]` |
+| ZI010 | Error | Constructor parameter is a primitive/value type |
 
 ## How It Compares to Scrutor
 
