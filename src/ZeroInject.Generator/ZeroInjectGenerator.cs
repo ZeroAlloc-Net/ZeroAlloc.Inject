@@ -123,6 +123,23 @@ namespace ZeroInject.Generator
             }
         }
 
+        /// <summary>
+        /// Converts a fully qualified generic type string like "global::Ns.Foo&lt;T, U&gt;" to
+        /// the unbound generic form "global::Ns.Foo&lt;,&gt;" suitable for use in typeof() expressions.
+        /// </summary>
+        private static string ToUnboundGenericString(string fullyQualifiedName, int arity)
+        {
+            var idx = fullyQualifiedName.IndexOf('<');
+            if (idx < 0)
+            {
+                return fullyQualifiedName;
+            }
+            var prefix = fullyQualifiedName.Substring(0, idx);
+            // Build <,,,> with (arity-1) commas
+            var commas = arity > 1 ? new string(',', arity - 1) : "";
+            return prefix + "<" + commas + ">";
+        }
+
         private static ServiceRegistrationInfo? GetServiceInfo(
             GeneratorAttributeSyntaxContext ctx,
             string lifetime,
@@ -146,6 +163,10 @@ namespace ZeroInject.Generator
                 : typeSymbol.ContainingNamespace.ToDisplayString();
 
             var fullyQualifiedName = typeSymbol.ToDisplayString(FullyQualifiedFormat);
+            if (typeSymbol.IsGenericType)
+            {
+                fullyQualifiedName = ToUnboundGenericString(fullyQualifiedName, typeSymbol.TypeParameters.Length);
+            }
             var typeName = typeSymbol.Name;
 
             // Extract attribute properties
@@ -161,6 +182,10 @@ namespace ZeroInject.Generator
                     if (named.Key == "As" && named.Value.Value is INamedTypeSymbol asSymbol)
                     {
                         asType = asSymbol.ToDisplayString(FullyQualifiedFormat);
+                        if (asSymbol.IsGenericType)
+                        {
+                            asType = ToUnboundGenericString(asType, asSymbol.TypeParameters.Length);
+                        }
                     }
                     else if (named.Key == "Key" && named.Value.Value is string keyValue)
                     {
@@ -206,7 +231,12 @@ namespace ZeroInject.Generator
                     continue;
                 }
 
-                interfaces.Add(iface.ToDisplayString(FullyQualifiedFormat));
+                var ifaceDisplay = iface.ToDisplayString(FullyQualifiedFormat);
+                if (typeSymbol.IsGenericType && iface.IsGenericType)
+                {
+                    ifaceDisplay = ToUnboundGenericString(ifaceDisplay, iface.TypeArguments.Length);
+                }
+                interfaces.Add(ifaceDisplay);
             }
 
             // Detect open generics

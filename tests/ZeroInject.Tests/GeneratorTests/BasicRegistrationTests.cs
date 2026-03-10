@@ -128,4 +128,63 @@ public class BasicRegistrationTests
         Assert.Contains("public static IServiceCollection", output);
         Assert.Contains("return services;", output);
     }
+
+    [Fact]
+    public void KeyedService_GeneratesKeyedRegistration()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+
+            public interface ICache { }
+
+            [Singleton(Key = "redis")]
+            public class RedisCache : ICache { }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.Contains("TryAddKeyedSingleton<global::TestApp.ICache, global::TestApp.RedisCache>(\"redis\")", output);
+        Assert.Contains("TryAddKeyedSingleton<global::TestApp.RedisCache>(\"redis\")", output);
+    }
+
+    [Fact]
+    public void AllowMultiple_GeneratesAddInsteadOfTryAdd()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+
+            public interface IJob { }
+
+            [Transient(AllowMultiple = true)]
+            public class MyJob : IJob { }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.Contains("services.AddTransient<global::TestApp.IJob, global::TestApp.MyJob>()", output);
+        Assert.DoesNotContain("TryAdd", output);
+    }
+
+    [Fact]
+    public void AsProperty_NarrowsRegistration()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+
+            public interface IFoo { }
+            public interface IBar { }
+
+            [Transient(As = typeof(IFoo))]
+            public class MyService : IFoo, IBar { }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.Contains("TryAddTransient<global::TestApp.IFoo, global::TestApp.MyService>", output);
+        Assert.DoesNotContain("IBar", output);
+        Assert.DoesNotContain("TryAddTransient<global::TestApp.MyService>", output);
+    }
 }
