@@ -59,7 +59,7 @@ public class AttributeTests
         var usage = typeof(TransientAttribute)
             .GetCustomAttributes(typeof(AttributeUsageAttribute), false)
             .Cast<AttributeUsageAttribute>()
-            .Single();
+            .First();
 
         Assert.Equal(AttributeTargets.Class, usage.ValidOn);
         Assert.False(usage.AllowMultiple);

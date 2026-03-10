@@ -7,7 +7,7 @@ namespace ZeroInject.Generator
         public static readonly DiagnosticDescriptor MultipleLifetimeAttributes = new DiagnosticDescriptor(
             "ZI001",
             "Multiple lifetime attributes",
-            "Class '{0}' has multiple lifetime attributes. Only one of [Transient], [Scoped], or [Singleton] is allowed.",
+            "Class '{0}' has multiple lifetime attributes; only one of [Transient], [Scoped], or [Singleton] is allowed",
             "ZeroInject",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -15,7 +15,7 @@ namespace ZeroInject.Generator
         public static readonly DiagnosticDescriptor AttributeOnNonClass = new DiagnosticDescriptor(
             "ZI002",
             "Attribute on non-class type",
-            "'{0}' is not a class. Service attributes can only be applied to classes.",
+            "'{0}' is not a class; service attributes can only be applied to classes",
             "ZeroInject",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -23,7 +23,7 @@ namespace ZeroInject.Generator
         public static readonly DiagnosticDescriptor AttributeOnAbstractOrStatic = new DiagnosticDescriptor(
             "ZI003",
             "Attribute on abstract or static class",
-            "Class '{0}' is abstract or static and cannot be registered as a service.",
+            "Class '{0}' is abstract or static and cannot be registered as a service",
             "ZeroInject",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -31,7 +31,7 @@ namespace ZeroInject.Generator
         public static readonly DiagnosticDescriptor AsTypeNotImplemented = new DiagnosticDescriptor(
             "ZI004",
             "As type not implemented",
-            "Class '{0}' does not implement '{1}' specified in the As property.",
+            "Class '{0}' does not implement '{1}' specified in the As property",
             "ZeroInject",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -39,7 +39,7 @@ namespace ZeroInject.Generator
         public static readonly DiagnosticDescriptor KeyedServiceNotSupported = new DiagnosticDescriptor(
             "ZI005",
             "Keyed services require .NET 8+",
-            "Class '{0}' uses Key property but the target framework does not support keyed services (requires .NET 8+).",
+            "Class '{0}' uses Key property but the target framework does not support keyed services (requires .NET 8+)",
             "ZeroInject",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -47,7 +47,7 @@ namespace ZeroInject.Generator
         public static readonly DiagnosticDescriptor NoPublicConstructor = new DiagnosticDescriptor(
             "ZI006",
             "No public constructor",
-            "Class '{0}' has no public constructor. The DI container requires a public constructor to resolve this service.",
+            "Class '{0}' has no public constructor; the DI container requires a public constructor to resolve this service",
             "ZeroInject",
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
@@ -55,7 +55,7 @@ namespace ZeroInject.Generator
         public static readonly DiagnosticDescriptor NoInterfaces = new DiagnosticDescriptor(
             "ZI007",
             "No interfaces implemented",
-            "Class '{0}' implements no interfaces and will only be registered as its concrete type.",
+            "Class '{0}' implements no interfaces and will only be registered as its concrete type",
             "ZeroInject",
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
@@ -63,7 +63,7 @@ namespace ZeroInject.Generator
         public static readonly DiagnosticDescriptor MissingDIAbstractions = new DiagnosticDescriptor(
             "ZI008",
             "Missing DI abstractions",
-            "Microsoft.Extensions.DependencyInjection.Abstractions is not referenced. Generated code will not compile.",
+            "Microsoft.Extensions.DependencyInjection.Abstractions is not referenced and generated code will not compile",
             "ZeroInject",
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
@@ -71,7 +71,7 @@ namespace ZeroInject.Generator
         public static readonly DiagnosticDescriptor MultipleConstructorsNoAttribute = new DiagnosticDescriptor(
             "ZI009",
             "Multiple public constructors without [ActivatorUtilitiesConstructor]",
-            "Class '{0}' has multiple public constructors. Apply [ActivatorUtilitiesConstructor] to the preferred constructor.",
+            "Class '{0}' has multiple public constructors; apply [ActivatorUtilitiesConstructor] to the preferred constructor",
             "ZeroInject",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -79,7 +79,7 @@ namespace ZeroInject.Generator
         public static readonly DiagnosticDescriptor PrimitiveConstructorParameter = new DiagnosticDescriptor(
             "ZI010",
             "Constructor parameter is a primitive/value type",
-            "Constructor parameter '{0}' of class '{1}' is a primitive/value type ({2}). Use IOptions<T> or a wrapper type instead.",
+            "Constructor parameter '{0}' of class '{1}' is a primitive/value type ({2}); use IOptions<T> or a wrapper type instead",
             "ZeroInject",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);

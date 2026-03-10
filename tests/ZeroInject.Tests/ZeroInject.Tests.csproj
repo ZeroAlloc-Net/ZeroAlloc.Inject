@@ -3,6 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>ZeroInject.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);MA0074;NU1608;NU1701</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />

@@ -1,3 +1,5 @@
+using System;
+
 namespace ZeroInject.Tests.GeneratorTests;
 
 public class FactoryRegistrationTests
@@ -85,7 +87,7 @@ public class FactoryRegistrationTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.Contains(diagnostics, d => d.Id == "ZI009");
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZI009", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -106,7 +108,7 @@ public class FactoryRegistrationTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.Contains(diagnostics, d => d.Id == "ZI010");
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZI010", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -127,7 +129,7 @@ public class FactoryRegistrationTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.Contains(diagnostics, d => d.Id == "ZI010");
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZI010", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -284,7 +286,7 @@ public class FactoryRegistrationTests
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
         Assert.Contains("sp.GetRequiredService<global::TestApp.IRepo>()", output);
-        Assert.DoesNotContain(diagnostics, d => d.Id == "ZI009");
+        Assert.DoesNotContain(diagnostics, d => string.Equals(d.Id, "ZI009", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -353,7 +355,7 @@ public class FactoryRegistrationTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "ZI010");
+        Assert.DoesNotContain(diagnostics, d => string.Equals(d.Id, "ZI010", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -375,7 +377,7 @@ public class FactoryRegistrationTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "ZI010");
+        Assert.DoesNotContain(diagnostics, d => string.Equals(d.Id, "ZI010", StringComparison.Ordinal));
         Assert.Contains("sp.GetRequiredService<global::TestApp.SomeDependency>()", output);
     }
 
@@ -397,7 +399,7 @@ public class FactoryRegistrationTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.Contains(diagnostics, d => d.Id == "ZI010");
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZI010", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -419,7 +421,7 @@ public class FactoryRegistrationTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.Contains(diagnostics, d => d.Id == "ZI010");
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZI010", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -441,7 +443,7 @@ public class FactoryRegistrationTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.Contains(diagnostics, d => d.Id == "ZI010");
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZI010", StringComparison.Ordinal));
     }
 
     [Fact]

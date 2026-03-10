@@ -12,7 +12,7 @@ public class BasicRegistrationTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.DoesNotContain("Error", diagnostics.Select(d => d.Severity.ToString()));
+        Assert.DoesNotContain("Error", diagnostics.AsEnumerable().Select(d => d.Severity.ToString()));
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public class BasicRegistrationTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.DoesNotContain("Error", diagnostics.Select(d => d.Severity.ToString()));
+        Assert.DoesNotContain("Error", diagnostics.AsEnumerable().Select(d => d.Severity.ToString()));
         Assert.Contains("TryAddTransient<global::TestApp.IMyService>(sp => new global::TestApp.MyService())", output);
         Assert.Contains("TryAddTransient(sp => new global::TestApp.MyService())", output);
     }

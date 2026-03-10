@@ -1,3 +1,4 @@
+using System;
 using Microsoft.CodeAnalysis;
 
 namespace ZeroInject.Tests.GeneratorTests;
@@ -20,7 +21,7 @@ public class DiagnosticTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.Contains(diagnostics, d => d.Id == "ZI006");
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZI006", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -36,7 +37,7 @@ public class DiagnosticTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.Contains(diagnostics, d => d.Id == "ZI007");
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZI007", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -54,7 +55,7 @@ public class DiagnosticTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "ZI007");
+        Assert.DoesNotContain(diagnostics, d => string.Equals(d.Id, "ZI007", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -73,7 +74,7 @@ public class DiagnosticTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "ZI006");
+        Assert.DoesNotContain(diagnostics, d => string.Equals(d.Id, "ZI006", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -91,7 +92,7 @@ public class DiagnosticTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "ZI006");
+        Assert.DoesNotContain(diagnostics, d => string.Equals(d.Id, "ZI006", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -113,7 +114,7 @@ public class DiagnosticTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "ZI006");
+        Assert.DoesNotContain(diagnostics, d => string.Equals(d.Id, "ZI006", StringComparison.Ordinal));
     }
 
     [Fact]
