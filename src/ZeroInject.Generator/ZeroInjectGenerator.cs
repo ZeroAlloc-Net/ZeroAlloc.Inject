@@ -285,17 +285,6 @@ namespace ZeroInject.Generator
                 openGenericArity = typeSymbol.TypeParameters.Length.ToString();
             }
 
-            // Check for public constructor
-            bool hasPublicConstructor = false;
-            foreach (var ctor in typeSymbol.InstanceConstructors)
-            {
-                if (ctor.DeclaredAccessibility == Accessibility.Public)
-                {
-                    hasPublicConstructor = true;
-                    break;
-                }
-            }
-
             // Constructor analysis for factory lambda generation
             var publicCtors = new List<IMethodSymbol>();
             foreach (var ctor in typeSymbol.InstanceConstructors)
@@ -305,6 +294,7 @@ namespace ZeroInject.Generator
                     publicCtors.Add(ctor);
                 }
             }
+            bool hasPublicConstructor = publicCtors.Count > 0;
 
             IMethodSymbol? chosenCtor = null;
             bool hasMultipleConstructors = false;

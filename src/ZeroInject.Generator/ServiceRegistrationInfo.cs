@@ -59,12 +59,28 @@ namespace ZeroInject.Generator
         public bool Equals(ServiceRegistrationInfo? other)
         {
             if (other is null) return false;
-            return FullyQualifiedName == other.FullyQualifiedName
-                && Lifetime == other.Lifetime
-                && AsType == other.AsType
-                && Key == other.Key
-                && AllowMultiple == other.AllowMultiple
-                && ConstructorParameters.Count == other.ConstructorParameters.Count;
+            if (FullyQualifiedName != other.FullyQualifiedName
+                || Lifetime != other.Lifetime
+                || AsType != other.AsType
+                || Key != other.Key
+                || AllowMultiple != other.AllowMultiple
+                || HasMultipleConstructors != other.HasMultipleConstructors
+                || PrimitiveParameterName != other.PrimitiveParameterName
+                || PrimitiveParameterType != other.PrimitiveParameterType
+                || ConstructorParameters.Count != other.ConstructorParameters.Count)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < ConstructorParameters.Count; i++)
+            {
+                if (!ConstructorParameters[i].Equals(other.ConstructorParameters[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         public override bool Equals(object? obj) => Equals(obj as ServiceRegistrationInfo);
@@ -76,6 +92,7 @@ namespace ZeroInject.Generator
                 var hash = 17;
                 hash = hash * 31 + FullyQualifiedName.GetHashCode();
                 hash = hash * 31 + Lifetime.GetHashCode();
+                hash = hash * 31 + ConstructorParameters.Count.GetHashCode();
                 return hash;
             }
         }

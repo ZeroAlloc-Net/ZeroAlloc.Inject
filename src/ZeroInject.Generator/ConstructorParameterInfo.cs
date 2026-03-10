@@ -36,6 +36,7 @@ namespace ZeroInject.Generator
                 var hash = 17;
                 hash = hash * 31 + FullyQualifiedTypeName.GetHashCode();
                 hash = hash * 31 + ParameterName.GetHashCode();
+                hash = hash * 31 + IsOptional.GetHashCode();
                 return hash;
             }
         }
