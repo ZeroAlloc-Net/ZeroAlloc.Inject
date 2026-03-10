@@ -444,13 +444,25 @@ namespace ZeroInject.Generator
 
         private static string BuildFactoryLambda(string implType, List<ConstructorParameterInfo> parameters)
         {
+            return BuildFactoryLambdaCore(implType, parameters, false);
+        }
+
+        private static string BuildKeyedFactoryLambda(string implType, List<ConstructorParameterInfo> parameters)
+        {
+            return BuildFactoryLambdaCore(implType, parameters, true);
+        }
+
+        private static string BuildFactoryLambdaCore(string implType, List<ConstructorParameterInfo> parameters, bool keyed)
+        {
+            var spPrefix = keyed ? "(sp, _) => new " : "sp => new ";
+
             if (parameters.Count == 0)
             {
-                return "sp => new " + implType + "()";
+                return spPrefix + implType + "()";
             }
 
             var factorySb = new StringBuilder();
-            factorySb.Append("sp => new ");
+            factorySb.Append(spPrefix);
             factorySb.Append(implType);
             factorySb.Append("(\n");
 
@@ -520,9 +532,10 @@ namespace ZeroInject.Generator
             if (key != null)
             {
                 var method = useAdd ? "AddKeyed" + lifetime : "TryAddKeyed" + lifetime;
+                var factory = BuildKeyedFactoryLambda(implType, constructorParameters);
                 sb.AppendLine(string.Format(
-                    "            services.{0}<{1}, {2}>(\"{3}\");",
-                    method, serviceType, implType, key));
+                    "            services.{0}<{1}>(\"{2}\", {3});",
+                    method, serviceType, key, factory));
             }
             else
             {
@@ -555,9 +568,10 @@ namespace ZeroInject.Generator
             if (key != null)
             {
                 var method = useAdd ? "AddKeyed" + lifetime : "TryAddKeyed" + lifetime;
+                var factory = BuildKeyedFactoryLambda(implType, constructorParameters);
                 sb.AppendLine(string.Format(
-                    "            services.{0}<{1}>(\"{2}\");",
-                    method, implType, key));
+                    "            services.{0}(\"{1}\", {2});",
+                    method, key, factory));
             }
             else
             {
