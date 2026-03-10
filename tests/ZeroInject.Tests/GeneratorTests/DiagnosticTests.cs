@@ -75,4 +75,62 @@ public class DiagnosticTests
 
         Assert.DoesNotContain(diagnostics, d => d.Id == "ZI006");
     }
+
+    [Fact]
+    public void ImplicitDefaultConstructor_DoesNotProduceZI006()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+
+            public interface IMyService { }
+
+            [Transient]
+            public class ImplicitCtorService : IMyService { }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "ZI006");
+    }
+
+    [Fact]
+    public void MixedConstructors_PublicExists_DoesNotProduceZI006()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+
+            public interface IMyService { }
+
+            [Transient]
+            public class MultiCtorService : IMyService
+            {
+                public MultiCtorService() { }
+                private MultiCtorService(string x) { }
+            }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "ZI006");
+    }
+
+    [Fact]
+    public void AbstractClass_IsSkipped()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+
+            public interface IMyService { }
+
+            [Transient]
+            public abstract class AbstractService : IMyService { }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.DoesNotContain("AbstractService", output);
+    }
 }

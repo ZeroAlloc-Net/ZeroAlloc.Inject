@@ -57,4 +57,24 @@ public class MethodNamingTests
 
         Assert.Contains("public static class DomainServicesServiceCollectionExtensions", output);
     }
+
+    [Fact]
+    public void MethodNameWithoutAddPrefix_ClassNameHandledCorrectly()
+    {
+        var source = """
+            using ZeroInject;
+
+            [assembly: ZeroInject("RegisterServices")]
+
+            namespace TestApp;
+
+            [Transient]
+            public class Svc { }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.Contains("RegisterServices", output);
+        Assert.Contains("RegisterServicesServiceCollectionExtensions", output);
+    }
 }
