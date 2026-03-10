@@ -17,6 +17,10 @@ namespace ZeroInject.Generator
         public bool IsOpenGeneric { get; }
         public string? OpenGenericArity { get; }
         public bool HasPublicConstructor { get; }
+        public List<ConstructorParameterInfo> ConstructorParameters { get; }
+        public bool HasMultipleConstructors { get; }
+        public string? PrimitiveParameterName { get; }
+        public string? PrimitiveParameterType { get; }
 
         public ServiceRegistrationInfo(
             string ns,
@@ -29,7 +33,11 @@ namespace ZeroInject.Generator
             bool allowMultiple,
             bool isOpenGeneric,
             string? openGenericArity,
-            bool hasPublicConstructor)
+            bool hasPublicConstructor,
+            List<ConstructorParameterInfo> constructorParameters,
+            bool hasMultipleConstructors,
+            string? primitiveParameterName,
+            string? primitiveParameterType)
         {
             Namespace = ns;
             TypeName = typeName;
@@ -42,6 +50,10 @@ namespace ZeroInject.Generator
             IsOpenGeneric = isOpenGeneric;
             OpenGenericArity = openGenericArity;
             HasPublicConstructor = hasPublicConstructor;
+            ConstructorParameters = constructorParameters;
+            HasMultipleConstructors = hasMultipleConstructors;
+            PrimitiveParameterName = primitiveParameterName;
+            PrimitiveParameterType = primitiveParameterType;
         }
 
         public bool Equals(ServiceRegistrationInfo? other)
@@ -51,7 +63,8 @@ namespace ZeroInject.Generator
                 && Lifetime == other.Lifetime
                 && AsType == other.AsType
                 && Key == other.Key
-                && AllowMultiple == other.AllowMultiple;
+                && AllowMultiple == other.AllowMultiple
+                && ConstructorParameters.Count == other.ConstructorParameters.Count;
         }
 
         public override bool Equals(object? obj) => Equals(obj as ServiceRegistrationInfo);
