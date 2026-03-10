@@ -24,6 +24,24 @@ public class MemoryCache : ICache
     public string Get(string key) => $"cached:{key}";
 }
 
+public interface IOrderService
+{
+    string PlaceOrder(string item);
+}
+
+[Transient]
+public class OrderService : IOrderService
+{
+    private readonly IGreetingService _greetingService;
+
+    public OrderService(IGreetingService greetingService)
+    {
+        _greetingService = greetingService;
+    }
+
+    public string PlaceOrder(string item) => $"Order placed for {item}. {_greetingService.Greet("Customer")}";
+}
+
 [Scoped]
 public class ScopedWorker
 {
