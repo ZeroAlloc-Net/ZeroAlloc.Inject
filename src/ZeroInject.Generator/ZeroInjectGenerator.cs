@@ -635,12 +635,29 @@ namespace ZeroInject.Generator
             sb.AppendLine("    internal sealed class " + className + " : " + baseClass);
             sb.AppendLine("    {");
 
+            // Separate keyed services by lifetime
+            var keyedSingletons = new List<ServiceRegistrationInfo>();
+            var keyedTransients = new List<ServiceRegistrationInfo>();
+            var keyedScopedServices = new List<ServiceRegistrationInfo>();
+
+            foreach (var svc in keyedServices)
+            {
+                if (svc.Lifetime == "Singleton") keyedSingletons.Add(svc);
+                else if (svc.Lifetime == "Transient") keyedTransients.Add(svc);
+                else if (svc.Lifetime == "Scoped") keyedScopedServices.Add(svc);
+            }
+
             // Singleton fields
             for (int i = 0; i < singletons.Count; i++)
             {
                 sb.AppendLine("        private " + singletons[i].FullyQualifiedName + "? _singleton_" + i + ";");
             }
-            if (singletons.Count > 0)
+            // Keyed singleton fields
+            for (int i = 0; i < keyedSingletons.Count; i++)
+            {
+                sb.AppendLine("        private " + keyedSingletons[i].FullyQualifiedName + "? _keyedSingleton_" + i + ";");
+            }
+            if (singletons.Count > 0 || keyedSingletons.Count > 0)
             {
                 sb.AppendLine();
             }
@@ -691,11 +708,31 @@ namespace ZeroInject.Generator
                 sb.AppendLine("            if (serviceKey is string key)");
                 sb.AppendLine("            {");
 
-                foreach (var svc in keyedServices)
+                // Keyed singletons - cached with Interlocked.CompareExchange
+                for (int i = 0; i < keyedSingletons.Count; i++)
+                {
+                    var svc = keyedSingletons[i];
+                    var serviceTypes = GetServiceTypes(svc);
+                    var newExpr = BuildNewExpression(svc);
+                    var fieldName = "_keyedSingleton_" + i;
+                    var escapedKey = svc.Key!.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    foreach (var serviceType in serviceTypes)
+                    {
+                        sb.AppendLine("                if (serviceType == typeof(" + serviceType + ") && key == \"" + escapedKey + "\")");
+                        sb.AppendLine("                {");
+                        sb.AppendLine("                    if (" + fieldName + " != null) return " + fieldName + ";");
+                        sb.AppendLine("                    var instance = " + newExpr + ";");
+                        sb.AppendLine("                    return Interlocked.CompareExchange(ref " + fieldName + ", instance, null) ?? " + fieldName + ";");
+                        sb.AppendLine("                }");
+                    }
+                }
+
+                // Keyed transients - new instance each call
+                foreach (var svc in keyedTransients)
                 {
                     var serviceTypes = GetServiceTypes(svc);
                     var newExpr = BuildNewExpression(svc);
-                    var escapedKey = svc.Key.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    var escapedKey = svc.Key!.Replace("\\", "\\\\").Replace("\"", "\\\"");
                     foreach (var serviceType in serviceTypes)
                     {
                         sb.AppendLine("                if (serviceType == typeof(" + serviceType + ") && key == \"" + escapedKey + "\")");
@@ -732,26 +769,16 @@ namespace ZeroInject.Generator
             sb.AppendLine("        private sealed class Scope : " + scopeBase);
             sb.AppendLine("        {");
 
-            // Collect keyed scoped services for field generation
-            var keyedScopeds = new List<ServiceRegistrationInfo>();
-            foreach (var svc in keyedServices)
-            {
-                if (svc.Lifetime == "Scoped")
-                {
-                    keyedScopeds.Add(svc);
-                }
-            }
-
             // Scoped fields
             for (int i = 0; i < scopeds.Count; i++)
             {
                 sb.AppendLine("            private " + scopeds[i].FullyQualifiedName + "? _scoped_" + i + ";");
             }
-            for (int i = 0; i < keyedScopeds.Count; i++)
+            for (int i = 0; i < keyedScopedServices.Count; i++)
             {
-                sb.AppendLine("            private " + keyedScopeds[i].FullyQualifiedName + "? _keyedScoped_" + i + ";");
+                sb.AppendLine("            private " + keyedScopedServices[i].FullyQualifiedName + "? _keyedScoped_" + i + ";");
             }
-            if (scopeds.Count > 0 || keyedScopeds.Count > 0)
+            if (scopeds.Count > 0 || keyedScopedServices.Count > 0)
             {
                 sb.AppendLine();
             }
@@ -816,49 +843,50 @@ namespace ZeroInject.Generator
                 sb.AppendLine("                if (serviceKey is string key)");
                 sb.AppendLine("                {");
 
-                int keyedScopedIndex = 0;
-                foreach (var svc in keyedServices)
+                // Keyed singletons - delegate to root
+                foreach (var svc in keyedSingletons)
                 {
                     var serviceTypes = GetServiceTypes(svc);
-                    var escapedKey = svc.Key.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    var escapedKey = svc.Key!.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    foreach (var serviceType in serviceTypes)
+                    {
+                        sb.AppendLine("                    if (serviceType == typeof(" + serviceType + ") && key == \"" + escapedKey + "\")");
+                        sb.AppendLine("                        return ((" + className + ")Root).GetKeyedService(serviceType, serviceKey);");
+                    }
+                }
 
-                    if (svc.Lifetime == "Singleton")
+                // Keyed scoped services - cached per scope
+                for (int i = 0; i < keyedScopedServices.Count; i++)
+                {
+                    var svc = keyedScopedServices[i];
+                    var serviceTypes = GetServiceTypes(svc);
+                    var escapedKey = svc.Key!.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    var fieldName = "_keyedScoped_" + i;
+                    var newExpr = BuildNewExpressionForScope(svc);
+                    foreach (var serviceType in serviceTypes)
                     {
-                        // Delegate to root for singletons
-                        foreach (var serviceType in serviceTypes)
-                        {
-                            sb.AppendLine("                    if (serviceType == typeof(" + serviceType + ") && key == \"" + escapedKey + "\")");
-                            sb.AppendLine("                        return ((" + className + ")Root).GetKeyedService(serviceType, serviceKey);");
-                        }
+                        sb.AppendLine("                    if (serviceType == typeof(" + serviceType + ") && key == \"" + escapedKey + "\")");
+                        sb.AppendLine("                    {");
+                        sb.AppendLine("                        if (" + fieldName + " == null) " + fieldName + " = " + newExpr + ";");
+                        sb.AppendLine("                        return " + fieldName + ";");
+                        sb.AppendLine("                    }");
                     }
-                    else if (svc.Lifetime == "Scoped")
+                }
+
+                // Keyed transients - fresh instance, track disposable if needed
+                foreach (var svc in keyedTransients)
+                {
+                    var serviceTypes = GetServiceTypes(svc);
+                    var escapedKey = svc.Key!.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    var newExpr = BuildNewExpressionForScope(svc);
+                    if (svc.ImplementsDisposable)
                     {
-                        // Scoped keyed services use dedicated fields with lazy init
-                        var fieldName = "_keyedScoped_" + keyedScopedIndex;
-                        var newExpr = BuildNewExpressionForScope(svc);
-                        foreach (var serviceType in serviceTypes)
-                        {
-                            sb.AppendLine("                    if (serviceType == typeof(" + serviceType + ") && key == \"" + escapedKey + "\")");
-                            sb.AppendLine("                    {");
-                            sb.AppendLine("                        if (" + fieldName + " == null) " + fieldName + " = " + newExpr + ";");
-                            sb.AppendLine("                        return " + fieldName + ";");
-                            sb.AppendLine("                    }");
-                        }
-                        keyedScopedIndex++;
+                        newExpr = "TrackDisposable(" + newExpr + ")";
                     }
-                    else
+                    foreach (var serviceType in serviceTypes)
                     {
-                        // Transient keyed services - fresh instance, track disposable if needed
-                        var newExpr = BuildNewExpressionForScope(svc);
-                        if (svc.ImplementsDisposable)
-                        {
-                            newExpr = "TrackDisposable(" + newExpr + ")";
-                        }
-                        foreach (var serviceType in serviceTypes)
-                        {
-                            sb.AppendLine("                    if (serviceType == typeof(" + serviceType + ") && key == \"" + escapedKey + "\")");
-                            sb.AppendLine("                        return " + newExpr + ";");
-                        }
+                        sb.AppendLine("                    if (serviceType == typeof(" + serviceType + ") && key == \"" + escapedKey + "\")");
+                        sb.AppendLine("                        return " + newExpr + ";");
                     }
                 }
 

@@ -9,7 +9,7 @@ public abstract class ZeroInjectServiceProviderBase : IServiceProvider, IService
 
     protected ZeroInjectServiceProviderBase(IServiceProvider fallback)
     {
-        _fallback = fallback;
+        _fallback = fallback ?? throw new ArgumentNullException(nameof(fallback));
     }
 
     protected IServiceProvider Fallback => _fallback;

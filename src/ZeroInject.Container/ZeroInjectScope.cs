@@ -11,8 +11,8 @@ public abstract class ZeroInjectScope : IServiceScope, IServiceProvider, IDispos
 
     protected ZeroInjectScope(ZeroInjectServiceProviderBase root, IServiceScope fallbackScope)
     {
-        _root = root;
-        _fallbackScope = fallbackScope;
+        _root = root ?? throw new ArgumentNullException(nameof(root));
+        _fallbackScope = fallbackScope ?? throw new ArgumentNullException(nameof(fallbackScope));
     }
 
     protected ZeroInjectServiceProviderBase Root => _root;

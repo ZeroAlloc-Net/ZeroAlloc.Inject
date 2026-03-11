@@ -455,6 +455,21 @@ public class ContainerGeneratorTests
     }
 
     [Fact]
+    public void KeyedSingleton_GeneratesCachedField()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface ICache { }
+            [Singleton(Key = "redis")]
+            public class RedisCache : ICache { }
+            """;
+        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        Assert.Contains("_keyedSingleton_", output);
+        Assert.Contains("Interlocked.CompareExchange", output);
+    }
+
+    [Fact]
     public void KeyedTransient_InScope_CreatesNewInstance()
     {
         var source = """
