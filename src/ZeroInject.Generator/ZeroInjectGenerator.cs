@@ -942,6 +942,57 @@ namespace ZeroInject.Generator
                 }
             }
 
+            // IEnumerable<T> resolution in scope (all lifetimes)
+            foreach (var kvp in serviceTypeGroups)
+            {
+                var serviceType = kvp.Key;
+                var entries = kvp.Value;
+                if (entries.Count == 0) continue;
+
+                sb.AppendLine("                if (serviceType == typeof(System.Collections.Generic.IEnumerable<" + serviceType + ">))");
+                sb.AppendLine("                {");
+                sb.Append("                    return new " + serviceType + "[] { ");
+
+                for (int j = 0; j < entries.Count; j++)
+                {
+                    if (j > 0) sb.Append(", ");
+                    var entry = entries[j];
+
+                    if (entry.Lifetime == "Transient")
+                    {
+                        var newExpr = BuildNewExpressionForScope(entry.Svc);
+                        if (entry.Svc.ImplementsDisposable)
+                        {
+                            sb.Append("TrackDisposable(" + newExpr + ")");
+                        }
+                        else
+                        {
+                            sb.Append(newExpr);
+                        }
+                    }
+                    else if (entry.Lifetime == "Singleton")
+                    {
+                        sb.Append("(" + serviceType + ")Root.GetService(typeof(" + serviceType + "))!");
+                    }
+                    else if (entry.Lifetime == "Scoped")
+                    {
+                        var fieldName = "_scoped_" + entry.FieldIndex;
+                        var newExpr = BuildNewExpressionForScope(entry.Svc);
+                        if (entry.Svc.ImplementsDisposable)
+                        {
+                            sb.Append(fieldName + " ?? (" + fieldName + " = TrackDisposable(" + newExpr + "))");
+                        }
+                        else
+                        {
+                            sb.Append(fieldName + " ?? (" + fieldName + " = " + newExpr + ")");
+                        }
+                    }
+                }
+
+                sb.AppendLine(" };");
+                sb.AppendLine("                }");
+            }
+
             sb.AppendLine("                return null;");
             sb.AppendLine("            }");
 

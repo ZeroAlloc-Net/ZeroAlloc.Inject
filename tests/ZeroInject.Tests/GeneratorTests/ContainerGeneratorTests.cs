@@ -758,6 +758,35 @@ public class ContainerGeneratorTests
     }
 
     [Fact]
+    public void IEnumerable_InScope_IncludesAllLifetimes()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+
+            public interface IHandler { }
+
+            [Transient(AllowMultiple = true)]
+            public class HandlerA : IHandler { }
+
+            [Singleton(AllowMultiple = true)]
+            public class HandlerB : IHandler { }
+
+            [Scoped(AllowMultiple = true)]
+            public class HandlerC : IHandler { }
+            """;
+
+        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        // Find the scope's ResolveScopedKnown section
+        var scopeSection = output.Substring(output.IndexOf("ResolveScopedKnown"));
+        Assert.Contains("IEnumerable<global::TestApp.IHandler>", scopeSection);
+        // All three should be in the array
+        Assert.Contains("HandlerA", scopeSection);
+        Assert.Contains("HandlerB", scopeSection);
+        Assert.Contains("HandlerC", scopeSection);
+    }
+
+    [Fact]
     public void KeyedServices_GeneratesIKeyedServiceProviderSelfResolution()
     {
         var source = """
