@@ -850,6 +850,102 @@ public class ContainerGeneratorTests
         Assert.Contains("IEnumerable<global::TestApp.IRepo>", scopeSection);
     }
 
+    // --- Standalone provider generation ---
+
+    [Fact]
+    public void WhenContainerReferenced_GeneratesStandaloneProvider()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IFoo { }
+            [Transient]
+            public class Foo : IFoo { }
+            """;
+        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        Assert.Contains("TestAssemblyStandaloneServiceProvider", output);
+        Assert.Contains("ZeroInjectStandaloneProvider", output);
+    }
+
+    [Fact]
+    public void Standalone_HasParameterlessConstructor()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IFoo { }
+            [Transient]
+            public class Foo : IFoo { }
+            """;
+        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        var standaloneSection = output.Substring(output.IndexOf("TestAssemblyStandaloneServiceProvider"));
+        Assert.Contains("public TestAssemblyStandaloneServiceProvider() { }", standaloneSection);
+    }
+
+    [Fact]
+    public void Standalone_ScopeInheritsFromStandaloneScope()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IFoo { }
+            [Transient]
+            public class Foo : IFoo { }
+            """;
+        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        var standaloneSection = output.Substring(output.IndexOf("TestAssemblyStandaloneServiceProvider"));
+        Assert.Contains("ZeroInjectStandaloneScope", standaloneSection);
+    }
+
+    [Fact]
+    public void Standalone_CreateScopeCore_NoFallbackParameter()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IFoo { }
+            [Transient]
+            public class Foo : IFoo { }
+            """;
+        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        var standaloneSection = output.Substring(output.IndexOf("TestAssemblyStandaloneServiceProvider"));
+        Assert.Contains("protected override global::ZeroInject.Container.ZeroInjectStandaloneScope CreateScopeCore()", standaloneSection);
+        Assert.DoesNotContain("IServiceScope fallbackScope", standaloneSection);
+    }
+
+    [Fact]
+    public void Standalone_ResolveKnown_SameAsHybrid()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IFoo { }
+            [Transient]
+            public class Foo : IFoo { }
+            [Singleton]
+            public class Bar { }
+            """;
+        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        var standaloneSection = output.Substring(output.IndexOf("TestAssemblyStandaloneServiceProvider"));
+        Assert.Contains("return new global::TestApp.Foo();", standaloneSection);
+        Assert.Contains("Interlocked.CompareExchange", standaloneSection);
+    }
+
+    [Fact]
+    public void Standalone_ScopeConstructor_NoFallbackScope()
+    {
+        var source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IRepo { }
+            [Scoped]
+            public class Repo : IRepo { }
+            """;
+        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        var standaloneSection = output.Substring(output.IndexOf("TestAssemblyStandaloneServiceProvider"));
+        Assert.Contains("public Scope(TestAssemblyStandaloneServiceProvider root) : base(root) { }", standaloneSection);
+    }
+
     [Fact]
     public void IEnumerable_MultipleTransients_GeneratesArrayWithAll()
     {
