@@ -593,6 +593,143 @@ public class IntegrationTests
         Assert.Equal("HandlerB", instance!.GetType().Name);
     }
 
+    // ---------------------------------------------------------------
+    // 18. IEnumerable<T> returns all registered implementations
+    // ---------------------------------------------------------------
+    [Fact]
+    public void IEnumerable_ReturnsAllRegistrations()
+    {
+        const string source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IHandler { }
+            [Transient(AllowMultiple = true)]
+            public class HandlerA : IHandler { }
+            [Transient(AllowMultiple = true)]
+            public class HandlerB : IHandler { }
+            """;
+
+        var (assembly, provider) = BuildAndCreateProvider(source);
+        var enumerableType = typeof(IEnumerable<>).MakeGenericType(assembly.GetType("TestApp.IHandler")!);
+
+        var result = provider.GetService(enumerableType);
+        Assert.NotNull(result);
+
+        var array = ((System.Collections.IEnumerable)result!).Cast<object>().ToArray();
+        Assert.Equal(2, array.Length);
+    }
+
+    // ---------------------------------------------------------------
+    // 19. Singleton identity consistent between GetService and IEnumerable
+    // ---------------------------------------------------------------
+    [Fact]
+    public void IEnumerable_SingletonIdentity_ConsistentWithGetService()
+    {
+        const string source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface ICache { }
+            [Singleton]
+            public class Cache : ICache { }
+            """;
+
+        var (assembly, provider) = BuildAndCreateProvider(source);
+        var cacheType = assembly.GetType("TestApp.ICache")!;
+        var enumerableType = typeof(IEnumerable<>).MakeGenericType(cacheType);
+
+        var single = provider.GetService(cacheType);
+        var enumerable = provider.GetService(enumerableType);
+        var array = ((System.Collections.IEnumerable)enumerable!).Cast<object>().ToArray();
+
+        Assert.Single(array);
+        Assert.Same(single, array[0]);
+    }
+
+    // ---------------------------------------------------------------
+    // 20. Scoped identity consistent between GetService and IEnumerable in scope
+    // ---------------------------------------------------------------
+    [Fact]
+    public void IEnumerable_ScopedIdentity_ConsistentWithGetService()
+    {
+        const string source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IRepo { }
+            [Scoped]
+            public class Repo : IRepo { }
+            """;
+
+        var (assembly, provider) = BuildAndCreateProvider(source);
+        var repoType = assembly.GetType("TestApp.IRepo")!;
+        var enumerableType = typeof(IEnumerable<>).MakeGenericType(repoType);
+        var scopeFactory = (IServiceScopeFactory)provider.GetService(typeof(IServiceScopeFactory))!;
+
+        using var scope = scopeFactory.CreateScope();
+        var single = scope.ServiceProvider.GetService(repoType);
+        var enumerable = scope.ServiceProvider.GetService(enumerableType);
+        var array = ((System.Collections.IEnumerable)enumerable!).Cast<object>().ToArray();
+
+        Assert.Single(array);
+        Assert.Same(single, array[0]);
+    }
+
+    // ---------------------------------------------------------------
+    // 21. IEnumerable at root excludes scoped services
+    // ---------------------------------------------------------------
+    [Fact]
+    public void IEnumerable_AtRoot_ExcludesScopedServices()
+    {
+        const string source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IService { }
+            [Scoped]
+            public class ScopedOnly : IService { }
+            """;
+
+        var (assembly, provider) = BuildAndCreateProvider(source);
+        var enumerableType = typeof(IEnumerable<>).MakeGenericType(assembly.GetType("TestApp.IService")!);
+
+        // At root, scoped-only IEnumerable should fall through to fallback
+        var result = provider.GetService(enumerableType);
+        if (result != null)
+        {
+            var array = ((System.Collections.IEnumerable)result).Cast<object>().ToArray();
+            Assert.Empty(array);
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // 22. IEnumerable in scope includes all lifetimes
+    // ---------------------------------------------------------------
+    [Fact]
+    public void IEnumerable_InScope_IncludesAllLifetimes()
+    {
+        const string source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IHandler { }
+            [Transient(AllowMultiple = true)]
+            public class TransientHandler : IHandler { }
+            [Singleton(AllowMultiple = true)]
+            public class SingletonHandler : IHandler { }
+            [Scoped(AllowMultiple = true)]
+            public class ScopedHandler : IHandler { }
+            """;
+
+        var (assembly, provider) = BuildAndCreateProvider(source);
+        var handlerType = assembly.GetType("TestApp.IHandler")!;
+        var enumerableType = typeof(IEnumerable<>).MakeGenericType(handlerType);
+        var scopeFactory = (IServiceScopeFactory)provider.GetService(typeof(IServiceScopeFactory))!;
+
+        using var scope = scopeFactory.CreateScope();
+        var result = scope.ServiceProvider.GetService(enumerableType);
+        Assert.NotNull(result);
+
+        var array = ((System.Collections.IEnumerable)result!).Cast<object>().ToArray();
+        Assert.Equal(3, array.Length);
+    }
+
     /// <summary>
     /// A simple marker type used to verify fallback resolution.
     /// Because this type is defined in the test assembly (not in the
