@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <RootNamespace>ZeroInject.Benchmarks</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);MA0048</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ZeroInject\ZeroInject.csproj" />
+    <ProjectReference Include="..\..\src\ZeroInject.Container\ZeroInject.Container.csproj" />
+    <ProjectReference Include="..\..\src\ZeroInject.Generator\ZeroInject.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>
