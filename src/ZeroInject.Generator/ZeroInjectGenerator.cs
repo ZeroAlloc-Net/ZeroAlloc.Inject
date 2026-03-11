@@ -652,6 +652,13 @@ namespace ZeroInject.Generator
                 }
             }
 
+            // Determine which entry is the last registration per service type (for last-wins behavior)
+            var lastRegistrationPerType = new Dictionary<string, ServiceTypeGroupEntry>();
+            foreach (var kvp in serviceTypeGroups)
+            {
+                lastRegistrationPerType[kvp.Key] = kvp.Value[kvp.Value.Count - 1];
+            }
+
             bool hasKeyedServices = keyedServices.Count > 0;
 
             var sb = new StringBuilder();
@@ -716,7 +723,17 @@ namespace ZeroInject.Generator
             foreach (var svc in transients)
             {
                 var newExpr = BuildNewExpression(svc);
-                EmitTypeChecks(sb, svc, newExpr, "            ");
+                var serviceTypes = GetServiceTypes(svc);
+                foreach (var serviceType in serviceTypes)
+                {
+                    ServiceTypeGroupEntry lastEntry;
+                    if (lastRegistrationPerType.TryGetValue(serviceType, out lastEntry)
+                        && lastEntry.Svc == svc && lastEntry.Lifetime == "Transient")
+                    {
+                        sb.AppendLine("            if (serviceType == typeof(" + serviceType + "))");
+                        sb.AppendLine("                return " + newExpr + ";");
+                    }
+                }
             }
 
             // Singletons
@@ -729,6 +746,13 @@ namespace ZeroInject.Generator
 
                 foreach (var serviceType in serviceTypes)
                 {
+                    ServiceTypeGroupEntry lastEntry;
+                    if (!lastRegistrationPerType.TryGetValue(serviceType, out lastEntry)
+                        || lastEntry.Svc != svc || lastEntry.Lifetime != "Singleton")
+                    {
+                        continue; // Not the last registration for this service type
+                    }
+
                     sb.AppendLine("            if (serviceType == typeof(" + serviceType + "))");
                     sb.AppendLine("            {");
                     sb.AppendLine("                if (" + fieldName + " != null) return " + fieldName + ";");
@@ -903,7 +927,17 @@ namespace ZeroInject.Generator
                 {
                     newExpr = "TrackDisposable(" + newExpr + ")";
                 }
-                EmitTypeChecks(sb, svc, newExpr, "                ");
+                var serviceTypes = GetServiceTypes(svc);
+                foreach (var serviceType in serviceTypes)
+                {
+                    ServiceTypeGroupEntry lastEntry;
+                    if (lastRegistrationPerType.TryGetValue(serviceType, out lastEntry)
+                        && lastEntry.Svc == svc && lastEntry.Lifetime == "Transient")
+                    {
+                        sb.AppendLine("                if (serviceType == typeof(" + serviceType + "))");
+                        sb.AppendLine("                    return " + newExpr + ";");
+                    }
+                }
             }
 
             // Singletons in scope - delegate to Root
@@ -912,6 +946,12 @@ namespace ZeroInject.Generator
                 var serviceTypes = GetServiceTypes(svc);
                 foreach (var serviceType in serviceTypes)
                 {
+                    ServiceTypeGroupEntry lastEntry;
+                    if (!lastRegistrationPerType.TryGetValue(serviceType, out lastEntry)
+                        || lastEntry.Svc != svc || lastEntry.Lifetime != "Singleton")
+                    {
+                        continue;
+                    }
                     sb.AppendLine("                if (serviceType == typeof(" + serviceType + "))");
                     sb.AppendLine("                    return Root.GetService(serviceType);");
                 }
@@ -927,6 +967,13 @@ namespace ZeroInject.Generator
 
                 foreach (var serviceType in serviceTypes)
                 {
+                    ServiceTypeGroupEntry lastEntry;
+                    if (!lastRegistrationPerType.TryGetValue(serviceType, out lastEntry)
+                        || lastEntry.Svc != svc || lastEntry.Lifetime != "Scoped")
+                    {
+                        continue;
+                    }
+
                     sb.AppendLine("                if (serviceType == typeof(" + serviceType + "))");
                     sb.AppendLine("                {");
                     if (svc.ImplementsDisposable)

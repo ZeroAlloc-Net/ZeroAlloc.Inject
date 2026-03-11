@@ -487,6 +487,112 @@ public class IntegrationTests
         Assert.Null(result);
     }
 
+    // ---------------------------------------------------------------
+    // 14. Scoped disposable services are disposed when scope is disposed
+    // ---------------------------------------------------------------
+    [Fact]
+    public void ScopeDisposal_DisposesScopedDisposableServices()
+    {
+        const string source = """
+            using ZeroInject;
+            using System;
+            namespace TestApp;
+            public interface IRepo { }
+            [Scoped]
+            public class Repo : IRepo, IDisposable
+            {
+                public bool IsDisposed { get; private set; }
+                public void Dispose() { IsDisposed = true; }
+            }
+            """;
+
+        var (assembly, provider) = BuildAndCreateProvider(source);
+        var repoType = assembly.GetType("TestApp.IRepo")!;
+        var scopeFactory = (IServiceScopeFactory)provider.GetService(typeof(IServiceScopeFactory))!;
+        var scope = scopeFactory.CreateScope();
+
+        var instance = scope.ServiceProvider.GetService(repoType);
+        Assert.NotNull(instance);
+
+        var isDisposedProp = instance!.GetType().GetProperty("IsDisposed")!;
+        Assert.False((bool)isDisposedProp.GetValue(instance)!);
+
+        scope.Dispose();
+
+        Assert.True((bool)isDisposedProp.GetValue(instance)!);
+    }
+
+    // ---------------------------------------------------------------
+    // 15. IKeyedServiceProvider resolvable via GetService
+    // ---------------------------------------------------------------
+    [Fact]
+    public void IKeyedServiceProvider_ResolvableViaGetService()
+    {
+        const string source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface ICache { }
+            [Singleton(Key = "redis")]
+            public class RedisCache : ICache { }
+            """;
+
+        var (_, provider) = BuildAndCreateProvider(source);
+
+        var keyedProvider = provider.GetService(typeof(IKeyedServiceProvider));
+
+        Assert.NotNull(keyedProvider);
+        Assert.Same(provider, keyedProvider);
+    }
+
+    // ---------------------------------------------------------------
+    // 16. IKeyedServiceProvider resolvable in scope
+    // ---------------------------------------------------------------
+    [Fact]
+    public void IKeyedServiceProvider_ResolvableInScope()
+    {
+        const string source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface ICache { }
+            [Transient(Key = "fast")]
+            public class FastCache : ICache { }
+            """;
+
+        var (_, provider) = BuildAndCreateProvider(source);
+        var scopeFactory = (IServiceScopeFactory)provider.GetService(typeof(IServiceScopeFactory))!;
+        using var scope = scopeFactory.CreateScope();
+
+        var keyedProvider = scope.ServiceProvider.GetService(typeof(IKeyedServiceProvider));
+
+        Assert.NotNull(keyedProvider);
+        Assert.Same(scope.ServiceProvider, keyedProvider);
+    }
+
+    // ---------------------------------------------------------------
+    // 17. GetService with multiple registrations returns last registered
+    // ---------------------------------------------------------------
+    [Fact]
+    public void GetService_WithMultipleRegistrations_ReturnsLastRegistered()
+    {
+        const string source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IHandler { }
+            [Transient(AllowMultiple = true)]
+            public class HandlerA : IHandler { }
+            [Transient(AllowMultiple = true)]
+            public class HandlerB : IHandler { }
+            """;
+
+        var (assembly, provider) = BuildAndCreateProvider(source);
+        var handlerType = assembly.GetType("TestApp.IHandler")!;
+
+        var instance = provider.GetService(handlerType);
+        Assert.NotNull(instance);
+        // Last registered (HandlerB) should win
+        Assert.Equal("HandlerB", instance!.GetType().Name);
+    }
+
     /// <summary>
     /// A simple marker type used to verify fallback resolution.
     /// Because this type is defined in the test assembly (not in the
