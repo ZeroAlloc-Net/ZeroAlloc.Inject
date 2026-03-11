@@ -43,4 +43,10 @@ public class RegistrationBenchmarks
         services.AddZeroInjectBenchmarksServices();
         return services.BuildZeroInjectServiceProvider();
     }
+
+    [Benchmark(Description = "Standalone: Direct instantiation")]
+    public IServiceProvider Standalone_DirectInstantiation()
+    {
+        return new ZeroInject.Generated.ZeroInjectBenchmarksStandaloneServiceProvider();
+    }
 }
