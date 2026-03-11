@@ -801,7 +801,8 @@ namespace ZeroInject.Generator
                     }
                     else if (entry.Lifetime == "Singleton")
                     {
-                        sb.Append("(" + serviceType + ")GetService(typeof(" + serviceType + "))!");
+                        // Use concrete type to resolve — avoids last-wins returning same instance for all
+                        sb.Append("(" + serviceType + ")GetService(typeof(" + entry.Svc.FullyQualifiedName + "))!");
                     }
                 }
 
@@ -1019,7 +1020,8 @@ namespace ZeroInject.Generator
                     }
                     else if (entry.Lifetime == "Singleton")
                     {
-                        sb.Append("(" + serviceType + ")Root.GetService(typeof(" + serviceType + "))!");
+                        // Use concrete type to resolve — avoids last-wins returning same instance for all
+                        sb.Append("(" + serviceType + ")Root.GetService(typeof(" + entry.Svc.FullyQualifiedName + "))!");
                     }
                     else if (entry.Lifetime == "Scoped")
                     {
@@ -1171,16 +1173,6 @@ namespace ZeroInject.Generator
                 types.Add(svc.FullyQualifiedName);
             }
             return types;
-        }
-
-        private static void EmitTypeChecks(StringBuilder sb, ServiceRegistrationInfo svc, string newExpr, string indent)
-        {
-            var serviceTypes = GetServiceTypes(svc);
-            foreach (var serviceType in serviceTypes)
-            {
-                sb.AppendLine(indent + "if (serviceType == typeof(" + serviceType + "))");
-                sb.AppendLine(indent + "    return " + newExpr + ";");
-            }
         }
 
         private static string BuildNewExpression(ServiceRegistrationInfo svc)

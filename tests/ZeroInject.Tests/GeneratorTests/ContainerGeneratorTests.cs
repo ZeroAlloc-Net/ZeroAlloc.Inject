@@ -821,7 +821,8 @@ public class ContainerGeneratorTests
 
         var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
         Assert.Contains("IEnumerable<global::TestApp.ICache>", output);
-        Assert.Contains("GetService(typeof(global::TestApp.ICache))", output);
+        // Singletons in IEnumerable use concrete type to avoid last-wins issue
+        Assert.Contains("GetService(typeof(global::TestApp.Cache))", output);
     }
 
     [Fact]

@@ -730,6 +730,36 @@ public class IntegrationTests
         Assert.Equal(3, array.Length);
     }
 
+    // ---------------------------------------------------------------
+    // 23. IEnumerable with multiple singletons returns distinct instances
+    // ---------------------------------------------------------------
+    [Fact]
+    public void IEnumerable_MultipleSingletons_ReturnsDistinctInstances()
+    {
+        const string source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IHandler { }
+            [Singleton(AllowMultiple = true)]
+            public class HandlerA : IHandler { }
+            [Singleton(AllowMultiple = true)]
+            public class HandlerB : IHandler { }
+            """;
+
+        var (assembly, provider) = BuildAndCreateProvider(source);
+        var handlerType = assembly.GetType("TestApp.IHandler")!;
+        var enumerableType = typeof(IEnumerable<>).MakeGenericType(handlerType);
+
+        var result = provider.GetService(enumerableType);
+        Assert.NotNull(result);
+
+        var array = ((System.Collections.IEnumerable)result!).Cast<object>().ToArray();
+        Assert.Equal(2, array.Length);
+        Assert.NotSame(array[0], array[1]);
+        Assert.Equal("HandlerA", array[0].GetType().Name);
+        Assert.Equal("HandlerB", array[1].GetType().Name);
+    }
+
     /// <summary>
     /// A simple marker type used to verify fallback resolution.
     /// Because this type is defined in the test assembly (not in the

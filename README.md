@@ -113,6 +113,52 @@ ZeroInject reports issues at compile time:
 | ZI009 | Error | Multiple public constructors without `[ActivatorUtilitiesConstructor]` |
 | ZI010 | Error | Constructor parameter is a primitive/value type |
 
+## Generated Container (Phase 3)
+
+ZeroInject can replace the default MS DI container entirely with a source-generated `IServiceProvider`. This eliminates reflection-based resolution at runtime for near-zero overhead.
+
+### Installation
+
+Add the `ZeroInject.Container` package alongside the existing packages:
+
+```
+dotnet add package ZeroInject
+dotnet add package ZeroInject.Generator
+dotnet add package ZeroInject.Container
+```
+
+When the generator detects a reference to `ZeroInject.Container`, it automatically emits a generated service provider class and a `BuildZeroInjectServiceProvider` extension method.
+
+### Console App Usage
+
+```csharp
+var services = new ServiceCollection();
+services.AddMyAppServices(); // Generated registration method
+
+IServiceProvider provider = services.BuildZeroInjectServiceProvider();
+var myService = provider.GetRequiredService<IMyService>();
+```
+
+### ASP.NET Core Usage
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddMyAppServices();
+builder.Host.UseServiceProviderFactory(new ZeroInjectServiceProviderFactory());
+
+var app = builder.Build();
+```
+
+### How It Works
+
+The generated container uses a type-switch (`if`/`else if` chain on `typeof(T)`) to resolve services directly, avoiding dictionary lookups and reflection. For any service type the container does not know about (e.g., framework services), it falls back to the standard MS DI provider.
+
+### Current Limitations (v1)
+
+- **`IEnumerable<T>` resolution** delegates to the fallback MS DI provider
+- **Open generics** (e.g., `IRepository<>`) delegate to the fallback MS DI provider
+- **`IServiceProviderIsService`** delegates to the fallback MS DI provider
+
 ## How It Compares to Scrutor
 
 | | ZeroInject | Scrutor |

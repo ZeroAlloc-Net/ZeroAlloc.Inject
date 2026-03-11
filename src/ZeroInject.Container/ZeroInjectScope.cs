@@ -6,6 +6,7 @@ public abstract class ZeroInjectScope : IServiceScope, IServiceProvider, IDispos
 {
     private readonly ZeroInjectServiceProviderBase _root;
     private readonly IServiceScope _fallbackScope;
+    private readonly object _trackLock = new object();
     private List<object>? _disposables;
     private int _disposed;
 
@@ -41,8 +42,11 @@ public abstract class ZeroInjectScope : IServiceScope, IServiceProvider, IDispos
     {
         if (instance is IDisposable or IAsyncDisposable)
         {
-            _disposables ??= [];
-            _disposables.Add(instance);
+            lock (_trackLock)
+            {
+                _disposables ??= [];
+                _disposables.Add(instance);
+            }
         }
 
         return instance;
@@ -58,11 +62,18 @@ public abstract class ZeroInjectScope : IServiceScope, IServiceProvider, IDispos
     {
         if (disposing && Interlocked.Exchange(ref _disposed, 1) == 0)
         {
-            if (_disposables is not null)
+            List<object>? snapshot;
+            lock (_trackLock)
             {
-                for (var i = _disposables.Count - 1; i >= 0; i--)
+                snapshot = _disposables;
+                _disposables = null;
+            }
+
+            if (snapshot is not null)
+            {
+                for (var i = snapshot.Count - 1; i >= 0; i--)
                 {
-                    if (_disposables[i] is IDisposable disposable)
+                    if (snapshot[i] is IDisposable disposable)
                     {
                         disposable.Dispose();
                     }
@@ -77,15 +88,22 @@ public abstract class ZeroInjectScope : IServiceScope, IServiceProvider, IDispos
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 0)
         {
-            if (_disposables is not null)
+            List<object>? snapshot;
+            lock (_trackLock)
             {
-                for (var i = _disposables.Count - 1; i >= 0; i--)
+                snapshot = _disposables;
+                _disposables = null;
+            }
+
+            if (snapshot is not null)
+            {
+                for (var i = snapshot.Count - 1; i >= 0; i--)
                 {
-                    if (_disposables[i] is IAsyncDisposable asyncDisposable)
+                    if (snapshot[i] is IAsyncDisposable asyncDisposable)
                     {
                         await asyncDisposable.DisposeAsync().ConfigureAwait(false);
                     }
-                    else if (_disposables[i] is IDisposable disposable)
+                    else if (snapshot[i] is IDisposable disposable)
                     {
                         disposable.Dispose();
                     }
