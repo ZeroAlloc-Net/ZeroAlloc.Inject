@@ -50,7 +50,7 @@ public class ServiceProviderBaseTests
 
         protected override bool IsKnownService(Type serviceType) => false;
 
-        protected override bool IsKnownKeyedService(Type serviceType, object serviceKey) => false;
+        protected override bool IsKnownKeyedService(Type serviceType, object? serviceKey) => false;
 
         protected override ZInjectScope CreateScopeCore(IServiceScope fallbackScope)
             => new TestScope(this, fallbackScope);

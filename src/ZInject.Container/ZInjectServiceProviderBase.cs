@@ -43,7 +43,7 @@ public abstract class ZInjectServiceProviderBase : IServiceProvider, IServiceSco
 
     protected abstract bool IsKnownService(Type serviceType);
 
-    protected abstract bool IsKnownKeyedService(Type serviceType, object serviceKey);
+    protected abstract bool IsKnownKeyedService(Type serviceType, object? serviceKey);
 
     public bool IsService(Type serviceType)
     {
@@ -56,7 +56,7 @@ public abstract class ZInjectServiceProviderBase : IServiceProvider, IServiceSco
 
     public bool IsKeyedService(Type serviceType, object? serviceKey)
     {
-        return IsKnownKeyedService(serviceType, serviceKey!)
+        return IsKnownKeyedService(serviceType, serviceKey)
             || (_fallback as IServiceProviderIsKeyedService)?.IsKeyedService(serviceType, serviceKey) == true;
     }
 

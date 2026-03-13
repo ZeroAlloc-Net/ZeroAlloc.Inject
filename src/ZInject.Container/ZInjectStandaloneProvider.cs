@@ -35,7 +35,7 @@ public abstract class ZInjectStandaloneProvider : IServiceProvider, IServiceScop
 
     protected abstract bool IsKnownService(Type serviceType);
 
-    protected abstract bool IsKnownKeyedService(Type serviceType, object serviceKey);
+    protected abstract bool IsKnownKeyedService(Type serviceType, object? serviceKey);
 
     public bool IsService(Type serviceType)
     {
@@ -47,7 +47,7 @@ public abstract class ZInjectStandaloneProvider : IServiceProvider, IServiceScop
 
     public bool IsKeyedService(Type serviceType, object? serviceKey)
     {
-        return IsKnownKeyedService(serviceType, serviceKey!);
+        return IsKnownKeyedService(serviceType, serviceKey);
     }
 
     public IServiceScope CreateScope()

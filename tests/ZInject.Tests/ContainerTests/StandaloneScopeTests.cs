@@ -6,7 +6,7 @@ public class StandaloneScopeTests
     {
         protected override object? ResolveKnown(Type serviceType) => null;
         protected override bool IsKnownService(Type serviceType) => false;
-        protected override bool IsKnownKeyedService(Type serviceType, object serviceKey) => false;
+        protected override bool IsKnownKeyedService(Type serviceType, object? serviceKey) => false;
         protected override ZInject.Container.ZInjectStandaloneScope CreateScopeCore()
             => new TestScope(this);
     }
@@ -150,7 +150,7 @@ public class StandaloneScopeTests
     {
         protected override object? ResolveKnown(Type serviceType) => null;
         protected override bool IsKnownService(Type serviceType) => false;
-        protected override bool IsKnownKeyedService(Type serviceType, object serviceKey) => false;
+        protected override bool IsKnownKeyedService(Type serviceType, object? serviceKey) => false;
         protected override ZInject.Container.ZInjectStandaloneScope CreateScopeCore() => new TestScopedOgScope(this);
 
         private sealed class TestScopedOgScope : ZInject.Container.ZInjectStandaloneScope

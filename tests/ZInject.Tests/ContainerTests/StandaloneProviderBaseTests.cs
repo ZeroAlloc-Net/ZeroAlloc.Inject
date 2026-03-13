@@ -16,7 +16,7 @@ public class StandaloneProviderBaseTests
 
         protected override bool IsKnownService(Type serviceType) => false;
 
-        protected override bool IsKnownKeyedService(Type serviceType, object serviceKey) => false;
+        protected override bool IsKnownKeyedService(Type serviceType, object? serviceKey) => false;
 
         protected override ZInject.Container.ZInjectStandaloneScope CreateScopeCore()
         {

@@ -2090,7 +2090,7 @@ namespace ZInject.Generator
             StringBuilder sb,
             List<ServiceRegistrationInfo> keyedServices)
         {
-            sb.AppendLine("        protected override bool IsKnownKeyedService(global::System.Type serviceType, object serviceKey)");
+            sb.AppendLine("        protected override bool IsKnownKeyedService(global::System.Type serviceType, object? serviceKey)");
             sb.AppendLine("        {");
 
             if (keyedServices.Count > 0)
