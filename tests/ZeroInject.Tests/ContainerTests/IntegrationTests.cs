@@ -27,7 +27,7 @@ public class IntegrationTests
         if (genErrors.Count > 0)
         {
             throw new InvalidOperationException(
-                "Generator produced errors:\n" + string.Join("\n", genErrors));
+                "Generator produced errors:\n" + string.Join("\n", genErrors.Select(e => e.ToString())));
         }
 
         // 2. Emit the compilation that already contains user + generated trees.
@@ -404,7 +404,7 @@ public class IntegrationTests
         if (genErrors.Count > 0)
         {
             throw new InvalidOperationException(
-                "Generator produced errors:\n" + string.Join("\n", genErrors));
+                "Generator produced errors:\n" + string.Join("\n", genErrors.Select(e => e.ToString())));
         }
 
         using var ms = new MemoryStream();
@@ -779,7 +779,7 @@ public class IntegrationTests
         if (genErrors.Count > 0)
         {
             throw new InvalidOperationException(
-                "Generator produced errors:\n" + string.Join("\n", genErrors));
+                "Generator produced errors:\n" + string.Join("\n", genErrors.Select(e => e.ToString())));
         }
 
         using var ms = new MemoryStream();
@@ -1377,7 +1377,7 @@ public class IntegrationTests
         if (genErrors.Count > 0)
         {
             throw new InvalidOperationException(
-                "Generator produced errors:\n" + string.Join("\n", genErrors));
+                "Generator produced errors:\n" + string.Join("\n", genErrors.Select(e => e.ToString())));
         }
 
         using var ms = new MemoryStream();
