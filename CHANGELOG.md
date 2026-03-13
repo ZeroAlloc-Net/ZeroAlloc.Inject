@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.1](https://github.com/MarcelRoozekrans/ZInject/compare/v0.10.0...v0.10.1) (2026-03-13)
+
+
+### Bug Fixes
+
+* trigger publish on tag push + add GitHub Packages ([df26ab0](https://github.com/MarcelRoozekrans/ZInject/commit/df26ab0816e0c08539debc921463b6067e607783))
+* trigger publish workflow on push to main ([4834b63](https://github.com/MarcelRoozekrans/ZInject/commit/4834b637cd564d5ed71887ef34cd69432e14f32f))
+
 ## [0.10.0](https://github.com/MarcelRoozekrans/ZInject/compare/v0.9.0...v0.10.0) (2026-03-13)
 
 
