@@ -1204,4 +1204,69 @@ public class ContainerGeneratorTests
         Assert.Contains("new global::CachingRepo(", output);
         Assert.Contains("new global::ConcreteRepo()", output);
     }
+
+    [Fact]
+    public void Hybrid_IsKnownKeyedService_EmitsKeyTypeChecks()
+    {
+        var source = """
+            using ZInject;
+            public interface ICache { }
+            [Singleton(Key = "memory")]
+            public class MemoryCache : ICache { }
+            [Singleton(Key = "redis")]
+            public class RedisCache : ICache { }
+            """;
+
+        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        Assert.Contains("override bool IsKnownKeyedService", output);
+        Assert.Contains("serviceKey is string", output);
+        Assert.Contains("\"memory\"", output);
+        Assert.Contains("\"redis\"", output);
+        Assert.Contains("typeof(global::ICache)", output);
+    }
+
+    [Fact]
+    public void Standalone_IsKnownKeyedService_EmitsKeyTypeChecks()
+    {
+        var source = """
+            using ZInject;
+            [assembly: ZInject("Register", standalone: true)]
+            public interface ICache { }
+            [Singleton(Key = "memory")]
+            public class MemoryCache : ICache { }
+            """;
+
+        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        Assert.Contains("override bool IsKnownKeyedService", output);
+        Assert.Contains("\"memory\"", output);
+    }
+
+    [Fact]
+    public void IsKnownKeyedService_NoKeyedServices_ReturnsFalse()
+    {
+        var source = """
+            using ZInject;
+            public interface IFoo { }
+            [Transient]
+            public class FooImpl : IFoo { }
+            """;
+
+        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        Assert.Contains("override bool IsKnownKeyedService", output);
+        Assert.DoesNotContain("serviceKey is string", output);
+    }
+
+    [Fact]
+    public void Hybrid_IsKnownService_IncludesIsKeyedServiceType()
+    {
+        var source = """
+            using ZInject;
+            public interface ICache { }
+            [Singleton(Key = "memory")]
+            public class MemoryCache : ICache { }
+            """;
+
+        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        Assert.Contains("IServiceProviderIsKeyedService", output);
+    }
 }

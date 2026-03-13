@@ -2057,6 +2057,7 @@ namespace ZInject.Generator
             if (hasKeyedServices)
             {
                 sb.AppendLine("            if (serviceType == typeof(global::Microsoft.Extensions.DependencyInjection.IKeyedServiceProvider)) return true;");
+                sb.AppendLine("            if (serviceType == typeof(global::Microsoft.Extensions.DependencyInjection.IServiceProviderIsKeyedService)) return true;");
             }
 
             // Closed types
