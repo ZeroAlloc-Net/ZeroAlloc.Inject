@@ -9,7 +9,7 @@ Last updated: 2026-03-12
 | `[Transient]` lifetime | ✅ | ✅ | New instance per resolution |
 | `[Scoped]` lifetime | ✅ | ✅ | One instance per scope |
 | `[Singleton]` lifetime | ✅ | ✅ | Thread-safe lazy init via `Interlocked.CompareExchange` |
-| `[Decorator]` (single layer) | ✅ | ✅ | Inner service resolved by concrete type |
+| `[Decorator]` (single + stacked) | ✅ | ✅ | Supports chaining: `Retry → Logging → Caching → Concrete` |
 | `[As(typeof(...))]` explicit binding | ✅ | ✅ | Narrows registration to specific interface(s) |
 | Keyed services (`Key = "..."`) | ✅ | ✅ | `IKeyedServiceProvider`; requires .NET 8+ (ZI005) |
 | `AllowMultiple` (multi-registration) | ✅ | ✅ | Switches from `TryAdd*` to `Add*` |
@@ -27,6 +27,7 @@ Last updated: 2026-03-12
 | Filtered system interfaces | ✅ | ✅ | `IDisposable`, `IEquatable<T>`, etc. excluded |
 | `IServiceProviderIsService` | ✅ | ✅ | Generated `IsKnownService` type-check; hybrid delegates to fallback |
 | Scoped thread safety | ✅ | ✅ | Matches MS DI contract — scopes are per-request, not thread-safe |
+| Circular dependency detection | ✅ | ✅ | Compile-time ZI014 error — unique among .NET DI containers |
 
 ¹ Hybrid mode delegates open generics to the MS DI fallback.
 
@@ -47,14 +48,9 @@ Last updated: 2026-03-12
 | ZI011 | Error | Decorator has no matching interface parameter |
 | ZI012 | Error | Decorated interface not registered as a service |
 | ZI013 | Warning | Decorator on abstract/static class |
+| ZI014 | Error | Circular dependency detected (compile-time cycle detection) |
 
 ## Not Yet Implemented
-
-### Important (limits real use cases)
-
-**Multi-decorator stacking** — Only one `[Decorator]` per interface is applied. Real-world apps often chain decorators: `IRepo → CachingRepo → LoggingRepo → RetryRepo`. The generator currently picks the last-registered decorator and ignores earlier ones.
-
-**Compile-time circular dependency detection** — MS DI stack-overflows at runtime when circular dependencies exist. Since ZeroInject has full visibility of the dependency graph at source-generation time, it could emit a diagnostic (e.g. ZI014) when a cycle is detected. This would be a genuine differentiator — no other .NET DI container catches cycles at compile time.
 
 ### Nice to Have
 
