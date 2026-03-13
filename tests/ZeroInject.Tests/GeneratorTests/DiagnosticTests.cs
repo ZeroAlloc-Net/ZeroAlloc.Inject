@@ -134,4 +134,58 @@ public class DiagnosticTests
 
         Assert.DoesNotContain("AbstractService", output);
     }
+
+    [Fact]
+    public void ZI011_DecoratorWithNoMatchingInterface_ReportsError()
+    {
+        var source = """
+            using ZeroInject;
+            public interface IFoo { }
+            public interface IBar { }
+            [Decorator]
+            public class LoggingFoo : IFoo
+            {
+                public LoggingFoo(IBar unrelated) { }
+            }
+            [Transient]
+            public class FooImpl : IFoo { }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+        Assert.Contains(diagnostics, d => d.Id == "ZI011");
+    }
+
+    [Fact]
+    public void ZI012_DecoratorWithNoRegisteredInner_ReportsError()
+    {
+        var source = """
+            using ZeroInject;
+            public interface IFoo { }
+            [Decorator]
+            public class LoggingFoo : IFoo
+            {
+                public LoggingFoo(IFoo inner) { }
+            }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+        Assert.Contains(diagnostics, d => d.Id == "ZI012");
+    }
+
+    [Fact]
+    public void ZI013_AbstractDecorator_ReportsWarning()
+    {
+        var source = """
+            using ZeroInject;
+            public interface IFoo { }
+            [Decorator]
+            public abstract class LoggingFoo : IFoo
+            {
+                public LoggingFoo(IFoo inner) { }
+            }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+        Assert.Contains(diagnostics, d => d.Id == "ZI013");
+    }
 }

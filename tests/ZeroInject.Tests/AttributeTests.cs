@@ -69,16 +69,22 @@ public class AttributeTests
     }
 
     [Fact]
-    public void DecoratorAttribute_CanBeApplied_ToClass()
+    public void DecoratorAttribute_CanBeInstantiated()
     {
-        var attr = typeof(LoggingService).GetCustomAttribute<DecoratorAttribute>();
-        Assert.NotNull(attr);
+        var attr = new DecoratorAttribute();
+        Assert.IsType<DecoratorAttribute>(attr);
     }
 
-    [Decorator]
-    private class LoggingService : IDisposable
+    [Fact]
+    public void DecoratorAttribute_TargetsClassOnly()
     {
-        public LoggingService(IDisposable inner) { }
-        public void Dispose() { }
+        var usage = typeof(DecoratorAttribute)
+            .GetCustomAttributes(typeof(AttributeUsageAttribute), false)
+            .Cast<AttributeUsageAttribute>()
+            .First();
+
+        Assert.Equal(AttributeTargets.Class, usage.ValidOn);
+        Assert.False(usage.AllowMultiple);
+        Assert.False(usage.Inherited);
     }
 }

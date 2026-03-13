@@ -83,5 +83,29 @@ namespace ZeroInject.Generator
             "ZeroInject",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor DecoratorNoMatchingInterface = new DiagnosticDescriptor(
+            "ZI011",
+            "Decorator has no matching interface",
+            "Class '{0}' is marked [Decorator] but no constructor parameter type matches any interface it implements",
+            "ZeroInject",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor DecoratorNoRegisteredInner = new DiagnosticDescriptor(
+            "ZI012",
+            "Decorator inner service not found",
+            "Class '{0}' is marked [Decorator] for '{1}' but no service implementing that interface is registered in this assembly",
+            "ZeroInject",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor DecoratorOnAbstractOrStatic = new DiagnosticDescriptor(
+            "ZI013",
+            "Decorator on abstract or static class",
+            "Class '{0}' is abstract or static and cannot be used as a decorator",
+            "ZeroInject",
+            DiagnosticSeverity.Warning,
+            isEnabledByDefault: true);
     }
 }

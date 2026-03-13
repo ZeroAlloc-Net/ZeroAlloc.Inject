@@ -90,21 +90,30 @@ namespace ZeroInject.Generator
                     return false;
                 });
 
+            var decorators = context.SyntaxProvider.ForAttributeWithMetadataName(
+                "ZeroInject.DecoratorAttribute",
+                predicate: static (node, _) => true,
+                transform: static (ctx, ct) => GetDecoratorInfo(ctx, ct))
+                .Where(static x => x != null)
+                .Collect();
+
             var combined = transients
                 .Combine(scopeds)
                 .Combine(singletons)
                 .Combine(assemblyAttr)
                 .Combine(assemblyName)
-                .Combine(hasContainer);
+                .Combine(hasContainer)
+                .Combine(decorators);
 
             context.RegisterSourceOutput(combined, static (spc, data) =>
             {
-                var transientInfos = data.Left.Left.Left.Left.Left;
-                var scopedInfos = data.Left.Left.Left.Left.Right;
-                var singletonInfos = data.Left.Left.Left.Right;
-                var methodNameOverrides = data.Left.Left.Right;
-                var asmName = data.Left.Right;
-                var containerReferenced = data.Right;
+                var transientInfos = data.Left.Left.Left.Left.Left.Left;
+                var scopedInfos    = data.Left.Left.Left.Left.Left.Right;
+                var singletonInfos = data.Left.Left.Left.Left.Right;
+                var methodNameOverrides = data.Left.Left.Left.Right;
+                var asmName        = data.Left.Left.Right;
+                var containerReferenced = data.Left.Right;
+                var decoratorInfos = data.Right;
 
                 var allServices = new List<ServiceRegistrationInfo>();
                 AddNonNull(allServices, transientInfos);
@@ -148,6 +157,54 @@ namespace ZeroInject.Generator
                             svc.PrimitiveParameterType));
                     }
                 }
+
+                if (allServices.Count == 0 && decoratorInfos.Length == 0)
+                {
+                    return;
+                }
+
+                // Build lookup of registered interface FQNs for ZI012 check
+                var registeredInterfaces = new System.Collections.Generic.HashSet<string>();
+                foreach (var svc in allServices)
+                {
+                    foreach (var iface in svc.Interfaces)
+                        registeredInterfaces.Add(iface);
+                    if (svc.AsType != null)
+                        registeredInterfaces.Add(svc.AsType);
+                }
+
+                var validDecorators = new System.Collections.Generic.List<DecoratorRegistrationInfo>();
+                foreach (var dec in decoratorInfos)
+                {
+                    if (dec == null) continue;
+                    if (dec.IsAbstractOrStatic)
+                    {
+                        spc.ReportDiagnostic(Diagnostic.Create(
+                            DiagnosticDescriptors.DecoratorOnAbstractOrStatic,
+                            Location.None, dec.TypeName));
+                        continue;
+                    }
+                    if (dec.DecoratedInterfaceFqn == null)
+                    {
+                        spc.ReportDiagnostic(Diagnostic.Create(
+                            DiagnosticDescriptors.DecoratorNoMatchingInterface,
+                            Location.None, dec.TypeName));
+                        continue;
+                    }
+                    if (!registeredInterfaces.Contains(dec.DecoratedInterfaceFqn))
+                    {
+                        spc.ReportDiagnostic(Diagnostic.Create(
+                            DiagnosticDescriptors.DecoratorNoRegisteredInner,
+                            Location.None, dec.TypeName, dec.DecoratedInterfaceFqn));
+                        continue;
+                    }
+                    validDecorators.Add(dec);
+                }
+
+                // Build dictionary: decorated interface FQN → decorator info
+                var decoratorsByInterface = new System.Collections.Generic.Dictionary<string, DecoratorRegistrationInfo>();
+                foreach (var dec in validDecorators)
+                    decoratorsByInterface[dec.DecoratedInterfaceFqn!] = dec;
 
                 if (allServices.Count == 0)
                 {
@@ -1865,6 +1922,57 @@ namespace ZeroInject.Generator
                     "            services.{0}({1});",
                     method, factory));
             }
+        }
+
+        private static DecoratorRegistrationInfo? GetDecoratorInfo(
+            GeneratorAttributeSyntaxContext ctx,
+            CancellationToken ct)
+        {
+            if (ctx.TargetSymbol is not INamedTypeSymbol typeSymbol) return null;
+
+            var typeName = typeSymbol.Name;
+            var fqn = typeSymbol.ToDisplayString(FullyQualifiedFormat);
+            bool isAbstractOrStatic = typeSymbol.IsAbstract || typeSymbol.IsStatic;
+            bool isOpenGeneric = typeSymbol.IsGenericType;
+
+            // Collect all interfaces this type implements
+            var interfaces = new System.Collections.Generic.HashSet<string>();
+            foreach (var iface in typeSymbol.AllInterfaces)
+                interfaces.Add(iface.ToDisplayString(FullyQualifiedFormat));
+
+            // Find public constructor
+            IMethodSymbol? ctor = null;
+            foreach (var c in typeSymbol.InstanceConstructors)
+            {
+                if (c.DeclaredAccessibility == Accessibility.Public)
+                { ctor = c; break; }
+            }
+
+            string? decoratedInterface = null;
+            var ctorParams = new List<ConstructorParameterInfo>();
+
+            if (ctor != null && !isAbstractOrStatic)
+            {
+                foreach (var param in ctor.Parameters)
+                {
+                    var paramTypeFqn = param.Type.ToDisplayString(FullyQualifiedFormat);
+                    ctorParams.Add(new ConstructorParameterInfo(paramTypeFqn, param.Name, param.HasExplicitDefaultValue));
+                    if (decoratedInterface == null && interfaces.Contains(paramTypeFqn))
+                        decoratedInterface = paramTypeFqn;
+                }
+            }
+
+            bool implementsDisposable = false;
+            foreach (var iface in typeSymbol.AllInterfaces)
+            {
+                var name = iface.ToDisplayString();
+                if (name == "System.IDisposable" || name == "System.IAsyncDisposable")
+                { implementsDisposable = true; break; }
+            }
+
+            return new DecoratorRegistrationInfo(
+                typeName, fqn, decoratedInterface,
+                isOpenGeneric, ctorParams, implementsDisposable, isAbstractOrStatic);
         }
     }
 
