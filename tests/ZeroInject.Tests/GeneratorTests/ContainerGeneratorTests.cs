@@ -1183,4 +1183,25 @@ public class ContainerGeneratorTests
         Assert.Contains("new global::LoggingRepo<T>", output);
         Assert.Contains("new global::Repo<T>()", output);
     }
+
+    [Fact]
+    public void Standalone_MultiDecorator_EmitsChainingInResolveKnown()
+    {
+        var source = """
+            using ZeroInject;
+            public interface IRepo { }
+            [Transient]
+            public class ConcreteRepo : IRepo { }
+            [Decorator]
+            public class CachingRepo : IRepo { public CachingRepo(IRepo inner) { } }
+            [Decorator]
+            public class LoggingRepo : IRepo { public LoggingRepo(IRepo inner) { } }
+            """;
+
+        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        // Standalone provider chains decorators in ResolveKnown
+        Assert.Contains("new global::LoggingRepo(", output);
+        Assert.Contains("new global::CachingRepo(", output);
+        Assert.Contains("new global::ConcreteRepo()", output);
+    }
 }
