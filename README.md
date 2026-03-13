@@ -170,8 +170,6 @@ The generated container uses a type-switch (`if`/`else if` chain on `typeof(T)`)
 ### Current Limitations
 
 - **Open generics** (e.g., `IRepository<>`) delegate to the fallback in hybrid mode; in standalone mode they are resolved via code-generated delegate factories with `MakeGenericType` at runtime (cached after the first call per closed type)
-- **Multiple decorators** — stacking more than one `[Decorator]` on a single interface is not supported; only the last registered decorator is applied
-- **`IServiceProviderIsService`** delegates to the fallback in hybrid mode
 
 ## Benchmarks
 
@@ -215,7 +213,7 @@ The standalone provider's `CreateScope` is ~2× faster and uses ~60% less memory
 
 ## Requirements
 
-- .NET 8.0 or .NET 10.0
+- .NET 8.0, .NET 9.0, or .NET 10.0
 - C# 12+
 
 ## License
