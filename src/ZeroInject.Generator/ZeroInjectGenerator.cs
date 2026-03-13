@@ -1041,6 +1041,15 @@ namespace ZeroInject.Generator
             for (int i = 0; i < scopeds.Count; i++)
             {
                 sb.AppendLine("            private " + scopeds[i].FullyQualifiedName + "? _scoped_" + i + ";");
+                // Emit a cached-decorator field for each scoped service that has a decorated interface
+                foreach (var st in GetServiceTypes(scopeds[i]))
+                {
+                    if (decoratorsByInterface.TryGetValue(st, out var dec))
+                    {
+                        sb.AppendLine("            private " + dec.DecoratorFqn + "? _scoped_" + i + "_d;");
+                        break;
+                    }
+                }
             }
             for (int i = 0; i < keyedScopedServices.Count; i++)
             {
@@ -1108,7 +1117,7 @@ namespace ZeroInject.Generator
             {
                 var svc = scopeds[i];
                 var fieldName = "_scoped_" + i;
-                var newExpr = BuildNewExpressionForScope(svc);
+                var innerExpr = BuildNewExpressionForScope(svc);
                 var serviceTypes = GetServiceTypes(svc);
 
                 foreach (var serviceType in serviceTypes)
@@ -1122,15 +1131,25 @@ namespace ZeroInject.Generator
 
                     sb.AppendLine("                if (serviceType == typeof(" + serviceType + "))");
                     sb.AppendLine("                {");
-                    if (svc.ImplementsDisposable)
+                    if (decoratorsByInterface.TryGetValue(serviceType, out var scopedDecorator))
                     {
-                        sb.AppendLine("                    if (" + fieldName + " == null) { " + fieldName + " = " + newExpr + "; TrackDisposable(" + fieldName + "); }");
+                        // Decorated interface: cache the inner concrete, cache the decorator wrapper
+                        var decoratedExpr = BuildNewExpressionWithDecorator(scopedDecorator, svc.FullyQualifiedName,
+                            "(" + svc.FullyQualifiedName + ")" + fieldName, serviceType);
+                        sb.AppendLine("                    if (" + fieldName + " == null) " + fieldName + " = " + innerExpr + ";");
+                        sb.AppendLine("                    if (" + fieldName + "_d == null) { " + fieldName + "_d = " + decoratedExpr + "; TrackDisposable(" + fieldName + "_d); }");
+                        sb.AppendLine("                    return " + fieldName + "_d;");
+                    }
+                    else if (svc.ImplementsDisposable)
+                    {
+                        sb.AppendLine("                    if (" + fieldName + " == null) { " + fieldName + " = " + innerExpr + "; TrackDisposable(" + fieldName + "); }");
+                        sb.AppendLine("                    return " + fieldName + ";");
                     }
                     else
                     {
-                        sb.AppendLine("                    if (" + fieldName + " == null) " + fieldName + " = " + newExpr + ";");
+                        sb.AppendLine("                    if (" + fieldName + " == null) " + fieldName + " = " + innerExpr + ";");
+                        sb.AppendLine("                    return " + fieldName + ";");
                     }
-                    sb.AppendLine("                    return " + fieldName + ";");
                     sb.AppendLine("                }");
                 }
             }
@@ -1432,45 +1451,38 @@ namespace ZeroInject.Generator
             sb.AppendLine("        public " + className + "() { }");
             sb.AppendLine();
 
-            // OpenGenericMap override
+            // Open generic: static MethodInfo refs + delegate caches + singleton caches + factory methods
             if (openGenerics.Count > 0)
             {
-                sb.AppendLine("        private static readonly System.Collections.Generic.Dictionary<global::System.Type, global::ZeroInject.Container.OpenGenericEntry> _s_openGenericMap");
-                sb.AppendLine("            = new System.Collections.Generic.Dictionary<global::System.Type, global::ZeroInject.Container.OpenGenericEntry>");
-                sb.AppendLine("        {");
-                foreach (var svc in openGenerics)
+                sb.AppendLine("        // Open generic factory infra (code-generated delegate caches)");
+                const string delegateType = "global::System.Func<global::System.IServiceProvider, object>";
+                const string dictType = "global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, " + delegateType + ">";
+                const string singletonDictType = "global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, object>";
+                for (int ogIdx = 0; ogIdx < openGenerics.Count; ogIdx++)
                 {
-                    if (svc.Key != null) continue; // keyed open generics not supported in standalone
-                    var ifaces = svc.AsType != null
-                        ? new List<string> { svc.AsType }
-                        : svc.Interfaces;
-                    var lifetime = "global::Microsoft.Extensions.DependencyInjection.ServiceLifetime." + svc.Lifetime;
+                    if (openGenerics[ogIdx].Key != null) continue;
+                    sb.AppendLine("        private static readonly global::System.Reflection.MethodInfo _og_mi_" + ogIdx + " =");
+                    sb.AppendLine("            typeof(" + className + ").GetMethod(\"OG_Factory_" + ogIdx + "\", global::System.Reflection.BindingFlags.NonPublic | global::System.Reflection.BindingFlags.Static)!;");
+                    sb.AppendLine("        private static readonly " + dictType + " _og_dc_" + ogIdx + " = new();");
+                    if (string.Equals(openGenerics[ogIdx].Lifetime, "Singleton", StringComparison.Ordinal))
+                        sb.AppendLine("        private static readonly " + singletonDictType + " _og_sc_" + ogIdx + " = new();");
+                }
+                sb.AppendLine();
+                for (int ogIdx = 0; ogIdx < openGenerics.Count; ogIdx++)
+                {
+                    var svc = openGenerics[ogIdx];
+                    if (svc.Key != null) continue;
                     int arity = int.Parse(svc.OpenGenericArity!);
+                    var typeParams = BuildOpenGenericTypeParams(arity);
+                    var ifaces = svc.AsType != null ? new List<string> { svc.AsType } : svc.Interfaces;
+                    DecoratorRegistrationInfo? decorator = null;
                     foreach (var iface in ifaces)
                     {
-                        string? decoratorType = null;
                         if (decoratorsByInterface.TryGetValue(iface, out var dec) && dec.IsOpenGeneric)
-                            decoratorType = dec.DecoratorFqn;
-                        var openIface = ToUnboundGenericString(iface, arity);
-                        var openImpl = ToUnboundGenericString(svc.FullyQualifiedName, arity);
-                        if (decoratorType != null)
-                        {
-                            var openDecorator = ToUnboundGenericString(decoratorType, arity);
-                            sb.AppendLine(string.Format(
-                                "            {{ typeof({0}), new global::ZeroInject.Container.OpenGenericEntry(typeof({1}), {2}, typeof({3})) }},",
-                                openIface, openImpl, lifetime, openDecorator));
-                        }
-                        else
-                        {
-                            sb.AppendLine(string.Format(
-                                "            {{ typeof({0}), new global::ZeroInject.Container.OpenGenericEntry(typeof({1}), {2}) }},",
-                                openIface, openImpl, lifetime));
-                        }
+                        { decorator = dec; break; }
                     }
+                    EmitOpenGenericFactoryMethod(sb, "OG_Factory_" + ogIdx, typeParams, svc, decorator, arity);
                 }
-                sb.AppendLine("        };");
-                sb.AppendLine();
-                sb.AppendLine("        protected override System.Collections.Generic.IReadOnlyDictionary<global::System.Type, global::ZeroInject.Container.OpenGenericEntry>? OpenGenericMap => _s_openGenericMap;");
                 sb.AppendLine();
             }
 
@@ -1574,9 +1586,9 @@ namespace ZeroInject.Generator
                 sb.AppendLine("            }");
             }
 
-            sb.AppendLine(openGenerics.Count > 0
-                ? "            return ResolveOpenGenericRoot(serviceType);"
-                : "            return null;");
+            if (openGenerics.Count > 0)
+                EmitOpenGenericRootResolve(sb, openGenerics, "            ", className);
+            sb.AppendLine("            return null;");
             sb.AppendLine("        }");
             sb.AppendLine();
 
@@ -1722,6 +1734,15 @@ namespace ZeroInject.Generator
             for (int i = 0; i < scopeds.Count; i++)
             {
                 sb.AppendLine("            private " + scopeds[i].FullyQualifiedName + "? _scoped_" + i + ";");
+                // Emit a cached-decorator field for each scoped service that has a decorated interface
+                foreach (var st in GetServiceTypes(scopeds[i]))
+                {
+                    if (decoratorsByInterface.TryGetValue(st, out var dec))
+                    {
+                        sb.AppendLine("            private " + dec.DecoratorFqn + "? _scoped_" + i + "_d;");
+                        break;
+                    }
+                }
             }
             for (int i = 0; i < keyedScopedServices.Count; i++)
             {
@@ -1789,7 +1810,7 @@ namespace ZeroInject.Generator
             {
                 var svc = scopeds[i];
                 var fieldName = "_scoped_" + i;
-                var newExpr = BuildNewExpressionForScope(svc);
+                var innerExpr = BuildNewExpressionForScope(svc);
                 var serviceTypes = GetServiceTypes(svc);
 
                 foreach (var serviceType in serviceTypes)
@@ -1803,15 +1824,25 @@ namespace ZeroInject.Generator
 
                     sb.AppendLine("                if (serviceType == typeof(" + serviceType + "))");
                     sb.AppendLine("                {");
-                    if (svc.ImplementsDisposable)
+                    if (decoratorsByInterface.TryGetValue(serviceType, out var scopedDecorator))
                     {
-                        sb.AppendLine("                    if (" + fieldName + " == null) { " + fieldName + " = " + newExpr + "; TrackDisposable(" + fieldName + "); }");
+                        // Decorated interface: cache the inner concrete, cache the decorator wrapper
+                        var decoratedExpr = BuildNewExpressionWithDecorator(scopedDecorator, svc.FullyQualifiedName,
+                            "(" + svc.FullyQualifiedName + ")" + fieldName, serviceType);
+                        sb.AppendLine("                    if (" + fieldName + " == null) " + fieldName + " = " + innerExpr + ";");
+                        sb.AppendLine("                    if (" + fieldName + "_d == null) { " + fieldName + "_d = " + decoratedExpr + "; TrackDisposable(" + fieldName + "_d); }");
+                        sb.AppendLine("                    return " + fieldName + "_d;");
+                    }
+                    else if (svc.ImplementsDisposable)
+                    {
+                        sb.AppendLine("                    if (" + fieldName + " == null) { " + fieldName + " = " + innerExpr + "; TrackDisposable(" + fieldName + "); }");
+                        sb.AppendLine("                    return " + fieldName + ";");
                     }
                     else
                     {
-                        sb.AppendLine("                    if (" + fieldName + " == null) " + fieldName + " = " + newExpr + ";");
+                        sb.AppendLine("                    if (" + fieldName + " == null) " + fieldName + " = " + innerExpr + ";");
+                        sb.AppendLine("                    return " + fieldName + ";");
                     }
-                    sb.AppendLine("                    return " + fieldName + ";");
                     sb.AppendLine("                }");
                 }
             }
@@ -1867,17 +1898,11 @@ namespace ZeroInject.Generator
                 sb.AppendLine("                }");
             }
 
-            sb.AppendLine(openGenerics.Count > 0
-                ? "                return ResolveOpenGenericScoped(serviceType);"
-                : "                return null;");
+            if (openGenerics.Count > 0)
+                EmitOpenGenericScopeResolve(sb, openGenerics, "                ", className);
+            sb.AppendLine("                return null;");
             sb.AppendLine("            }");
 
-            // OpenGenericMap override in scope — reuses the static map from the outer class
-            if (openGenerics.Count > 0)
-            {
-                sb.AppendLine();
-                sb.AppendLine("            protected override System.Collections.Generic.IReadOnlyDictionary<global::System.Type, global::ZeroInject.Container.OpenGenericEntry>? OpenGenericMap => " + className + "._s_openGenericMap;");
-            }
 
             // Keyed service methods in scope
             if (hasKeyedServices)
@@ -2029,6 +2054,225 @@ namespace ZeroInject.Generator
 
             argSb.Append(")");
             return argSb.ToString();
+        }
+
+        // ---- Open generic factory code-gen helpers ----
+
+        /// <summary>Returns the generic type-parameter list for a factory method, e.g. "&lt;T&gt;" (arity 1) or "&lt;T1, T2&gt;" (arity 2).</summary>
+        private static string BuildOpenGenericTypeParams(int arity)
+        {
+            if (arity == 1) return "<T>";
+            var names = new System.Text.StringBuilder("<");
+            for (int i = 1; i <= arity; i++)
+            {
+                if (i > 1) names.Append(", ");
+                names.Append('T').Append(i);
+            }
+            names.Append('>');
+            return names.ToString();
+        }
+
+        /// <summary>Closes an unbound generic FQN with method type params, e.g. "global::IFoo&lt;&gt;" → "global::IFoo&lt;T&gt;".</summary>
+        private static string CloseGenericFqn(string fqn, int arity)
+        {
+            var idx = fqn.IndexOf('<');
+            if (idx < 0) return fqn;
+            var prefix = fqn.Substring(0, idx);
+            if (arity == 1) return prefix + "<T>";
+            var args = new System.Text.StringBuilder();
+            for (int i = 1; i <= arity; i++)
+            {
+                if (i > 1) args.Append(", ");
+                args.Append('T').Append(i);
+            }
+            return prefix + "<" + args.ToString() + ">";
+        }
+
+        /// <summary>
+        /// Emits the OG_Factory method body. Uses expression body for simple cases,
+        /// block body when a decorator must be created from an intermediate variable.
+        /// </summary>
+        private static void EmitOpenGenericFactoryMethod(
+            StringBuilder sb,
+            string methodName,
+            string typeParams,
+            ServiceRegistrationInfo svc,
+            DecoratorRegistrationInfo? decorator,
+            int arity)
+        {
+            var closedImpl = CloseGenericFqn(svc.FullyQualifiedName, arity);
+            var innerExpr = BuildOpenGenericNewExpr(closedImpl, svc.ConstructorParameters, null, null, arity);
+
+            if (decorator == null)
+            {
+                sb.AppendLine("        private static object " + methodName + typeParams + "(global::System.IServiceProvider sp)");
+                sb.AppendLine("            => " + innerExpr + ";");
+                return;
+            }
+
+            // Decorator case: emit block body using a local var for the inner instance
+            var closedDecorator = CloseGenericFqn(decorator.DecoratorFqn, arity);
+            var decoratedIface = decorator.DecoratedInterfaceFqn;
+            var decoratorExpr = BuildOpenGenericNewExpr(closedDecorator, decorator.ConstructorParameters, decoratedIface, "_inner", arity);
+
+            sb.AppendLine("        private static object " + methodName + typeParams + "(global::System.IServiceProvider sp)");
+            sb.AppendLine("        {");
+            sb.AppendLine("            var _inner = " + innerExpr + ";");
+            sb.AppendLine("            return " + decoratorExpr + ";");
+            sb.AppendLine("        }");
+        }
+
+        /// <summary>Builds a "new ClosedType(args...)" expression for a generic factory method body.</summary>
+        private static string BuildOpenGenericNewExpr(
+            string closedFqn,
+            List<ConstructorParameterInfo> ctorParams,
+            string? innerParamUnboundType,
+            string? innerExprToInject,
+            int arity)
+        {
+            if (ctorParams.Count == 0)
+                return "new " + closedFqn + "()";
+
+            var sb = new System.Text.StringBuilder("new ").Append(closedFqn).Append('(');
+            for (int i = 0; i < ctorParams.Count; i++)
+            {
+                if (i > 0) sb.Append(", ");
+                var param = ctorParams[i];
+                bool isInner = innerParamUnboundType != null &&
+                               string.Equals(param.FullyQualifiedTypeName, innerParamUnboundType, StringComparison.Ordinal);
+                if (isInner && innerExprToInject != null)
+                {
+                    var closedParamType = CloseGenericFqn(param.FullyQualifiedTypeName, arity);
+                    sb.Append('(').Append(closedParamType).Append(")(").Append(innerExprToInject).Append(')');
+                }
+                else
+                {
+                    bool isUnbound = param.FullyQualifiedTypeName.Contains('<');
+                    if (isUnbound)
+                    {
+                        var closedParamType = CloseGenericFqn(param.FullyQualifiedTypeName, arity);
+                        // Resolve via MakeGenericType at runtime
+                        var typeofArgs = BuildTypeofArgs(arity);
+                        var serviceTypeExpr = "typeof(" + param.FullyQualifiedTypeName + ").MakeGenericType(" + typeofArgs + ")";
+                        if (param.IsOptional)
+                            sb.Append('(').Append(closedParamType).Append("?)sp.GetService(").Append(serviceTypeExpr).Append(')');
+                        else
+                            sb.Append('(').Append(closedParamType).Append(")sp.GetService(").Append(serviceTypeExpr).Append(")!");
+                    }
+                    else
+                    {
+                        if (param.IsOptional)
+                            sb.Append('(').Append(param.FullyQualifiedTypeName).Append("?)sp.GetService(typeof(").Append(param.FullyQualifiedTypeName).Append("))");
+                        else
+                            sb.Append('(').Append(param.FullyQualifiedTypeName).Append(")sp.GetService(typeof(").Append(param.FullyQualifiedTypeName).Append("))!");
+                    }
+                }
+            }
+            sb.Append(')');
+            return sb.ToString();
+        }
+
+        private static string BuildTypeofArgs(int arity)
+        {
+            if (arity == 1) return "typeof(T)";
+            var sb = new System.Text.StringBuilder();
+            for (int i = 1; i <= arity; i++)
+            {
+                if (i > 1) sb.Append(", ");
+                sb.Append("typeof(T").Append(i).Append(')');
+            }
+            return sb.ToString();
+        }
+
+        private const string OgDelegateCreator =
+            "static (t, mi) => (global::System.Func<global::System.IServiceProvider, object>)" +
+            "global::System.Delegate.CreateDelegate(" +
+            "typeof(global::System.Func<global::System.IServiceProvider, object>), " +
+            "mi.MakeGenericMethod(t.GetGenericArguments()))";
+
+        /// <summary>Emits the open-generic if-chain into ResolveKnown (root provider).</summary>
+        private static void EmitOpenGenericRootResolve(
+            StringBuilder sb,
+            List<ServiceRegistrationInfo> openGenerics,
+            string indent,
+            string className)
+        {
+            sb.AppendLine(indent + "if (serviceType.IsGenericType)");
+            sb.AppendLine(indent + "{");
+            sb.AppendLine(indent + "    var _genDef = serviceType.GetGenericTypeDefinition();");
+            for (int ogIdx = 0; ogIdx < openGenerics.Count; ogIdx++)
+            {
+                var svc = openGenerics[ogIdx];
+                if (svc.Key != null) continue;
+                int arity = int.Parse(svc.OpenGenericArity!);
+                var ifaces = svc.AsType != null ? new List<string> { svc.AsType } : svc.Interfaces;
+                foreach (var iface in ifaces)
+                {
+                    var openIface = ToUnboundGenericString(iface, arity);
+                    sb.AppendLine(indent + "    if (_genDef == typeof(" + openIface + "))");
+                    sb.AppendLine(indent + "    {");
+                    if (string.Equals(svc.Lifetime, "Scoped", StringComparison.Ordinal))
+                    {
+                        sb.AppendLine(indent + "        return null; // scoped open generics not resolved from root");
+                    }
+                    else if (string.Equals(svc.Lifetime, "Singleton", StringComparison.Ordinal))
+                    {
+                        sb.AppendLine(indent + "        var _d_" + ogIdx + " = _og_dc_" + ogIdx + ".GetOrAdd(serviceType, " + OgDelegateCreator + ", _og_mi_" + ogIdx + ");");
+                        sb.AppendLine(indent + "        return _og_sc_" + ogIdx + ".GetOrAdd(serviceType, (t, state) => state.d(state.sp), (d: _d_" + ogIdx + ", sp: (global::System.IServiceProvider)this));");
+                    }
+                    else // Transient
+                    {
+                        sb.AppendLine(indent + "        var _d_" + ogIdx + " = _og_dc_" + ogIdx + ".GetOrAdd(serviceType, " + OgDelegateCreator + ", _og_mi_" + ogIdx + ");");
+                        sb.AppendLine(indent + "        return _d_" + ogIdx + "(this);");
+                    }
+                    sb.AppendLine(indent + "    }");
+                }
+            }
+            sb.AppendLine(indent + "}");
+        }
+
+        /// <summary>Emits the open-generic if-chain into ResolveScopedKnown (scope).</summary>
+        private static void EmitOpenGenericScopeResolve(
+            StringBuilder sb,
+            List<ServiceRegistrationInfo> openGenerics,
+            string indent,
+            string className)
+        {
+            sb.AppendLine(indent + "if (serviceType.IsGenericType)");
+            sb.AppendLine(indent + "{");
+            sb.AppendLine(indent + "    var _genDef = serviceType.GetGenericTypeDefinition();");
+            for (int ogIdx = 0; ogIdx < openGenerics.Count; ogIdx++)
+            {
+                var svc = openGenerics[ogIdx];
+                if (svc.Key != null) continue;
+                int arity = int.Parse(svc.OpenGenericArity!);
+                var ifaces = svc.AsType != null ? new List<string> { svc.AsType } : svc.Interfaces;
+                foreach (var iface in ifaces)
+                {
+                    var openIface = ToUnboundGenericString(iface, arity);
+                    sb.AppendLine(indent + "    if (_genDef == typeof(" + openIface + "))");
+                    sb.AppendLine(indent + "    {");
+                    if (string.Equals(svc.Lifetime, "Singleton", StringComparison.Ordinal))
+                    {
+                        sb.AppendLine(indent + "        return Root.GetService(serviceType);");
+                    }
+                    else if (string.Equals(svc.Lifetime, "Scoped", StringComparison.Ordinal))
+                    {
+                        sb.AppendLine(indent + "        return GetOrAddScopedOpenGeneric(serviceType, () =>");
+                        sb.AppendLine(indent + "        {");
+                        sb.AppendLine(indent + "            var _d_" + ogIdx + " = " + className + "._og_dc_" + ogIdx + ".GetOrAdd(serviceType, " + OgDelegateCreator + ", " + className + "._og_mi_" + ogIdx + ");");
+                        sb.AppendLine(indent + "            return _d_" + ogIdx + "(this);");
+                        sb.AppendLine(indent + "        });");
+                    }
+                    else // Transient
+                    {
+                        sb.AppendLine(indent + "        var _d_" + ogIdx + " = " + className + "._og_dc_" + ogIdx + ".GetOrAdd(serviceType, " + OgDelegateCreator + ", " + className + "._og_mi_" + ogIdx + ");");
+                        sb.AppendLine(indent + "        return _d_" + ogIdx + "(this);");
+                    }
+                    sb.AppendLine(indent + "    }");
+                }
+            }
+            sb.AppendLine(indent + "}");
         }
 
         private static void EmitConcreteRegistration(

@@ -5,9 +5,6 @@ namespace ZeroInject.Container;
 public abstract class ZeroInjectStandaloneProvider : IServiceProvider, IServiceScopeFactory, IDisposable, IAsyncDisposable
 {
     private int _disposed;
-    private System.Collections.Concurrent.ConcurrentDictionary<Type, object>? _openGenericSingletons;
-
-    protected virtual System.Collections.Generic.IReadOnlyDictionary<Type, OpenGenericEntry>? OpenGenericMap => null;
 
     public object? GetService(Type serviceType)
     {
@@ -32,51 +29,6 @@ public abstract class ZeroInjectStandaloneProvider : IServiceProvider, IServiceS
     }
 
     protected abstract ZeroInjectStandaloneScope CreateScopeCore();
-
-    internal object CreateInstance(Type type, object? innerArg = null)
-    {
-        var ctor = type.GetConstructors()[0];
-        var parameters = ctor.GetParameters();
-        var args = new object?[parameters.Length];
-        for (int i = 0; i < parameters.Length; i++)
-        {
-            if (innerArg != null && parameters[i].ParameterType.IsAssignableFrom(innerArg.GetType()))
-                args[i] = innerArg;
-            else
-                args[i] = GetService(parameters[i].ParameterType);
-        }
-        return ctor.Invoke(args);
-    }
-
-    internal protected object? ResolveOpenGenericRoot(Type serviceType)
-    {
-        if (OpenGenericMap == null || !serviceType.IsGenericType) return null;
-        var openDef = serviceType.GetGenericTypeDefinition();
-        if (!OpenGenericMap.TryGetValue(openDef, out var entry)) return null;
-        if (entry.Lifetime == Microsoft.Extensions.DependencyInjection.ServiceLifetime.Scoped) return null; // scoped only from scope
-
-        var typeArgs = serviceType.GenericTypeArguments;
-        var closedImpl = entry.ImplType.MakeGenericType(typeArgs);
-
-        object BuildInstance()
-        {
-            var inner = CreateInstance(closedImpl);
-            if (entry.DecoratorImplType != null)
-            {
-                var closedDecorator = entry.DecoratorImplType.MakeGenericType(typeArgs);
-                return CreateInstance(closedDecorator, inner);
-            }
-            return inner;
-        }
-
-        if (entry.Lifetime == Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton)
-        {
-            _openGenericSingletons ??= new System.Collections.Concurrent.ConcurrentDictionary<Type, object>();
-            return _openGenericSingletons.GetOrAdd(serviceType, _ => BuildInstance());
-        }
-
-        return BuildInstance(); // Transient
-    }
 
     public void Dispose()
     {

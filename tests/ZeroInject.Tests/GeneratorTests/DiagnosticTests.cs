@@ -152,7 +152,7 @@ public class DiagnosticTests
             """;
 
         var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
-        Assert.Contains(diagnostics, d => d.Id == "ZI011");
+        Assert.Contains(diagnostics, static d => string.Equals(d.Id, "ZI011", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -169,7 +169,7 @@ public class DiagnosticTests
             """;
 
         var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
-        Assert.Contains(diagnostics, d => d.Id == "ZI012");
+        Assert.Contains(diagnostics, static d => string.Equals(d.Id, "ZI012", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -186,6 +186,6 @@ public class DiagnosticTests
             """;
 
         var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
-        Assert.Contains(diagnostics, d => d.Id == "ZI013");
+        Assert.Contains(diagnostics, static d => string.Equals(d.Id, "ZI013", StringComparison.Ordinal));
     }
 }

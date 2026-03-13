@@ -114,61 +114,47 @@ public class StandaloneScopeTests
         scope.Dispose(); // Should not throw
     }
 
-    // Open generic scope test helpers (reuse interfaces from StandaloneProviderBaseTests)
-    private class TestOpenGenericScopeProvider : ZeroInject.Container.ZeroInjectStandaloneProvider
-    {
-        private static readonly Dictionary<Type, ZeroInject.Container.OpenGenericEntry> _map = new()
-        {
-            { typeof(StandaloneProviderBaseTests.IGenericService<>),   new ZeroInject.Container.OpenGenericEntry(typeof(StandaloneProviderBaseTests.GenericService<>),         Microsoft.Extensions.DependencyInjection.ServiceLifetime.Transient) },
-            { typeof(StandaloneProviderBaseTests.ISingletonGeneric<>), new ZeroInject.Container.OpenGenericEntry(typeof(StandaloneProviderBaseTests.SingletonGenericService<>), Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton) },
-            { typeof(StandaloneProviderBaseTests.IScopedGeneric<>),    new ZeroInject.Container.OpenGenericEntry(typeof(StandaloneProviderBaseTests.ScopedGenericService<>),   Microsoft.Extensions.DependencyInjection.ServiceLifetime.Scoped) },
-        };
-        protected override IReadOnlyDictionary<Type, ZeroInject.Container.OpenGenericEntry>? OpenGenericMap => _map;
-        protected override object? ResolveKnown(Type serviceType) => ResolveOpenGenericRoot(serviceType);
-        protected override ZeroInject.Container.ZeroInjectStandaloneScope CreateScopeCore() => new TestOpenGenericScope(this);
+    // GetOrAddScopedOpenGeneric: used by generated scoped open-generic resolution
 
-        private class TestOpenGenericScope : ZeroInject.Container.ZeroInjectStandaloneScope
+    private class TestScopedOpenGenericProvider : ZeroInject.Container.ZeroInjectStandaloneProvider
+    {
+        protected override object? ResolveKnown(Type serviceType) => null;
+        protected override ZeroInject.Container.ZeroInjectStandaloneScope CreateScopeCore() => new TestScopedOgScope(this);
+
+        private sealed class TestScopedOgScope : ZeroInject.Container.ZeroInjectStandaloneScope
         {
-            private static readonly Dictionary<Type, ZeroInject.Container.OpenGenericEntry> _map = new()
+            public TestScopedOgScope(ZeroInject.Container.ZeroInjectStandaloneProvider root) : base(root) { }
+
+            protected override object? ResolveScopedKnown(Type serviceType)
             {
-                { typeof(StandaloneProviderBaseTests.IGenericService<>),   new ZeroInject.Container.OpenGenericEntry(typeof(StandaloneProviderBaseTests.GenericService<>),         Microsoft.Extensions.DependencyInjection.ServiceLifetime.Transient) },
-                { typeof(StandaloneProviderBaseTests.ISingletonGeneric<>), new ZeroInject.Container.OpenGenericEntry(typeof(StandaloneProviderBaseTests.SingletonGenericService<>), Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton) },
-                { typeof(StandaloneProviderBaseTests.IScopedGeneric<>),    new ZeroInject.Container.OpenGenericEntry(typeof(StandaloneProviderBaseTests.ScopedGenericService<>),   Microsoft.Extensions.DependencyInjection.ServiceLifetime.Scoped) },
-            };
-            protected override IReadOnlyDictionary<Type, ZeroInject.Container.OpenGenericEntry>? OpenGenericMap => _map;
-            public TestOpenGenericScope(ZeroInject.Container.ZeroInjectStandaloneProvider root) : base(root) { }
-            protected override object? ResolveScopedKnown(Type serviceType) => ResolveOpenGenericScoped(serviceType);
+                if (serviceType == typeof(StandaloneProviderBaseTests.IScopedGeneric<string>))
+                    return GetOrAddScopedOpenGeneric(serviceType, () => new StandaloneProviderBaseTests.ScopedGenericService<string>());
+                return null;
+            }
         }
     }
 
     [Fact]
-    public void ResolveOpenGenericScoped_Transient_ReturnsNewInstances()
+    public void GetOrAddScopedOpenGeneric_ReturnsSameInstanceWithinScope()
     {
-        var provider = new TestOpenGenericScopeProvider();
+        using var provider = new TestScopedOpenGenericProvider();
         using var scope = (ZeroInject.Container.ZeroInjectStandaloneScope)provider.CreateScope();
-        var a = scope.ServiceProvider.GetService(typeof(StandaloneProviderBaseTests.IGenericService<string>));
-        var b = scope.ServiceProvider.GetService(typeof(StandaloneProviderBaseTests.IGenericService<string>));
+        var a = scope.ServiceProvider.GetService(typeof(StandaloneProviderBaseTests.IScopedGeneric<string>));
+        var b = scope.ServiceProvider.GetService(typeof(StandaloneProviderBaseTests.IScopedGeneric<string>));
         Assert.NotNull(a);
-        Assert.NotSame(a, b); // transient: new each time
-    }
-
-    [Fact]
-    public void ResolveOpenGenericScoped_Scoped_ReturnsSameInstanceWithinScope()
-    {
-        var provider = new TestOpenGenericScopeProvider();
-        using var scope = (ZeroInject.Container.ZeroInjectStandaloneScope)provider.CreateScope();
-        var a = scope.ServiceProvider.GetService(typeof(StandaloneProviderBaseTests.IScopedGeneric<int>));
-        var b = scope.ServiceProvider.GetService(typeof(StandaloneProviderBaseTests.IScopedGeneric<int>));
         Assert.Same(a, b);
     }
 
     [Fact]
-    public void ResolveOpenGenericScoped_Singleton_DelegatesToRoot()
+    public void GetOrAddScopedOpenGeneric_ReturnsDifferentInstancesAcrossScopes()
     {
-        var provider = new TestOpenGenericScopeProvider();
-        var fromRoot = provider.GetService(typeof(StandaloneProviderBaseTests.ISingletonGeneric<double>));
-        using var scope = (ZeroInject.Container.ZeroInjectStandaloneScope)provider.CreateScope();
-        var fromScope = scope.ServiceProvider.GetService(typeof(StandaloneProviderBaseTests.ISingletonGeneric<double>));
-        Assert.Same(fromRoot, fromScope);
+        using var provider = new TestScopedOpenGenericProvider();
+        using var scope1 = (ZeroInject.Container.ZeroInjectStandaloneScope)provider.CreateScope();
+        using var scope2 = (ZeroInject.Container.ZeroInjectStandaloneScope)provider.CreateScope();
+        var a = scope1.ServiceProvider.GetService(typeof(StandaloneProviderBaseTests.IScopedGeneric<string>));
+        var b = scope2.ServiceProvider.GetService(typeof(StandaloneProviderBaseTests.IScopedGeneric<string>));
+        Assert.NotNull(a);
+        Assert.NotNull(b);
+        Assert.NotSame(a, b);
     }
 }

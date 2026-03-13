@@ -1,7 +1,6 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ZeroInject.Benchmarks;
 
@@ -25,14 +24,6 @@ public class RegistrationBenchmarks
         // Scoped
         services.AddScoped<IScopedService, ScopedService>();
 
-        return services;
-    }
-
-    [Benchmark(Description = "ZeroInject (factory lambda)")]
-    public IServiceCollection ZeroInject_FactoryLambda()
-    {
-        var services = new ServiceCollection();
-        services.AddZeroInjectBenchmarksServices();
         return services;
     }
 

@@ -87,58 +87,13 @@ public class StandaloneProviderBaseTests
         await provider.DisposeAsync(); // Should not throw
     }
 
-    // Open generic test helpers
+    // Open generic resolution is now fully code-generated (inline delegate factories).
+    // Behaviour is covered by the integration tests in IntegrationTests.cs.
+    // Expose shared helper types for StandaloneScopeTests.
     public interface IGenericService<T> { }
     public class GenericService<T> : IGenericService<T> { }
     public interface ISingletonGeneric<T> { }
     public class SingletonGenericService<T> : ISingletonGeneric<T> { }
     public interface IScopedGeneric<T> { }
     public class ScopedGenericService<T> : IScopedGeneric<T> { }
-
-    private class TestOpenGenericProvider : ZeroInject.Container.ZeroInjectStandaloneProvider
-    {
-        private static readonly Dictionary<Type, ZeroInject.Container.OpenGenericEntry> _map = new()
-        {
-            { typeof(IGenericService<>),   new ZeroInject.Container.OpenGenericEntry(typeof(GenericService<>),         Microsoft.Extensions.DependencyInjection.ServiceLifetime.Transient) },
-            { typeof(ISingletonGeneric<>), new ZeroInject.Container.OpenGenericEntry(typeof(SingletonGenericService<>), Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton) },
-            { typeof(IScopedGeneric<>),    new ZeroInject.Container.OpenGenericEntry(typeof(ScopedGenericService<>),   Microsoft.Extensions.DependencyInjection.ServiceLifetime.Scoped) },
-        };
-        protected override IReadOnlyDictionary<Type, ZeroInject.Container.OpenGenericEntry>? OpenGenericMap => _map;
-        protected override object? ResolveKnown(Type serviceType) => ResolveOpenGenericRoot(serviceType);
-        protected override ZeroInject.Container.ZeroInjectStandaloneScope CreateScopeCore() => throw new NotImplementedException();
-    }
-
-    [Fact]
-    public void ResolveOpenGenericRoot_KnownTransient_ReturnsNewInstance()
-    {
-        var provider = new TestOpenGenericProvider();
-        var result = provider.GetService(typeof(IGenericService<string>));
-        Assert.NotNull(result);
-        Assert.IsType<GenericService<string>>(result);
-    }
-
-    [Fact]
-    public void ResolveOpenGenericRoot_KnownSingleton_ReturnsSameInstance()
-    {
-        var provider = new TestOpenGenericProvider();
-        var a = provider.GetService(typeof(ISingletonGeneric<int>));
-        var b = provider.GetService(typeof(ISingletonGeneric<int>));
-        Assert.Same(a, b);
-    }
-
-    [Fact]
-    public void ResolveOpenGenericRoot_Scoped_ReturnsNull_FromRoot()
-    {
-        var provider = new TestOpenGenericProvider();
-        var result = provider.GetService(typeof(IScopedGeneric<string>));
-        Assert.Null(result); // scoped not served from root
-    }
-
-    [Fact]
-    public void ResolveOpenGenericRoot_UnknownType_ReturnsNull()
-    {
-        var provider = new TestOpenGenericProvider();
-        var result = provider.GetService(typeof(IList<string>));
-        Assert.Null(result);
-    }
 }

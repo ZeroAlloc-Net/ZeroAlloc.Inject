@@ -22,7 +22,8 @@ public class IntegrationTests
         // 1. Run the generator to obtain the compilation with generated trees.
         var (outputCompilation, diagnostics) = RunGeneratorAndGetCompilation(source);
 
-        var genErrors = diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+        var genErrors = new List<Diagnostic>();
+        foreach (var d in diagnostics) { if (d.Severity == DiagnosticSeverity.Error) genErrors.Add(d); }
         if (genErrors.Count > 0)
         {
             throw new InvalidOperationException(
@@ -34,9 +35,9 @@ public class IntegrationTests
         var emitResult = outputCompilation.Emit(ms);
         if (!emitResult.Success)
         {
-            var errors = emitResult.Diagnostics
-                .Where(d => d.Severity == DiagnosticSeverity.Error)
-                .Select(d => d.ToString());
+            var errors = new List<string>();
+            foreach (var d in emitResult.Diagnostics)
+                { if (d.Severity == DiagnosticSeverity.Error) errors.Add(d.ToString()); }
             throw new InvalidOperationException(
                 "Compilation failed:\n" + string.Join("\n", errors));
         }
@@ -49,7 +50,7 @@ public class IntegrationTests
 
         // Locate the generated extension class and invoke BuildZeroInjectServiceProvider.
         var extensionClass = assembly.GetTypes()
-            .First(t => t.Name == "ZeroInjectServiceCollectionExtensions");
+            .First(static t => string.Equals(t.Name, "ZeroInjectServiceCollectionExtensions", StringComparison.Ordinal));
         var buildMethod = extensionClass.GetMethod(
             "BuildZeroInjectServiceProvider",
             BindingFlags.Public | BindingFlags.Static);
@@ -85,9 +86,11 @@ public class IntegrationTests
             typeof(ServiceCollectionContainerBuilderExtensions).Assembly,            // M.E.DI (BuildServiceProvider)
             typeof(ServiceCollection).Assembly,                                     // M.E.DI.Abstractions
         };
+        var existingLocations = new HashSet<string>(
+            references.Select(static r => r.Display ?? ""), StringComparer.Ordinal);
         foreach (var asm in extraAssemblies)
         {
-            if (!references.Any(r => string.Equals(r.Display, asm.Location, StringComparison.Ordinal)))
+            if (existingLocations.Add(asm.Location))
             {
                 references.Add(MetadataReference.CreateFromFile(asm.Location));
             }
@@ -396,7 +399,8 @@ public class IntegrationTests
             """;
         var (outputCompilation, diagnostics) = RunGeneratorAndGetCompilation(source);
 
-        var genErrors = diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+        var genErrors = new List<Diagnostic>();
+        foreach (var d in diagnostics) { if (d.Severity == DiagnosticSeverity.Error) genErrors.Add(d); }
         if (genErrors.Count > 0)
         {
             throw new InvalidOperationException(
@@ -407,9 +411,9 @@ public class IntegrationTests
         var emitResult = outputCompilation.Emit(ms);
         if (!emitResult.Success)
         {
-            var errors = emitResult.Diagnostics
-                .Where(d => d.Severity == DiagnosticSeverity.Error)
-                .Select(d => d.ToString());
+            var errors = new List<string>();
+            foreach (var d in emitResult.Diagnostics)
+                { if (d.Severity == DiagnosticSeverity.Error) errors.Add(d.ToString()); }
             throw new InvalidOperationException(
                 "Compilation failed:\n" + string.Join("\n", errors));
         }
@@ -419,7 +423,7 @@ public class IntegrationTests
         var assembly = loadContext.LoadFromStream(ms);
 
         // Find the factory class and invoke it
-        var factoryType = assembly.GetTypes().First(t => t.Name == "ZeroInjectServiceProviderFactory");
+        var factoryType = assembly.GetTypes().First(static t => string.Equals(t.Name, "ZeroInjectServiceProviderFactory", StringComparison.Ordinal));
         var factory = Activator.CreateInstance(factoryType)!;
 
         var createBuilderMethod = factoryType.GetMethod("CreateBuilder")!;
@@ -641,8 +645,7 @@ public class IntegrationTests
         var enumerable = provider.GetService(enumerableType);
         var array = ((System.Collections.IEnumerable)enumerable!).Cast<object>().ToArray();
 
-        Assert.Single(array);
-        Assert.Same(single, array[0]);
+        Assert.Collection(array, item => Assert.Same(single, item));
     }
 
     // ---------------------------------------------------------------
@@ -669,8 +672,7 @@ public class IntegrationTests
         var enumerable = scope.ServiceProvider.GetService(enumerableType);
         var array = ((System.Collections.IEnumerable)enumerable!).Cast<object>().ToArray();
 
-        Assert.Single(array);
-        Assert.Same(single, array[0]);
+        Assert.Collection(array, item => Assert.Same(single, item));
     }
 
     // ---------------------------------------------------------------
@@ -772,7 +774,8 @@ public class IntegrationTests
     {
         var (outputCompilation, diagnostics) = RunGeneratorAndGetCompilation(source);
 
-        var genErrors = diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+        var genErrors = new List<Diagnostic>();
+        foreach (var d in diagnostics) { if (d.Severity == DiagnosticSeverity.Error) genErrors.Add(d); }
         if (genErrors.Count > 0)
         {
             throw new InvalidOperationException(
@@ -783,9 +786,9 @@ public class IntegrationTests
         var emitResult = outputCompilation.Emit(ms);
         if (!emitResult.Success)
         {
-            var errors = emitResult.Diagnostics
-                .Where(d => d.Severity == DiagnosticSeverity.Error)
-                .Select(d => d.ToString());
+            var errors = new List<string>();
+            foreach (var d in emitResult.Diagnostics)
+                { if (d.Severity == DiagnosticSeverity.Error) errors.Add(d.ToString()); }
             throw new InvalidOperationException(
                 "Compilation failed:\n" + string.Join("\n", errors));
         }
@@ -1110,6 +1113,300 @@ public class IntegrationTests
         await ((IAsyncDisposable)provider).DisposeAsync();
 
         Assert.True((bool)isDisposedProp.GetValue(instance)!);
+    }
+
+    // ---------------------------------------------------------------
+    // Standalone 12. Open generic transient: new instance each call
+    // ---------------------------------------------------------------
+    [Fact]
+    public void Standalone_OpenGeneric_Transient_ResolvesNewInstanceEachTime()
+    {
+        const string source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IRepo<T> { }
+            [Transient]
+            public class Repo<T> : IRepo<T> { }
+            """;
+
+        var (assembly, provider) = BuildAndCreateStandaloneProvider(source);
+        var repoOpenType = assembly.GetType("TestApp.IRepo`1")!;
+        var repoType = repoOpenType.MakeGenericType(typeof(string));
+
+        var a = provider.GetService(repoType);
+        var b = provider.GetService(repoType);
+
+        Assert.NotNull(a);
+        Assert.NotSame(a, b);
+    }
+
+    // ---------------------------------------------------------------
+    // Standalone 13. Open generic scoped: same within scope, different across scopes
+    // ---------------------------------------------------------------
+    [Fact]
+    public void Standalone_OpenGeneric_Scoped_SameWithinScope_DifferentAcrossScopes()
+    {
+        const string source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IRepo<T> { }
+            [Scoped]
+            public class Repo<T> : IRepo<T> { }
+            """;
+
+        var (assembly, provider) = BuildAndCreateStandaloneProvider(source);
+        var repoOpenType = assembly.GetType("TestApp.IRepo`1")!;
+        var repoType = repoOpenType.MakeGenericType(typeof(string));
+
+        var scopeFactory = (Microsoft.Extensions.DependencyInjection.IServiceScopeFactory)provider
+            .GetService(typeof(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory))!;
+
+        object? instanceScope1A, instanceScope1B, instanceScope2A;
+        using (var scope1 = scopeFactory.CreateScope())
+        {
+            instanceScope1A = scope1.ServiceProvider.GetService(repoType);
+            instanceScope1B = scope1.ServiceProvider.GetService(repoType);
+        }
+
+        using (var scope2 = scopeFactory.CreateScope())
+        {
+            instanceScope2A = scope2.ServiceProvider.GetService(repoType);
+        }
+
+        Assert.NotNull(instanceScope1A);
+        Assert.Same(instanceScope1A, instanceScope1B);
+        Assert.NotSame(instanceScope1A, instanceScope2A);
+    }
+
+    // ---------------------------------------------------------------
+    // Standalone 14. Open generic singleton: same across root and scope
+    // ---------------------------------------------------------------
+    [Fact]
+    public void Standalone_OpenGeneric_Singleton_ReturnsSameInstanceAcrossRootAndScope()
+    {
+        const string source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IRepo<T> { }
+            [Singleton]
+            public class Repo<T> : IRepo<T> { }
+            """;
+
+        var (assembly, provider) = BuildAndCreateStandaloneProvider(source);
+        var repoOpenType = assembly.GetType("TestApp.IRepo`1")!;
+        var repoType = repoOpenType.MakeGenericType(typeof(int));
+
+        var fromRoot = provider.GetService(repoType);
+
+        var scopeFactory = (Microsoft.Extensions.DependencyInjection.IServiceScopeFactory)provider
+            .GetService(typeof(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory))!;
+
+        object? fromScope;
+        using (var scope = scopeFactory.CreateScope())
+        {
+            fromScope = scope.ServiceProvider.GetService(repoType);
+        }
+
+        Assert.NotNull(fromRoot);
+        Assert.Same(fromRoot, fromScope);
+    }
+
+    // ---------------------------------------------------------------
+    // Standalone 15. Open generic unknown closed type returns null
+    // ---------------------------------------------------------------
+    [Fact]
+    public void Standalone_OpenGeneric_UnknownClosedType_ReturnsNull()
+    {
+        const string source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IRepo<T> { }
+            [Transient]
+            public class Repo<T> : IRepo<T> { }
+            """;
+
+        var (assembly, provider) = BuildAndCreateStandaloneProvider(source);
+
+        // IList<T> is not registered — should return null
+        var result = provider.GetService(typeof(System.Collections.Generic.IList<string>));
+        Assert.Null(result);
+    }
+
+    // ---------------------------------------------------------------
+    // Decorator 1. Non-generic decorator via hybrid container
+    // ---------------------------------------------------------------
+    [Fact]
+    public void Decorator_NonGeneric_HybridContainer_ReturnsDecoratedInstance()
+    {
+        const string source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IFoo { string Tag { get; } }
+            [Transient]
+            public class FooImpl : IFoo { public string Tag => "impl"; }
+            [Decorator]
+            public class LoggingFoo : IFoo
+            {
+                private readonly IFoo _inner;
+                public LoggingFoo(IFoo inner) { _inner = inner; }
+                public string Tag => "logging:" + _inner.Tag;
+            }
+            """;
+
+        var (assembly, provider) = BuildAndCreateProvider(source);
+        var fooType = assembly.GetType("TestApp.IFoo")!;
+        var tagProp = fooType.GetProperty("Tag")!;
+
+        var instance = provider.GetService(fooType);
+
+        Assert.NotNull(instance);
+        Assert.Equal("logging:impl", (string)tagProp.GetValue(instance)!);
+    }
+
+    // ---------------------------------------------------------------
+    // Decorator 2. Non-generic decorator via standalone container
+    // ---------------------------------------------------------------
+    [Fact]
+    public void Decorator_NonGeneric_Standalone_ReturnsDecoratedInstance()
+    {
+        const string source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IFoo { string Tag { get; } }
+            [Transient]
+            public class FooImpl : IFoo { public string Tag => "impl"; }
+            [Decorator]
+            public class LoggingFoo : IFoo
+            {
+                private readonly IFoo _inner;
+                public LoggingFoo(IFoo inner) { _inner = inner; }
+                public string Tag => "logging:" + _inner.Tag;
+            }
+            """;
+
+        var (assembly, provider) = BuildAndCreateStandaloneProvider(source);
+        var fooType = assembly.GetType("TestApp.IFoo")!;
+        var tagProp = fooType.GetProperty("Tag")!;
+
+        var instance = provider.GetService(fooType);
+
+        Assert.NotNull(instance);
+        Assert.Equal("logging:impl", (string)tagProp.GetValue(instance)!);
+    }
+
+    // ---------------------------------------------------------------
+    // Decorator 3. Non-generic decorator via MS DI extension method
+    // ---------------------------------------------------------------
+    [Fact]
+    public void Decorator_NonGeneric_MsDiPath_ReturnsDecoratedInstance()
+    {
+        const string source = """
+            using ZeroInject;
+            namespace TestApp;
+            public interface IFoo { string Tag { get; } }
+            [Transient]
+            public class FooImpl : IFoo { public string Tag => "impl"; }
+            [Decorator]
+            public class LoggingFoo : IFoo
+            {
+                private readonly IFoo _inner;
+                public LoggingFoo(IFoo inner) { _inner = inner; }
+                public string Tag => "logging:" + _inner.Tag;
+            }
+            """;
+
+        var (assembly, provider) = BuildAndCreateMsDiProvider(source);
+        var fooType = assembly.GetType("TestApp.IFoo")!;
+        var tagProp = fooType.GetProperty("Tag")!;
+
+        var instance = provider.GetService(fooType);
+
+        Assert.NotNull(instance);
+        Assert.Equal("logging:impl", (string)tagProp.GetValue(instance)!);
+    }
+
+    // ---------------------------------------------------------------
+    // Decorator 4. Scoped decorator is disposed with scope
+    // ---------------------------------------------------------------
+    [Fact]
+    public void Decorator_Scoped_IsDisposed_WithScope()
+    {
+        const string source = """
+            using ZeroInject;
+            using System;
+            namespace TestApp;
+            public interface IFoo { }
+            [Scoped]
+            public class FooImpl : IFoo { }
+            [Decorator]
+            public class LoggingFoo : IFoo, IDisposable
+            {
+                public bool IsDisposed { get; private set; }
+                public LoggingFoo(IFoo inner) { }
+                public void Dispose() { IsDisposed = true; }
+            }
+            """;
+
+        var (assembly, provider) = BuildAndCreateStandaloneProvider(source);
+        var fooType = assembly.GetType("TestApp.IFoo")!;
+
+        var scopeFactory = (Microsoft.Extensions.DependencyInjection.IServiceScopeFactory)provider
+            .GetService(typeof(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory))!;
+
+        object? instance;
+        using (var scope = scopeFactory.CreateScope())
+        {
+            instance = scope.ServiceProvider.GetService(fooType);
+            Assert.NotNull(instance);
+        }
+
+        var isDisposedProp = instance!.GetType().GetProperty("IsDisposed")!;
+        Assert.True((bool)isDisposedProp.GetValue(instance)!);
+    }
+
+    /// <summary>
+    /// Builds an <see cref="IServiceProvider"/> using the generated MS DI extension method
+    /// (<c>AddZeroInjectServices</c>) on top of a standard <see cref="ServiceCollection"/>.
+    /// </summary>
+    private static (Assembly assembly, IServiceProvider provider) BuildAndCreateMsDiProvider(string source)
+    {
+        var (outputCompilation, diagnostics) = RunGeneratorAndGetCompilation(source);
+
+        var genErrors = new List<Diagnostic>();
+        foreach (var d in diagnostics) { if (d.Severity == DiagnosticSeverity.Error) genErrors.Add(d); }
+        if (genErrors.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Generator produced errors:\n" + string.Join("\n", genErrors));
+        }
+
+        using var ms = new MemoryStream();
+        var emitResult = outputCompilation.Emit(ms);
+        if (!emitResult.Success)
+        {
+            var errors = new List<string>();
+            foreach (var d in emitResult.Diagnostics)
+                { if (d.Severity == DiagnosticSeverity.Error) errors.Add(d.ToString()); }
+            throw new InvalidOperationException(
+                "Compilation failed:\n" + string.Join("\n", errors));
+        }
+
+        ms.Seek(0, SeekOrigin.Begin);
+        var loadContext = new AssemblyLoadContext(null, isCollectible: true);
+        var assembly = loadContext.LoadFromStream(ms);
+
+        // Invoke the generated Add*Services extension on a ServiceCollection.
+        // The class name is dynamic (e.g. TestAssemblyServicesServiceCollectionExtensions),
+        // so search all public static methods across all types.
+        var addMethod = assembly.GetTypes()
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Static))
+            .First(m => m.Name.StartsWith("Add", StringComparison.Ordinal) && m.Name.EndsWith("Services", StringComparison.Ordinal));
+
+        var services = new ServiceCollection();
+        addMethod!.Invoke(null, [services]);
+        var provider = services.BuildServiceProvider();
+
+        return (assembly, provider);
     }
 
     /// <summary>

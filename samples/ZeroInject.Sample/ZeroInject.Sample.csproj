@@ -11,6 +11,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\ZeroInject\ZeroInject.csproj" />
+    <ProjectReference Include="..\..\src\ZeroInject.Container\ZeroInject.Container.csproj" />
     <ProjectReference Include="..\..\src\ZeroInject.Generator\ZeroInject.Generator.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />

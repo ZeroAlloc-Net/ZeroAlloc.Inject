@@ -107,3 +107,35 @@ public class MultiServiceC : IMultiService
 {
     public void Execute() { }
 }
+
+// Decorated service (transient inner + decorator)
+public interface IDecoratedService
+{
+    void Execute();
+}
+
+[Transient]
+public class DecoratedServiceImpl : IDecoratedService
+{
+    public void Execute() { }
+}
+
+[Decorator]
+public class LoggingDecoratedService : IDecoratedService
+{
+    private readonly IDecoratedService _inner;
+    public LoggingDecoratedService(IDecoratedService inner) { _inner = inner; }
+    public void Execute() => _inner.Execute();
+}
+
+// Open generic service (standalone runtime resolution)
+public interface IGenericRepo<T>
+{
+    T? Get();
+}
+
+[Transient]
+public class GenericRepo<T> : IGenericRepo<T>
+{
+    public T? Get() => default;
+}

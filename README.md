@@ -113,9 +113,9 @@ ZeroInject reports issues at compile time:
 | ZI009 | Error | Multiple public constructors without `[ActivatorUtilitiesConstructor]` |
 | ZI010 | Error | Constructor parameter is a primitive/value type |
 
-## Generated Container (Phase 3)
+## Generated Container
 
-ZeroInject can replace the default MS DI container entirely with a source-generated `IServiceProvider`. This eliminates reflection-based resolution at runtime for near-zero overhead.
+ZeroInject can replace the default MS DI container with a source-generated `IServiceProvider`. This eliminates reflection-based resolution at runtime. Two modes are available depending on whether you need MS DI integration.
 
 ### Installation
 
@@ -127,10 +127,13 @@ dotnet add package ZeroInject.Generator
 dotnet add package ZeroInject.Container
 ```
 
-When the generator detects a reference to `ZeroInject.Container`, it automatically emits a generated service provider class and a `BuildZeroInjectServiceProvider` extension method.
+When the generator detects a reference to `ZeroInject.Container`, it automatically emits two generated provider classes per assembly.
 
-### Console App Usage
+### Hybrid Mode (MS DI integration)
 
+Wraps the generated container around an MS DI fallback. Unknown service types (framework services, third-party) are resolved by the MS DI provider. Use this for ASP.NET Core or any host that requires `IServiceCollection` integration.
+
+**Console App:**
 ```csharp
 var services = new ServiceCollection();
 services.AddMyAppServices(); // Generated registration method
@@ -139,8 +142,7 @@ IServiceProvider provider = services.BuildZeroInjectServiceProvider();
 var myService = provider.GetRequiredService<IMyService>();
 ```
 
-### ASP.NET Core Usage
-
+**ASP.NET Core:**
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddMyAppServices();
@@ -149,15 +151,57 @@ builder.Host.UseServiceProviderFactory(new ZeroInjectServiceProviderFactory());
 var app = builder.Build();
 ```
 
+### Standalone Mode (no MS DI runtime)
+
+A fully self-contained provider with no dependency on `Microsoft.Extensions.DependencyInjection` at runtime. Instantiated directly — no `ServiceCollection`, no `BuildServiceProvider`. Unknown service types return `null`.
+
+```csharp
+// Instantiate directly — no ServiceCollection needed
+IServiceProvider provider = new MyAppStandaloneServiceProvider();
+var myService = provider.GetRequiredService<IMyService>();
+```
+
+Use this for console tools, background workers, or any scenario where you own all the services and don't need framework integration.
+
 ### How It Works
 
-The generated container uses a type-switch (`if`/`else if` chain on `typeof(T)`) to resolve services directly, avoiding dictionary lookups and reflection. For any service type the container does not know about (e.g., framework services), it falls back to the standard MS DI provider.
+The generated container uses a type-switch (`if`/`else if` chain on `typeof(T)`) to resolve services directly, bypassing dictionary lookups and reflection. Singletons are stored in fields and initialized via `Interlocked.CompareExchange`. Scoped services are tracked per-scope and disposed in reverse registration order.
 
-### Current Limitations (v1)
+### Current Limitations
 
-- **`IEnumerable<T>` resolution** delegates to the fallback MS DI provider
-- **Open generics** (e.g., `IRepository<>`) delegate to the fallback MS DI provider
-- **`IServiceProviderIsService`** delegates to the fallback MS DI provider
+- **Open generics** (e.g., `IRepository<>`) delegate to the fallback in hybrid mode; in standalone mode they are resolved via code-generated delegate factories with `MakeGenericType` at runtime (cached after the first call per closed type)
+- **Multiple decorators** — stacking more than one `[Decorator]` on a single interface is not supported; only the last registered decorator is applied
+- **`IServiceProviderIsService`** delegates to the fallback in hybrid mode
+
+## Benchmarks
+
+All benchmarks on .NET 9.0.14, BenchmarkDotNet v0.14.0, Windows 11, X64 RyuJIT AVX2.
+
+### Startup / Registration
+
+| Method | Mean | Allocated |
+|---|---:|---:|
+| MS DI — `BuildServiceProvider()` | 177 ns | 528 B |
+| ZeroInject Container — `BuildZeroInjectServiceProvider()` | 9,584 ns | 9,296 B |
+| Standalone — `new MyAppStandaloneServiceProvider()` | **9 ns** | **40 B** |
+
+The hybrid container has a one-time build cost (generating internal data structures). The standalone provider has virtually none.
+
+### Resolution
+
+| Scenario | MS DI | ZeroInject Container | Standalone |
+|---|---:|---:|---:|
+| Transient (no deps) | 21 ns | **11 ns** | 13 ns |
+| Transient (1 dep) | 44 ns | 34 ns | **34 ns** |
+| Transient (2 deps) | 43 ns | 79 ns | 83 ns |
+| Singleton | 13 ns | **8 ns** | 10 ns |
+| Decorated transient | 48 ns / 48 B | 18 ns / 48 B | **11 ns / 48 B** |
+| `IEnumerable<T>` (3 impls) | 52 ns | **51 ns** | 47 ns |
+| Create scope | 80 ns / 128 B | 123 ns / 216 B | **59 ns / 88 B** |
+| Resolve scoped (scope + resolve + dispose) | 9,855 ns / 992 B | 5,811 ns / 520 B | **6,475 ns / 808 B** |
+| Open generic (closed at runtime) | 18 ns / 24 B | *(delegates to MS DI)* | **34 ns / 24 B** |
+
+The standalone provider's `CreateScope` is ~2× faster and uses ~60% less memory than the hybrid mode because it doesn't allocate a fallback scope wrapper. Decorated transients resolve **~2× faster** than MS DI across all modes. Open-generic resolution in standalone uses code-generated delegate factories with `MakeGenericType` (~1.9× vs MS DI); the delegate is compiled and cached on the first call per closed type, so subsequent resolutions are near-zero overhead.
 
 ## How It Compares to Scrutor
 

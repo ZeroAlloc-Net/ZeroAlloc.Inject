@@ -1054,10 +1054,10 @@ public class ContainerGeneratorTests
         Assert.True(fooIdx >= 0 && loggingIdx > fooIdx && fooImplIdx > fooIdx);
     }
 
-    // --- Task 6: Standalone container — open generics map + decorator ---
+    // --- Task 6: Standalone container — open generics (code-generated delegate factories) ---
 
     [Fact]
-    public void Standalone_OpenGeneric_EmitsOpenGenericMap()
+    public void Standalone_OpenGeneric_EmitsDelegateCacheAndFactoryMethod()
     {
         var source = """
             using ZeroInject;
@@ -1067,14 +1067,14 @@ public class ContainerGeneratorTests
             """;
 
         var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
-        Assert.Contains("OpenGenericMap", output);
+        Assert.Contains("OG_Factory_0", output);
+        Assert.Contains("_og_dc_0", output);
         Assert.Contains("typeof(global::IRepo<>)", output);
         Assert.Contains("typeof(global::Repo<>)", output);
-        Assert.Contains("ServiceLifetime.Scoped", output);
     }
 
     [Fact]
-    public void Standalone_OpenGeneric_ResolveKnown_CallsResolveOpenGenericRoot()
+    public void Standalone_OpenGeneric_ResolveKnown_EmitsInlineIfChain()
     {
         var source = """
             using ZeroInject;
@@ -1084,8 +1084,12 @@ public class ContainerGeneratorTests
             """;
 
         var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
-        Assert.Contains("ResolveOpenGenericRoot(serviceType)", output);
-        Assert.Contains("ResolveOpenGenericScoped(serviceType)", output);
+        Assert.Contains("serviceType.IsGenericType", output);
+        Assert.Contains("GetGenericTypeDefinition()", output);
+        Assert.Contains("GetOrAddScopedOpenGeneric", output);
+        Assert.DoesNotContain("ResolveOpenGenericRoot", output);
+        Assert.DoesNotContain("ResolveOpenGenericScoped", output);
+        Assert.DoesNotContain("OpenGenericMap", output);
     }
 
     [Fact]
@@ -1112,7 +1116,7 @@ public class ContainerGeneratorTests
     }
 
     [Fact]
-    public void Standalone_OpenGeneric_WithDecorator_EmitsDecoratorImplType()
+    public void Standalone_OpenGeneric_WithDecorator_EmitsDecoratedFactoryMethod()
     {
         var source = """
             using ZeroInject;
@@ -1127,8 +1131,8 @@ public class ContainerGeneratorTests
             """;
 
         var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
-        Assert.Contains("typeof(global::LoggingRepo<>)", output);
-        // DecoratorImplType set in OpenGenericEntry
-        Assert.Contains("new global::ZeroInject.Container.OpenGenericEntry(typeof(global::Repo<>)", output);
+        Assert.Contains("OG_Factory_0", output);
+        Assert.Contains("new global::LoggingRepo<T>", output);
+        Assert.Contains("new global::Repo<T>()", output);
     }
 }

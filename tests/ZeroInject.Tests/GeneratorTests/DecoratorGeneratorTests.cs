@@ -20,7 +20,7 @@ public class DecoratorGeneratorTests
             """;
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
-        Assert.Empty(diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.DoesNotContain(diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
         // Inner registered as concrete only (without explicit type arg, inferred by compiler)
         Assert.Contains("TryAddScoped(sp => new global::OrderService", output);
         // Interface registered via factory wrapping inner
