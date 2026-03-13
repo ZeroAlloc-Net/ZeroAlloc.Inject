@@ -358,7 +358,7 @@ public class ContainerGeneratorTests
 
         // Root ResolveKnown should NOT contain scoped service type checks
         var resolveKnownStart = output.IndexOf("protected override object? ResolveKnown(Type serviceType)");
-        var resolveKnownEnd = output.IndexOf("protected override global::ZeroInject.Container.ZeroInjectScope CreateScopeCore");
+        var resolveKnownEnd = output.IndexOf("override bool IsKnownService");
         var rootSection = output.Substring(resolveKnownStart, resolveKnownEnd - resolveKnownStart);
         Assert.DoesNotContain("typeof(global::TestApp.IRepo)", rootSection);
     }
@@ -388,7 +388,7 @@ public class ContainerGeneratorTests
 
         // Root has transient + singleton, not scoped
         var resolveKnownStart = output.IndexOf("protected override object? ResolveKnown(Type serviceType)");
-        var resolveKnownEnd = output.IndexOf("protected override global::ZeroInject.Container.ZeroInjectScope CreateScopeCore");
+        var resolveKnownEnd = output.IndexOf("override bool IsKnownService");
         var rootSection = output.Substring(resolveKnownStart, resolveKnownEnd - resolveKnownStart);
 
         Assert.Contains("typeof(global::TestApp.IFoo)", rootSection);
@@ -802,6 +802,54 @@ public class ContainerGeneratorTests
         var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
         Assert.Contains("typeof(IKeyedServiceProvider)", output);
         Assert.Contains("return this;", output);
+    }
+
+    // --- Task 2: IServiceProviderIsService — IsKnownService ---
+
+    [Fact]
+    public void Hybrid_IsKnownService_EmitsTypeChecks()
+    {
+        var source = """
+            using ZeroInject;
+            public interface IFoo { }
+            [Transient]
+            public class FooImpl : IFoo { }
+            """;
+
+        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        Assert.Contains("override bool IsKnownService", output);
+        Assert.Contains("typeof(global::IFoo)", output);
+        Assert.Contains("typeof(global::FooImpl)", output);
+    }
+
+    [Fact]
+    public void Standalone_IsKnownService_EmitsTypeChecks()
+    {
+        var source = """
+            using ZeroInject;
+            public interface IFoo { }
+            [Transient]
+            public class FooImpl : IFoo { }
+            """;
+
+        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        Assert.Contains("override bool IsKnownService", output);
+    }
+
+    [Fact]
+    public void IsKnownService_OpenGeneric_EmitsGenericTypeDefinitionCheck()
+    {
+        var source = """
+            using ZeroInject;
+            public interface IRepo<T> { }
+            [Transient]
+            public class Repo<T> : IRepo<T> { }
+            """;
+
+        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        Assert.Contains("IsKnownService", output);
+        Assert.Contains("serviceType.IsGenericType", output);
+        Assert.Contains("typeof(global::IRepo<>)", output);
     }
 
     // --- Task 6 (additional): IEnumerable<T> edge cases ---

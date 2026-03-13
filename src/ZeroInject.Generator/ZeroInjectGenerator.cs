@@ -959,8 +959,7 @@ namespace ZeroInject.Generator
             sb.AppendLine("        }");
             sb.AppendLine();
 
-            // IsKnownService - stub for now; Task 2 will fill in real logic
-            sb.AppendLine("        protected override bool IsKnownService(Type serviceType) => false;");
+            EmitIsKnownService(sb, serviceTypeGroups, new List<ServiceRegistrationInfo>(), hasKeyedServices);
             sb.AppendLine();
 
             // Keyed service methods
@@ -1596,8 +1595,7 @@ namespace ZeroInject.Generator
             sb.AppendLine("        }");
             sb.AppendLine();
 
-            // IsKnownService - stub for now; Task 2 will fill in real logic
-            sb.AppendLine("        protected override bool IsKnownService(Type serviceType) => false;");
+            EmitIsKnownService(sb, serviceTypeGroups, openGenerics, hasKeyedServices);
             sb.AppendLine();
 
             // Keyed service methods
@@ -1992,6 +1990,46 @@ namespace ZeroInject.Generator
             sb.AppendLine("}");
 
             return sb.ToString();
+        }
+
+        private static void EmitIsKnownService(
+            StringBuilder sb,
+            Dictionary<string, List<ServiceTypeGroupEntry>> serviceTypeGroups,
+            List<ServiceRegistrationInfo> openGenerics,
+            bool hasKeyedServices)
+        {
+            sb.AppendLine("        protected override bool IsKnownService(global::System.Type serviceType)");
+            sb.AppendLine("        {");
+
+            if (hasKeyedServices)
+            {
+                sb.AppendLine("            if (serviceType == typeof(global::Microsoft.Extensions.DependencyInjection.IKeyedServiceProvider)) return true;");
+            }
+
+            // Closed types
+            foreach (var kvp in serviceTypeGroups)
+            {
+                sb.AppendLine("            if (serviceType == typeof(" + kvp.Key + ")) return true;");
+            }
+
+            // Open generics
+            if (openGenerics.Count > 0)
+            {
+                sb.AppendLine("            if (serviceType.IsGenericType)");
+                sb.AppendLine("            {");
+                sb.AppendLine("                var _genDef = serviceType.GetGenericTypeDefinition();");
+                foreach (var svc in openGenerics)
+                {
+                    foreach (var st in GetServiceTypes(svc))
+                    {
+                        sb.AppendLine("                if (_genDef == typeof(" + st + ")) return true;");
+                    }
+                }
+                sb.AppendLine("            }");
+            }
+
+            sb.AppendLine("            return false;");
+            sb.AppendLine("        }");
         }
 
         private static List<string> GetServiceTypes(ServiceRegistrationInfo svc)
