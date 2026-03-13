@@ -50,9 +50,3 @@ Last updated: 2026-03-12
 | ZI012 | Error | Decorated interface not registered as a service |
 | ZI013 | Warning | Decorator on abstract/static class |
 | ZI014 | Error | Circular dependency detected (compile-time cycle detection) |
-
-## Not Yet Implemented
-
-### Nice to Have
-
-**NuGet packaging / CI** — Project structure exists but no `.nupkg` publishing pipeline.
