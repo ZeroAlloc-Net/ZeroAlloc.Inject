@@ -1,5 +1,8 @@
 # ZInject
 
+[![CI](https://github.com/MarcelRoozekrans/ZInject/actions/workflows/ci.yml/badge.svg)](https://github.com/MarcelRoozekrans/ZInject/actions/workflows/ci.yml)
+[![NuGet](https://img.shields.io/nuget/v/ZInject.svg)](https://www.nuget.org/packages/ZInject)
+
 Compile-time DI registration for .NET. A Roslyn source generator that auto-discovers services via attributes and generates `IServiceCollection` extension methods. No reflection, no runtime scanning.
 
 ## Quick Start
