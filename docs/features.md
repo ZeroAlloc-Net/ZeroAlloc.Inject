@@ -26,6 +26,7 @@ Last updated: 2026-03-12
 | Assembly-level method name override | ✅ | ✅ | `[assembly: ZInject("AddCustomName")]` |
 | Filtered system interfaces | ✅ | ✅ | `IDisposable`, `IEquatable<T>`, etc. excluded |
 | `IServiceProviderIsService` | ✅ | ✅ | Generated `IsKnownService` type-check; hybrid delegates to fallback |
+| `IServiceProviderIsKeyedService` | ✅ | ✅ | Generated `IsKnownKeyedService` key+type check; hybrid delegates to fallback |
 | Scoped thread safety | ✅ | ✅ | Matches MS DI contract — scopes are per-request, not thread-safe |
 | Circular dependency detection | ✅ | ✅ | Compile-time ZI014 error — unique among .NET DI containers |
 
@@ -53,7 +54,5 @@ Last updated: 2026-03-12
 ## Not Yet Implemented
 
 ### Nice to Have
-
-**`IServiceProviderIsKeyedService`** — Keyed variant of `IServiceProviderIsService`.
 
 **NuGet packaging / CI** — Project structure exists but no `.nupkg` publishing pipeline.
