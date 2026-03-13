@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+
 namespace ZeroInject.Tests.ContainerTests;
 
 public class StandaloneProviderBaseTests
@@ -93,9 +95,26 @@ public class StandaloneProviderBaseTests
     public void GetService_IServiceProviderIsService_ReturnsSelf()
     {
         var provider = new TestProvider();
-        var result = provider.GetService(typeof(Microsoft.Extensions.DependencyInjection.IServiceProviderIsService));
+        var result = provider.GetService(typeof(IServiceProviderIsService));
         Assert.NotNull(result);
         Assert.Same(provider, result);
+    }
+
+    [Theory]
+    [InlineData(typeof(IServiceProvider))]
+    [InlineData(typeof(IServiceScopeFactory))]
+    [InlineData(typeof(IServiceProviderIsService))]
+    public void IsService_BuiltInTypes_ReturnsTrue(Type serviceType)
+    {
+        var provider = new TestProvider();
+        Assert.True(((IServiceProviderIsService)provider).IsService(serviceType));
+    }
+
+    [Fact]
+    public void IsService_UnknownType_ReturnsFalse()
+    {
+        var provider = new TestProvider();
+        Assert.False(((IServiceProviderIsService)provider).IsService(typeof(string)));
     }
 
     // Open generic resolution is now fully code-generated (inline delegate factories).

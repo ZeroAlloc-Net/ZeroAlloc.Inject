@@ -115,6 +115,16 @@ public class StandaloneScopeTests
         scope.Dispose(); // Should not throw
     }
 
+    [Fact]
+    public void GetService_IServiceProviderIsService_ReturnsRoot()
+    {
+        var provider = new TestProvider();
+        using var scope = provider.CreateScope();
+        var result = scope.ServiceProvider.GetService(typeof(Microsoft.Extensions.DependencyInjection.IServiceProviderIsService));
+        Assert.NotNull(result);
+        Assert.Same(provider, result);
+    }
+
     // GetOrAddScopedOpenGeneric: used by generated scoped open-generic resolution
 
     private class TestScopedOpenGenericProvider : ZeroInject.Container.ZeroInjectStandaloneProvider

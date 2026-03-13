@@ -180,4 +180,23 @@ public class ServiceProviderBaseTests
         Assert.NotNull(result);
         Assert.Same(provider, result);
     }
+
+    [Theory]
+    [InlineData(typeof(IServiceProvider))]
+    [InlineData(typeof(IServiceScopeFactory))]
+    [InlineData(typeof(IServiceProviderIsService))]
+    public void IsService_BuiltInTypes_ReturnsTrue(Type serviceType)
+    {
+        var fallback = new ServiceCollection().BuildServiceProvider();
+        var provider = new TestProvider(fallback);
+        Assert.True(((IServiceProviderIsService)provider).IsService(serviceType));
+    }
+
+    [Fact]
+    public void IsService_UnknownType_ReturnsFalse()
+    {
+        var fallback = new ServiceCollection().BuildServiceProvider();
+        var provider = new TestProvider(fallback);
+        Assert.False(((IServiceProviderIsService)provider).IsService(typeof(string)));
+    }
 }

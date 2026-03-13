@@ -265,4 +265,15 @@ public class ScopeTests
         using var provider = CreateProvider();
         Assert.Throws<ArgumentNullException>(() => new TestScope(provider, null!));
     }
+
+    [Fact]
+    public void GetService_IServiceProviderIsService_ReturnsRoot()
+    {
+        var fallback = new ServiceCollection().BuildServiceProvider();
+        var provider = new TestProvider(fallback);
+        using var scope = provider.CreateScope();
+        var result = scope.ServiceProvider.GetService(typeof(IServiceProviderIsService));
+        Assert.NotNull(result);
+        Assert.Same(provider, result);
+    }
 }
