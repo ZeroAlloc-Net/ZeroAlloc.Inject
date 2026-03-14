@@ -13,6 +13,9 @@ namespace ZInject.Generator
         public List<ConstructorParameterInfo> ConstructorParameters { get; }
         public bool ImplementsDisposable { get; }
         public bool IsAbstractOrStatic { get; } // true = ZI013 warning
+        public int Order { get; }
+        public string? WhenRegisteredFqn { get; } // null = unconditional
+        public bool IsDecoratorOf { get; } // true = [DecoratorOf], false = [Decorator]
 
         public DecoratorRegistrationInfo(
             string typeName,
@@ -21,7 +24,10 @@ namespace ZInject.Generator
             bool isOpenGeneric,
             List<ConstructorParameterInfo> constructorParameters,
             bool implementsDisposable,
-            bool isAbstractOrStatic)
+            bool isAbstractOrStatic,
+            int order,
+            string? whenRegisteredFqn,
+            bool isDecoratorOf)
         {
             TypeName = typeName;
             DecoratorFqn = decoratorFqn;
@@ -30,6 +36,9 @@ namespace ZInject.Generator
             ConstructorParameters = constructorParameters;
             ImplementsDisposable = implementsDisposable;
             IsAbstractOrStatic = isAbstractOrStatic;
+            Order = order;
+            WhenRegisteredFqn = whenRegisteredFqn;
+            IsDecoratorOf = isDecoratorOf;
         }
 
         public bool Equals(DecoratorRegistrationInfo? other)
@@ -39,7 +48,10 @@ namespace ZInject.Generator
                 && DecoratedInterfaceFqn == other.DecoratedInterfaceFqn
                 && IsOpenGeneric == other.IsOpenGeneric
                 && IsAbstractOrStatic == other.IsAbstractOrStatic
-                && ConstructorParameters.Count == other.ConstructorParameters.Count;
+                && ConstructorParameters.Count == other.ConstructorParameters.Count
+                && Order == other.Order
+                && WhenRegisteredFqn == other.WhenRegisteredFqn
+                && IsDecoratorOf == other.IsDecoratorOf;
         }
 
         public override bool Equals(object? obj) => Equals(obj as DecoratorRegistrationInfo);
@@ -51,6 +63,7 @@ namespace ZInject.Generator
                 var hash = 17;
                 hash = hash * 31 + DecoratorFqn.GetHashCode();
                 hash = hash * 31 + (DecoratedInterfaceFqn?.GetHashCode() ?? 0);
+                hash = hash * 31 + (WhenRegisteredFqn?.GetHashCode() ?? 0);
                 return hash;
             }
         }

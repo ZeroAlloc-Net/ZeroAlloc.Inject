@@ -2674,7 +2674,8 @@ namespace ZInject.Generator
 
             return new DecoratorRegistrationInfo(
                 typeName, fqn, decoratedInterface,
-                isOpenGeneric, ctorParams, implementsDisposable, isAbstractOrStatic);
+                isOpenGeneric, ctorParams, implementsDisposable, isAbstractOrStatic,
+                order: 0, whenRegisteredFqn: null, isDecoratorOf: false);
         }
     }
 
