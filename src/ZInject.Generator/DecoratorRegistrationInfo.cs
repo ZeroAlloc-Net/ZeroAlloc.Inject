@@ -64,6 +64,8 @@ namespace ZInject.Generator
                 hash = hash * 31 + DecoratorFqn.GetHashCode();
                 hash = hash * 31 + (DecoratedInterfaceFqn?.GetHashCode() ?? 0);
                 hash = hash * 31 + (WhenRegisteredFqn?.GetHashCode() ?? 0);
+                hash = hash * 31 + Order.GetHashCode();
+                hash = hash * 31 + IsDecoratorOf.GetHashCode();
                 return hash;
             }
         }
