@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.10.4](https://github.com/MarcelRoozekrans/ZInject/compare/v0.10.3...v0.10.4) (2026-03-14)
+
+
+### Bug Fixes
+
+* bundle generator DLL in ZInject.Container NuGet package ([630d455](https://github.com/MarcelRoozekrans/ZInject/commit/630d455a0fe29698021489c2e23691b75f818518))
+* pack generator DLL into analyzers/dotnet/cs for NuGet packages ([83e67d1](https://github.com/MarcelRoozekrans/ZInject/commit/83e67d195080856096f1fbaa772a79cf6f56534c))
+* use forward slashes in csproj paths for cross-platform builds ([0c24beb](https://github.com/MarcelRoozekrans/ZInject/commit/0c24bebb576f45cfc2dea07a11eef47c2214484f))
+
 ## [0.10.3](https://github.com/MarcelRoozekrans/ZInject/compare/v0.10.2...v0.10.3) (2026-03-14)
 
 
