@@ -1,6 +1,6 @@
 # ZInject — Feature Status
 
-Last updated: 2026-03-12
+Last updated: 2026-03-14
 
 ## Implemented
 
@@ -10,6 +10,8 @@ Last updated: 2026-03-12
 | `[Scoped]` lifetime | ✅ | ✅ | One instance per scope |
 | `[Singleton]` lifetime | ✅ | ✅ | Thread-safe lazy init via `Interlocked.CompareExchange` |
 | `[Decorator]` (single + stacked) | ✅ | ✅ | Supports chaining: `Retry → Logging → Caching → Concrete` |
+| `[DecoratorOf(typeof(T), Order, WhenRegistered)]` | 🚧 | 🚧 | Explicit decorator with ordering and conditional application |
+| `[OptionalDependency]` on constructor param | 🚧 | 🚧 | Emits `GetService<T>()` (null if absent) instead of `GetRequiredService<T>()` |
 | `[As(typeof(...))]` explicit binding | ✅ | ✅ | Narrows registration to specific interface(s) |
 | Keyed services (`Key = "..."`) | ✅ | ✅ | `IKeyedServiceProvider`; requires .NET 8+ (ZI005) |
 | `AllowMultiple` (multi-registration) | ✅ | ✅ | Switches from `TryAdd*` to `Add*` |
@@ -50,3 +52,6 @@ Last updated: 2026-03-12
 | ZI012 | Error | Decorated interface not registered as a service |
 | ZI013 | Warning | Decorator on abstract/static class |
 | ZI014 | Error | Circular dependency detected (compile-time cycle detection) |
+| ZI015 | Error | `[OptionalDependency]` on non-nullable parameter 🚧 |
+| ZI016 | Error | `[DecoratorOf]` interface not implemented by the class 🚧 |
+| ZI017 | Error | Two `[DecoratorOf]` decorators for same interface share the same `Order` 🚧 |
