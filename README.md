@@ -7,12 +7,14 @@ Compile-time DI registration for .NET. A Roslyn source generator that auto-disco
 
 ## Quick Start
 
-Install both packages:
+Install the packages:
 
 ```
 dotnet add package ZInject
 dotnet add package ZInject.Generator
 ```
+
+> **Tip:** If you plan to use the [generated container](#generated-container), install `ZInject.Container` instead — it bundles the generator and attributes in a single package.
 
 Decorate your services:
 
@@ -122,15 +124,11 @@ ZInject can replace the default MS DI container with a source-generated `IServic
 
 ### Installation
 
-Add the `ZInject.Container` package alongside the existing packages:
-
 ```
-dotnet add package ZInject
-dotnet add package ZInject.Generator
 dotnet add package ZInject.Container
 ```
 
-When the generator detects a reference to `ZInject.Container`, it automatically emits two generated provider classes per assembly.
+This single package includes everything: the source generator, the attributes (`ZInject`), and the container base classes. When the generator detects a reference to `ZInject.Container`, it automatically emits two generated provider classes per assembly.
 
 ### Hybrid Mode (MS DI integration)
 
