@@ -115,5 +115,13 @@ namespace ZInject.Generator
             "ZInject",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor OptionalDependencyOnNonNullable = new DiagnosticDescriptor(
+            "ZI015",
+            "[OptionalDependency] on non-nullable parameter",
+            "Parameter '{0}' of class '{1}' is marked [OptionalDependency] but its type '{2}' is not nullable; change the parameter type to '{2}?'",
+            "ZInject",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
     }
 }

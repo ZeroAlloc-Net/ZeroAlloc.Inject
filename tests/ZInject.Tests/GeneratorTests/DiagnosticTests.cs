@@ -275,4 +275,42 @@ public class DiagnosticTests
         var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
         Assert.DoesNotContain(diagnostics, static d => string.Equals(d.Id, "ZI014", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void OptionalDependency_GeneratesGetService_InsteadOfGetRequiredService()
+    {
+        var source = """
+            using ZInject;
+            public interface IFoo { }
+            public interface ILogger { }
+            [Transient]
+            public class FooImpl : IFoo
+            {
+                public FooImpl([OptionalDependency] ILogger? logger) { }
+            }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+        Assert.DoesNotContain(diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains("GetService<global::ILogger>", output);
+        Assert.DoesNotContain("GetRequiredService<global::ILogger>", output);
+    }
+
+    [Fact]
+    public void OptionalDependency_OnNonNullableParameter_ReportsZI015()
+    {
+        var source = """
+            using ZInject;
+            public interface ILogger { }
+            public interface IFoo { }
+            [Transient]
+            public class FooImpl : IFoo
+            {
+                public FooImpl([OptionalDependency] ILogger logger) { }
+            }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+        Assert.Contains(diagnostics, d => d.Id == "ZI015");
+    }
 }

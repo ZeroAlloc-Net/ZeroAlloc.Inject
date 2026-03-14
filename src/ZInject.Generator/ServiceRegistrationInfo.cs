@@ -21,6 +21,8 @@ namespace ZInject.Generator
         public bool HasMultipleConstructors { get; }
         public string? PrimitiveParameterName { get; }
         public string? PrimitiveParameterType { get; }
+        public string? OptionalNonNullableParamName { get; }
+        public string? OptionalNonNullableParamType { get; }
         public bool ImplementsDisposable { get; }
 
         public ServiceRegistrationInfo(
@@ -39,6 +41,8 @@ namespace ZInject.Generator
             bool hasMultipleConstructors,
             string? primitiveParameterName,
             string? primitiveParameterType,
+            string? optionalNonNullableParamName,
+            string? optionalNonNullableParamType,
             bool implementsDisposable)
         {
             Namespace = ns;
@@ -56,6 +60,8 @@ namespace ZInject.Generator
             HasMultipleConstructors = hasMultipleConstructors;
             PrimitiveParameterName = primitiveParameterName;
             PrimitiveParameterType = primitiveParameterType;
+            OptionalNonNullableParamName = optionalNonNullableParamName;
+            OptionalNonNullableParamType = optionalNonNullableParamType;
             ImplementsDisposable = implementsDisposable;
         }
 
@@ -72,6 +78,8 @@ namespace ZInject.Generator
                 || HasMultipleConstructors != other.HasMultipleConstructors
                 || PrimitiveParameterName != other.PrimitiveParameterName
                 || PrimitiveParameterType != other.PrimitiveParameterType
+                || OptionalNonNullableParamName != other.OptionalNonNullableParamName
+                || OptionalNonNullableParamType != other.OptionalNonNullableParamType
                 || ImplementsDisposable != other.ImplementsDisposable
                 || ConstructorParameters.Count != other.ConstructorParameters.Count
                 || Interfaces.Count != other.Interfaces.Count)

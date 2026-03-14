@@ -156,6 +156,16 @@ namespace ZInject.Generator
                             svc.TypeName,
                             svc.PrimitiveParameterType));
                     }
+
+                    if (svc.OptionalNonNullableParamName != null)
+                    {
+                        spc.ReportDiagnostic(Diagnostic.Create(
+                            DiagnosticDescriptors.OptionalDependencyOnNonNullable,
+                            Location.None,
+                            svc.OptionalNonNullableParamName,
+                            svc.TypeName,
+                            svc.OptionalNonNullableParamType));
+                    }
                 }
 
                 if (allServices.Count == 0 && decoratorInfos.Length == 0)
@@ -403,6 +413,8 @@ namespace ZInject.Generator
             var constructorParameters = new List<ConstructorParameterInfo>();
             string? primitiveParameterName = null;
             string? primitiveParameterType = null;
+            string? optionalNonNullableParamName = null;
+            string? optionalNonNullableParamType = null;
 
             if (publicCtors.Count == 1)
             {
@@ -441,7 +453,19 @@ namespace ZInject.Generator
                 foreach (var param in chosenCtor.Parameters)
                 {
                     var paramTypeFqn = param.Type.ToDisplayString(FullyQualifiedFormat);
-                    bool isOptional = param.HasExplicitDefaultValue;
+                    bool isOptional = param.HasExplicitDefaultValue
+                        || param.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "ZInject.OptionalDependencyAttribute");
+
+                    // Check if [OptionalDependency] is used on a non-nullable reference type
+                    if (optionalNonNullableParamName == null
+                        && !param.HasExplicitDefaultValue
+                        && param.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "ZInject.OptionalDependencyAttribute")
+                        && param.Type.NullableAnnotation != Microsoft.CodeAnalysis.NullableAnnotation.Annotated
+                        && !param.Type.IsValueType)
+                    {
+                        optionalNonNullableParamName = param.Name;
+                        optionalNonNullableParamType = paramTypeFqn;
+                    }
 
                     constructorParameters.Add(new ConstructorParameterInfo(
                         paramTypeFqn,
@@ -480,6 +504,8 @@ namespace ZInject.Generator
                 hasMultipleConstructors,
                 primitiveParameterName,
                 primitiveParameterType,
+                optionalNonNullableParamName,
+                optionalNonNullableParamType,
                 implementsDisposable);
         }
 
@@ -2629,7 +2655,9 @@ namespace ZInject.Generator
                     var matchFqn = (isOpenGeneric && param.Type is INamedTypeSymbol pt && pt.IsGenericType)
                         ? ToUnboundGenericString(paramTypeFqn, arity)
                         : paramTypeFqn;
-                    ctorParams.Add(new ConstructorParameterInfo(matchFqn, param.Name, param.HasExplicitDefaultValue));
+                    bool isOptional = param.HasExplicitDefaultValue
+                        || param.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "ZInject.OptionalDependencyAttribute");
+                    ctorParams.Add(new ConstructorParameterInfo(matchFqn, param.Name, isOptional));
                     if (decoratedInterface == null && interfaces.Contains(matchFqn))
                         decoratedInterface = matchFqn;
                 }
