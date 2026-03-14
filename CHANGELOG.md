@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.3](https://github.com/MarcelRoozekrans/ZInject/compare/v0.10.2...v0.10.3) (2026-03-14)
+
+
+### Bug Fixes
+
+* pack generator DLL into analyzers/dotnet/cs ([355bdc3](https://github.com/MarcelRoozekrans/ZInject/commit/355bdc3156eb39ca2613470d2c3d8172d3b45658))
+* pack generator DLL into analyzers/dotnet/cs instead of lib ([3667d9e](https://github.com/MarcelRoozekrans/ZInject/commit/3667d9ebfa32b3bbb0a757c21dcbdf6568aff81b))
+
 ## [0.10.2](https://github.com/MarcelRoozekrans/ZInject/compare/v0.10.1...v0.10.2) (2026-03-13)
 
 
