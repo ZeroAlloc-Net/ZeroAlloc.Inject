@@ -298,12 +298,9 @@ namespace ZInject.Generator
                     var providerSource = GenerateServiceProviderClass(allServices, asmName, decoratorsByInterface);
                     spc.AddSource("ZInject.ServiceProvider.g.cs", providerSource);
 
-                    var standaloneCode = GenerateStandaloneServiceProviderClass(allServices, asmName, decoratorsByInterface);
+                    var standaloneCode = GenerateStandaloneServiceProviderClass(allServices, asmName, decoratorsByInterface, closedGenericFactories);
                     spc.AddSource(asmName + ".StandaloneServiceProvider.g.cs", standaloneCode);
                 }
-
-                // closedGenericFactories will be used in Task 3 (code generation)
-                _ = closedGenericFactories;
             });
         }
 
@@ -1566,7 +1563,8 @@ namespace ZInject.Generator
         private static string GenerateStandaloneServiceProviderClass(
             List<ServiceRegistrationInfo> services,
             string assemblyName,
-            System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<DecoratorRegistrationInfo>> decoratorsByInterface)
+            System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<DecoratorRegistrationInfo>> decoratorsByInterface,
+            ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories)
         {
             // Clean assembly name for class naming
             var cleanName = new StringBuilder();
@@ -1602,6 +1600,29 @@ namespace ZInject.Generator
                 else if (svc.Lifetime == "Singleton") singletons.Add(svc);
                 else if (svc.Lifetime == "Scoped") scopeds.Add(svc);
             }
+
+            // Determine which open generic services have all their usages covered by explicit closed entries.
+            // For those, suppress the open-generic runtime infrastructure (MakeGenericMethod/GetMethod).
+            var coveredOpenGenericImplFqns = new System.Collections.Generic.HashSet<string>();
+            foreach (var cgf in closedGenericFactories)
+            {
+                coveredOpenGenericImplFqns.Add(cgf.ImplementationFqn.Contains('<')
+                    ? cgf.ImplementationFqn.Substring(0, cgf.ImplementationFqn.IndexOf('<'))
+                    : cgf.ImplementationFqn);
+            }
+            // Remove from openGenerics list any service whose unbound name is fully covered.
+            // We compare by stripping the arity suffix from the open generic FQN.
+            var filteredOpenGenerics = new List<ServiceRegistrationInfo>();
+            foreach (var svc in openGenerics)
+            {
+                // svc.FullyQualifiedName for open generics looks like "global::Ns.Repo<T>" — strip <...>
+                var implBase = svc.FullyQualifiedName.Contains('<')
+                    ? svc.FullyQualifiedName.Substring(0, svc.FullyQualifiedName.IndexOf('<'))
+                    : svc.FullyQualifiedName;
+                if (!coveredOpenGenericImplFqns.Contains(implBase))
+                    filteredOpenGenerics.Add(svc);
+            }
+            openGenerics = filteredOpenGenerics;
 
             // Group non-keyed services by service type for IEnumerable<T> support.
             var serviceTypeGroups = new Dictionary<string, List<ServiceTypeGroupEntry>>();
@@ -1685,7 +1706,14 @@ namespace ZInject.Generator
             {
                 sb.AppendLine("        private " + keyedSingletons[i].FullyQualifiedName + "? _keyedSingleton_" + i + ";");
             }
-            if (singletons.Count > 0 || keyedSingletons.Count > 0)
+            // Closed generic singleton fields
+            for (int i = 0; i < closedGenericFactories.Length; i++)
+            {
+                var cgf = closedGenericFactories[i];
+                if (string.Equals(cgf.Lifetime, "Singleton", StringComparison.Ordinal))
+                    sb.AppendLine("        private " + cgf.ImplementationFqn + "? _cg_s_" + i + ";");
+            }
+            if (singletons.Count > 0 || keyedSingletons.Count > 0 || closedGenericFactories.Length > 0)
             {
                 sb.AppendLine();
             }
@@ -1840,6 +1868,26 @@ namespace ZInject.Generator
 
                 sb.AppendLine(" };");
                 sb.AppendLine("            }");
+            }
+
+            // Explicit closed generic entries (Transient + Singleton; Scoped handled in ResolveScopedKnown)
+            for (int i = 0; i < closedGenericFactories.Length; i++)
+            {
+                var cgf = closedGenericFactories[i];
+                if (string.Equals(cgf.Lifetime, "Scoped", StringComparison.Ordinal)) continue;
+                sb.AppendLine("            if (serviceType == typeof(" + cgf.InterfaceFqn + "))");
+                if (string.Equals(cgf.Lifetime, "Singleton", StringComparison.Ordinal))
+                {
+                    sb.AppendLine("            {");
+                    sb.AppendLine("                if (_cg_s_" + i + " != null) return _cg_s_" + i + ";");
+                    sb.AppendLine("                var _cg_instance_" + i + " = " + BuildClosedGenericNewExpr(cgf) + ";");
+                    sb.AppendLine("                return Interlocked.CompareExchange(ref _cg_s_" + i + ", _cg_instance_" + i + ", null) ?? _cg_s_" + i + ";");
+                    sb.AppendLine("            }");
+                }
+                else // Transient
+                {
+                    sb.AppendLine("                return " + BuildClosedGenericNewExpr(cgf) + ";");
+                }
             }
 
             if (openGenerics.Count > 0)
@@ -2164,6 +2212,21 @@ namespace ZInject.Generator
 
                 sb.AppendLine(" };");
                 sb.AppendLine("                }");
+            }
+
+            // Explicit closed generic entries in scope (all lifetimes)
+            for (int i = 0; i < closedGenericFactories.Length; i++)
+            {
+                var cgf = closedGenericFactories[i];
+                sb.AppendLine("                if (serviceType == typeof(" + cgf.InterfaceFqn + "))");
+                if (string.Equals(cgf.Lifetime, "Singleton", StringComparison.Ordinal))
+                {
+                    sb.AppendLine("                    return Root.GetService(serviceType);");
+                }
+                else // Transient or Scoped — both emit fresh instances in scope
+                {
+                    sb.AppendLine("                    return " + BuildClosedGenericNewExpr(cgf) + ";");
+                }
             }
 
             if (openGenerics.Count > 0)
@@ -2519,6 +2582,32 @@ namespace ZInject.Generator
 
             argSb.Append(")");
             return argSb.ToString();
+        }
+
+        // ---- Closed generic factory code-gen helpers ----
+
+        /// <summary>Builds a "new ClosedImpl(args...)" expression for an explicit closed-generic entry.</summary>
+        private static string BuildClosedGenericNewExpr(ClosedGenericFactoryInfo cgf)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append("new ").Append(cgf.ImplementationFqn).Append("(");
+            for (int i = 0; i < cgf.Parameters.Length; i++)
+            {
+                if (i > 0) sb.Append(", ");
+                var p = cgf.Parameters[i];
+                if (p.IsOptional)
+                {
+                    sb.Append("(").Append(p.FullyQualifiedTypeName).Append("?)GetService(typeof(")
+                      .Append(p.FullyQualifiedTypeName).Append("))");
+                }
+                else
+                {
+                    sb.Append("(").Append(p.FullyQualifiedTypeName).Append(")GetService(typeof(")
+                      .Append(p.FullyQualifiedTypeName).Append("))!");
+                }
+            }
+            sb.Append(")");
+            return sb.ToString();
         }
 
         // ---- Open generic factory code-gen helpers ----
