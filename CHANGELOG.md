@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.11.1](https://github.com/MarcelRoozekrans/ZInject/compare/v0.11.0...v0.11.1) (2026-03-15)
+
+
+### Bug Fixes
+
+* correct remaining ZInject references in CHANGELOG, Directory.Build.props, README, and test comments ([c6d2ef1](https://github.com/MarcelRoozekrans/ZInject/commit/c6d2ef1ae86248291c4870557616a863a3196ab0))
+* update MethodNamingTests to use ZeroAllocInject attribute ([aad9877](https://github.com/MarcelRoozekrans/ZInject/commit/aad987782284cff47361e5203e8e9ab6dde2a66e))
+* update remaining ZInject references in benchmark descriptions and method names ([aa6028f](https://github.com/MarcelRoozekrans/ZInject/commit/aa6028f4af74b24650e94f71618ffbab3e4d0043))
+
 ## [0.11.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v0.10.5...v0.11.0) (2026-03-15)
 
 
