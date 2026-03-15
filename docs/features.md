@@ -16,8 +16,8 @@ Last updated: 2026-03-14
 | Keyed services (`Key = "..."`) | ✅ | ✅ | `IKeyedServiceProvider`; requires .NET 8+ (ZI005) |
 | `AllowMultiple` (multi-registration) | ✅ | ✅ | Switches from `TryAdd*` to `Add*` |
 | `IEnumerable<T>` resolution | ✅ | ✅ | Array of all implementations per service type |
-| Open generics (`IRepo<T>` → `Repo<T>`) | ✅¹ | ✅ | Standalone uses code-gen delegate factories |
-| Open generic + decorator | ✅¹ | ✅ | Decorator wraps inner via `MakeGenericType` |
+| Open generics (`IRepo<T>` → `Repo<T>`) | ✅ | ✅ | Standalone enumerates closed types at compile time |
+| Open generic + decorator | ✅ | ✅ | Decorator wraps closed instances directly |
 | Optional dependencies | ✅ | ✅ | `GetService` (nullable) instead of `GetRequiredService` |
 | Concrete-only registration | ✅ | ✅ | No interface required; ZI007 warning emitted |
 | Multiple interfaces per class | ✅ | ✅ | Each interface + concrete type registered |
@@ -32,7 +32,7 @@ Last updated: 2026-03-14
 | Scoped thread safety | ✅ | ✅ | Matches MS DI contract — scopes are per-request, not thread-safe |
 | Circular dependency detection | ✅ | ✅ | Compile-time ZI014 error — unique among .NET DI containers |
 
-¹ Hybrid mode delegates open generics to the MS DI fallback.
+¹ Hybrid mode delegates open generics to the MS DI fallback at runtime; the standalone container uses compile-time enumeration.
 
 ## Compile-Time Diagnostics
 
@@ -55,3 +55,4 @@ Last updated: 2026-03-14
 | ZI015 | Error | `[OptionalDependency]` on non-nullable parameter |
 | ZI016 | Error | `[DecoratorOf]` interface not implemented by the class |
 | ZI017 | Error | Two `[DecoratorOf]` decorators for same interface share the same `Order` |
+| ZI018 | Warning | No closed usages of open generic detected — won't resolve from standalone/hybrid container |
