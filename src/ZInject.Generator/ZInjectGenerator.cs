@@ -252,7 +252,7 @@ namespace ZInject.Generator
                 foreach (var kvp in decoratorsByInterface)
                 {
                     var list = kvp.Value;
-                    list.Sort(static (a, b) => b.Order.CompareTo(a.Order));
+                    list.Sort(static (a, b) => a.Order.CompareTo(b.Order));
 
                     for (int i = 0; i < list.Count - 1; i++)
                     {

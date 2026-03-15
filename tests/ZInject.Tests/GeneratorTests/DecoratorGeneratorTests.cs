@@ -188,6 +188,6 @@ public class DecoratorGeneratorTests
         var innerIdx = output.IndexOf("new global::InnerFoo");
         var outerIdx = output.IndexOf("new global::OuterFoo");
         Assert.True(innerIdx >= 0 && outerIdx >= 0, "Both decorators must appear in output");
-        Assert.True(innerIdx < outerIdx, "InnerFoo (Order=1) must be emitted before OuterFoo (Order=2)");
+        Assert.True(outerIdx < innerIdx, "OuterFoo (Order=2) is the outermost wrapper and must appear first in the generated expression");
     }
 }
