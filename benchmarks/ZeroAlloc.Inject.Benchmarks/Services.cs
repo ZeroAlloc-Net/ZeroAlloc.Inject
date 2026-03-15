@@ -1,6 +1,6 @@
-using ZInject;
+using ZeroAlloc.Inject;
 
-namespace ZInject.Benchmarks;
+namespace ZeroAlloc.Inject.Benchmarks;
 
 // Simple service (no dependencies)
 public interface ISimpleService

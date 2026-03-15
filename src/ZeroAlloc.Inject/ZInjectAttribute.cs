@@ -1,4 +1,4 @@
-namespace ZInject;
+namespace ZeroAlloc.Inject;
 
 [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = false)]
 public sealed class ZInjectAttribute : Attribute

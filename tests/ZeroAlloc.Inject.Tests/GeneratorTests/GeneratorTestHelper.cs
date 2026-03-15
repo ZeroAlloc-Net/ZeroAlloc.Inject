@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using System.Collections.Immutable;
 
-namespace ZInject.Tests.GeneratorTests;
+namespace ZeroAlloc.Inject.Tests.GeneratorTests;
 
 internal static class GeneratorTestHelper
 {
@@ -20,7 +20,7 @@ internal static class GeneratorTestHelper
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
 
-        var containerAssemblyName = typeof(ZInject.Container.ZInjectServiceProviderBase).Assembly.GetName().Name;
+        var containerAssemblyName = typeof(ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase).Assembly.GetName().Name;
 
         var references = AppDomain.CurrentDomain.GetAssemblies()
             .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
@@ -34,7 +34,7 @@ internal static class GeneratorTestHelper
         if (includeContainer)
         {
             // Ensure it's present even if not yet loaded in AppDomain
-            var containerLocation = typeof(ZInject.Container.ZInjectServiceProviderBase).Assembly.Location;
+            var containerLocation = typeof(ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase).Assembly.Location;
             if (!references.Any(r => string.Equals(r.Display, containerLocation, StringComparison.Ordinal)))
             {
                 references.Add(MetadataReference.CreateFromFile(containerLocation));
@@ -47,12 +47,12 @@ internal static class GeneratorTestHelper
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        var generator = new Generator.ZInjectGenerator();
+        var generator = new Generator.ZeroAllocInjectGenerator();
         GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
 
         var generatedTrees = outputCompilation.SyntaxTrees
-            .Where(t => t.FilePath.Contains("ZInject"))
+            .Where(t => t.FilePath.Contains("ZeroAlloc.Inject"))
             .ToList();
 
         var output = string.Join("\n", generatedTrees.Select(t => t.GetText().ToString()));

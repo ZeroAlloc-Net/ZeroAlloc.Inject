@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ZInject.Tests.ContainerTests;
+namespace ZeroAlloc.Inject.Tests.ContainerTests;
 
 public class IntegrationTests
 {
@@ -48,11 +48,11 @@ public class IntegrationTests
         var loadContext = new AssemblyLoadContext(null, isCollectible: true);
         var assembly = loadContext.LoadFromStream(ms);
 
-        // Locate the generated extension class and invoke BuildZInjectServiceProvider.
+        // Locate the generated extension class and invoke BuildZeroAllocInjectServiceProvider.
         var extensionClass = assembly.GetTypes()
-            .First(static t => string.Equals(t.Name, "ZInjectServiceCollectionExtensions", StringComparison.Ordinal));
+            .First(static t => string.Equals(t.Name, "ZeroAllocInjectServiceCollectionExtensions", StringComparison.Ordinal));
         var buildMethod = extensionClass.GetMethod(
-            "BuildZInjectServiceProvider",
+            "BuildZeroAllocInjectServiceProvider",
             BindingFlags.Public | BindingFlags.Static);
 
         var services = new ServiceCollection();
@@ -82,7 +82,7 @@ public class IntegrationTests
         var extraAssemblies = new[]
         {
             typeof(TransientAttribute).Assembly,                                    // ZInject (attributes)
-            typeof(ZInject.Container.ZInjectServiceProviderBase).Assembly,     // ZInject.Container
+            typeof(ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase).Assembly,     // ZeroAlloc.Inject.Container
             typeof(ServiceCollectionContainerBuilderExtensions).Assembly,            // M.E.DI (BuildServiceProvider)
             typeof(ServiceCollection).Assembly,                                     // M.E.DI.Abstractions
         };
@@ -102,7 +102,7 @@ public class IntegrationTests
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        var generator = new Generator.ZInjectGenerator();
+        var generator = new Generator.ZeroAllocInjectGenerator();
         GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
 
@@ -116,7 +116,7 @@ public class IntegrationTests
     public void Transient_NoDeps_ReturnsNonNull_DifferentInstances()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IFoo { }
             [Transient]
@@ -141,7 +141,7 @@ public class IntegrationTests
     public void Transient_WithDependency_InjectsCorrectly()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface ILogger { }
             [Singleton]
@@ -174,7 +174,7 @@ public class IntegrationTests
     public void Singleton_ReturnsSameInstance()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface ICache { }
             [Singleton]
@@ -198,7 +198,7 @@ public class IntegrationTests
     public void Scoped_SameWithinScope_DifferentAcrossScopes()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IDbContext { }
             [Scoped]
@@ -230,7 +230,7 @@ public class IntegrationTests
     public void Unknown_Service_FallsThrough_ToFallback()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IFoo { }
             [Transient]
@@ -257,7 +257,7 @@ public class IntegrationTests
     public void IServiceProvider_And_IServiceScopeFactory_ResolveToSelf()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IFoo { }
             [Transient]
@@ -280,7 +280,7 @@ public class IntegrationTests
     public void ScopeDisposal_DisposesTrackedTransients()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             using System;
             namespace TestApp;
             public interface IHandle { }
@@ -317,7 +317,7 @@ public class IntegrationTests
     public void KeyedSingleton_ReturnsSameInstance()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface ICache { }
             [Singleton(Key = "redis")]
@@ -341,7 +341,7 @@ public class IntegrationTests
     public void KeyedTransient_ReturnsDifferentInstances()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface ICache { }
             [Transient(Key = "fast")]
@@ -366,7 +366,7 @@ public class IntegrationTests
     public void AsProperty_OnlyResolvesAsSpecifiedType()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IFoo { }
             public interface IBar { }
@@ -391,7 +391,7 @@ public class IntegrationTests
     public void ServiceProviderFactory_CreatesWorkingProvider()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IFoo { }
             [Transient]
@@ -423,7 +423,7 @@ public class IntegrationTests
         var assembly = loadContext.LoadFromStream(ms);
 
         // Find the factory class and invoke it
-        var factoryType = assembly.GetTypes().First(static t => string.Equals(t.Name, "ZInjectServiceProviderFactory", StringComparison.Ordinal));
+        var factoryType = assembly.GetTypes().First(static t => string.Equals(t.Name, "ZeroAllocInjectServiceProviderFactory", StringComparison.Ordinal));
         var factory = Activator.CreateInstance(factoryType)!;
 
         var createBuilderMethod = factoryType.GetMethod("CreateBuilder")!;
@@ -445,7 +445,7 @@ public class IntegrationTests
     public async Task ScopeDisposeAsync_DisposesTrackedTransients()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             using System;
             namespace TestApp;
             public interface IHandle { }
@@ -477,7 +477,7 @@ public class IntegrationTests
     public void ScopedService_ResolvedFromRoot_ReturnsNull()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IRepo { }
             [Scoped]
@@ -498,7 +498,7 @@ public class IntegrationTests
     public void ScopeDisposal_DisposesScopedDisposableServices()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             using System;
             namespace TestApp;
             public interface IRepo { }
@@ -533,7 +533,7 @@ public class IntegrationTests
     public void IKeyedServiceProvider_ResolvableViaGetService()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface ICache { }
             [Singleton(Key = "redis")]
@@ -555,7 +555,7 @@ public class IntegrationTests
     public void IKeyedServiceProvider_ResolvableInScope()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface ICache { }
             [Transient(Key = "fast")]
@@ -579,7 +579,7 @@ public class IntegrationTests
     public void GetService_WithMultipleRegistrations_ReturnsLastRegistered()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IHandler { }
             [Transient(AllowMultiple = true)]
@@ -604,7 +604,7 @@ public class IntegrationTests
     public void IEnumerable_ReturnsAllRegistrations()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IHandler { }
             [Transient(AllowMultiple = true)]
@@ -630,7 +630,7 @@ public class IntegrationTests
     public void IEnumerable_SingletonIdentity_ConsistentWithGetService()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface ICache { }
             [Singleton]
@@ -655,7 +655,7 @@ public class IntegrationTests
     public void IEnumerable_ScopedIdentity_ConsistentWithGetService()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IRepo { }
             [Scoped]
@@ -682,7 +682,7 @@ public class IntegrationTests
     public void IEnumerable_AtRoot_ExcludesScopedServices()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IService { }
             [Scoped]
@@ -708,7 +708,7 @@ public class IntegrationTests
     public void IEnumerable_InScope_IncludesAllLifetimes()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IHandler { }
             [Transient(AllowMultiple = true)]
@@ -739,7 +739,7 @@ public class IntegrationTests
     public void IEnumerable_MultipleSingletons_ReturnsDistinctInstances()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IHandler { }
             [Singleton(AllowMultiple = true)]
@@ -811,7 +811,7 @@ public class IntegrationTests
     public void Standalone_Transient_ReturnsNonNull_DifferentInstances()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IFoo { }
             [Transient]
@@ -836,7 +836,7 @@ public class IntegrationTests
     public void Standalone_Singleton_ReturnsSameInstance()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface ICache { }
             [Singleton]
@@ -860,7 +860,7 @@ public class IntegrationTests
     public void Standalone_Scoped_SameWithinScope_DifferentAcrossScopes()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IRepo { }
             [Scoped]
@@ -891,7 +891,7 @@ public class IntegrationTests
     public void Standalone_UnknownType_ReturnsNull()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IFoo { }
             [Transient]
@@ -911,7 +911,7 @@ public class IntegrationTests
     public void Standalone_IServiceProvider_And_IServiceScopeFactory_ResolveToSelf()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IFoo { }
             [Transient]
@@ -934,7 +934,7 @@ public class IntegrationTests
     public void Standalone_ScopeDisposal_DisposesTrackedTransients()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             using System;
             namespace TestApp;
             public interface IHandle { }
@@ -970,7 +970,7 @@ public class IntegrationTests
     public void Standalone_IEnumerable_ReturnsAllRegistrations()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IHandler { }
             [Transient(AllowMultiple = true)]
@@ -996,7 +996,7 @@ public class IntegrationTests
     public void Standalone_Singleton_ConsistentBetweenRootAndScope()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface ICache { }
             [Singleton]
@@ -1023,7 +1023,7 @@ public class IntegrationTests
     public void Standalone_TransientWithDependency_InjectsCorrectly()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface ILogger { }
             [Singleton]
@@ -1055,7 +1055,7 @@ public class IntegrationTests
     public void Standalone_ProviderDisposal_DisposesSingletons()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             using System;
             namespace TestApp;
             public interface ICache { }
@@ -1088,7 +1088,7 @@ public class IntegrationTests
     public async Task Standalone_ProviderDisposeAsync_DisposesSingletons()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             using System;
             using System.Threading.Tasks;
             namespace TestApp;
@@ -1122,7 +1122,7 @@ public class IntegrationTests
     public void Standalone_OpenGeneric_Transient_ResolvesNewInstanceEachTime()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IRepo<T> { }
             [Transient]
@@ -1152,7 +1152,7 @@ public class IntegrationTests
     public void Standalone_OpenGeneric_Scoped_SameWithinScope_DifferentAcrossScopes()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IRepo<T> { }
             [Scoped]
@@ -1195,7 +1195,7 @@ public class IntegrationTests
     public void Standalone_OpenGeneric_Singleton_ReturnsSameInstanceAcrossRootAndScope()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IRepo<T> { }
             [Singleton]
@@ -1233,7 +1233,7 @@ public class IntegrationTests
     public void Standalone_OpenGeneric_UnknownClosedType_ReturnsNull()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IRepo<T> { }
             [Transient]
@@ -1254,7 +1254,7 @@ public class IntegrationTests
     public void OpenGeneric_ChainedDependency_Standalone_ResolvesCorrectly()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IRepository<T> { string Name { get; } }
             public interface IContext<T> { string Tag { get; } }
@@ -1295,7 +1295,7 @@ public class IntegrationTests
     public void OpenGeneric_Narrowed_Standalone_ResolvesNarrowedInterface_NotOther()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IReadRepo<T> { string Read(); }
             public interface IWriteRepo<T> { }
@@ -1333,7 +1333,7 @@ public class IntegrationTests
     public void OpenGeneric_WithDecorator_Standalone_WrapsInnerWithDecorator()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IRepo<T> { string Tag { get; } }
             [Transient]
@@ -1372,7 +1372,7 @@ public class IntegrationTests
     public void Decorator_NonGeneric_HybridContainer_ReturnsDecoratedInstance()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IFoo { string Tag { get; } }
             [Transient]
@@ -1403,7 +1403,7 @@ public class IntegrationTests
     public void Decorator_NonGeneric_Standalone_ReturnsDecoratedInstance()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IFoo { string Tag { get; } }
             [Transient]
@@ -1434,7 +1434,7 @@ public class IntegrationTests
     public void DecoratorOf_NonGeneric_HybridContainer_ReturnsDecoratedInstance()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IFoo { string Tag { get; } }
             [Transient]
@@ -1465,7 +1465,7 @@ public class IntegrationTests
     public void DecoratorOf_NonGeneric_Standalone_ReturnsDecoratedInstance()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IFoo { string Tag { get; } }
             [Transient]
@@ -1496,7 +1496,7 @@ public class IntegrationTests
     public void Decorator_NonGeneric_MsDiPath_ReturnsDecoratedInstance()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IFoo { string Tag { get; } }
             [Transient]
@@ -1527,7 +1527,7 @@ public class IntegrationTests
     public void Decorator_Scoped_IsDisposed_WithScope()
     {
         const string source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             using System;
             namespace TestApp;
             public interface IFoo { }

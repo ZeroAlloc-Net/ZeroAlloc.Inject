@@ -1,19 +1,19 @@
-namespace ZInject.Tests.ContainerTests;
+namespace ZeroAlloc.Inject.Tests.ContainerTests;
 
 public class StandaloneScopeTests
 {
-    private sealed class TestProvider : ZInject.Container.ZInjectStandaloneProvider
+    private sealed class TestProvider : ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider
     {
         protected override object? ResolveKnown(Type serviceType) => null;
         protected override bool IsKnownService(Type serviceType) => false;
         protected override bool IsKnownKeyedService(Type serviceType, object? serviceKey) => false;
-        protected override ZInject.Container.ZInjectStandaloneScope CreateScopeCore()
+        protected override ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope CreateScopeCore()
             => new TestScope(this);
     }
 
-    private sealed class TestScope : ZInject.Container.ZInjectStandaloneScope
+    private sealed class TestScope : ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope
     {
-        public TestScope(ZInject.Container.ZInjectStandaloneProvider root) : base(root) { }
+        public TestScope(ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider root) : base(root) { }
         protected override object? ResolveScopedKnown(Type serviceType)
         {
             if (serviceType == typeof(string))
@@ -81,7 +81,7 @@ public class StandaloneScopeTests
         var scope = ((Microsoft.Extensions.DependencyInjection.IServiceScopeFactory)provider).CreateScope();
         var svc = new DisposableService();
         // Access TrackDisposable via reflection since it's protected
-        var trackMethod = typeof(ZInject.Container.ZInjectStandaloneScope)
+        var trackMethod = typeof(ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope)
             .GetMethod("TrackDisposable", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .MakeGenericMethod(typeof(DisposableService));
         trackMethod.Invoke(scope.ServiceProvider, [svc]);
@@ -97,7 +97,7 @@ public class StandaloneScopeTests
         using var provider = new TestProvider();
         var scope = ((Microsoft.Extensions.DependencyInjection.IServiceScopeFactory)provider).CreateScope();
         var svc = new AsyncDisposableService();
-        var trackMethod = typeof(ZInject.Container.ZInjectStandaloneScope)
+        var trackMethod = typeof(ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope)
             .GetMethod("TrackDisposable", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .MakeGenericMethod(typeof(AsyncDisposableService));
         trackMethod.Invoke(scope.ServiceProvider, [svc]);
@@ -146,16 +146,16 @@ public class StandaloneScopeTests
 
     // GetOrAddScopedOpenGeneric: used by generated scoped open-generic resolution
 
-    private class TestScopedOpenGenericProvider : ZInject.Container.ZInjectStandaloneProvider
+    private class TestScopedOpenGenericProvider : ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider
     {
         protected override object? ResolveKnown(Type serviceType) => null;
         protected override bool IsKnownService(Type serviceType) => false;
         protected override bool IsKnownKeyedService(Type serviceType, object? serviceKey) => false;
-        protected override ZInject.Container.ZInjectStandaloneScope CreateScopeCore() => new TestScopedOgScope(this);
+        protected override ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope CreateScopeCore() => new TestScopedOgScope(this);
 
-        private sealed class TestScopedOgScope : ZInject.Container.ZInjectStandaloneScope
+        private sealed class TestScopedOgScope : ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope
         {
-            public TestScopedOgScope(ZInject.Container.ZInjectStandaloneProvider root) : base(root) { }
+            public TestScopedOgScope(ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider root) : base(root) { }
 
             protected override object? ResolveScopedKnown(Type serviceType)
             {
@@ -170,7 +170,7 @@ public class StandaloneScopeTests
     public void GetOrAddScopedOpenGeneric_ReturnsSameInstanceWithinScope()
     {
         using var provider = new TestScopedOpenGenericProvider();
-        using var scope = (ZInject.Container.ZInjectStandaloneScope)provider.CreateScope();
+        using var scope = (ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope)provider.CreateScope();
         var a = scope.ServiceProvider.GetService(typeof(StandaloneProviderBaseTests.IScopedGeneric<string>));
         var b = scope.ServiceProvider.GetService(typeof(StandaloneProviderBaseTests.IScopedGeneric<string>));
         Assert.NotNull(a);
@@ -181,8 +181,8 @@ public class StandaloneScopeTests
     public void GetOrAddScopedOpenGeneric_ReturnsDifferentInstancesAcrossScopes()
     {
         using var provider = new TestScopedOpenGenericProvider();
-        using var scope1 = (ZInject.Container.ZInjectStandaloneScope)provider.CreateScope();
-        using var scope2 = (ZInject.Container.ZInjectStandaloneScope)provider.CreateScope();
+        using var scope1 = (ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope)provider.CreateScope();
+        using var scope2 = (ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope)provider.CreateScope();
         var a = scope1.ServiceProvider.GetService(typeof(StandaloneProviderBaseTests.IScopedGeneric<string>));
         var b = scope2.ServiceProvider.GetService(typeof(StandaloneProviderBaseTests.IScopedGeneric<string>));
         Assert.NotNull(a);

@@ -1,6 +1,6 @@
 using System;
 
-namespace ZInject.Tests.GeneratorTests;
+namespace ZeroAlloc.Inject.Tests.GeneratorTests;
 
 public class FactoryRegistrationTests
 {
@@ -8,7 +8,7 @@ public class FactoryRegistrationTests
     public void ParameterlessConstructor_GeneratesFactoryLambda()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IMyService { }
@@ -26,7 +26,7 @@ public class FactoryRegistrationTests
     public void SingleParameter_GeneratesGetRequiredService()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IMyService { }
@@ -49,7 +49,7 @@ public class FactoryRegistrationTests
     public void OptionalParameter_GeneratesGetService()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IMyService { }
@@ -72,7 +72,7 @@ public class FactoryRegistrationTests
     public void MultipleConstructors_WithoutAttribute_ProducesZI009()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IMyService { }
@@ -94,7 +94,7 @@ public class FactoryRegistrationTests
     public void PrimitiveParameter_String_ProducesZI010()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IMyService { }
@@ -115,7 +115,7 @@ public class FactoryRegistrationTests
     public void PrimitiveParameter_Int_ProducesZI010()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IMyService { }
@@ -136,7 +136,7 @@ public class FactoryRegistrationTests
     public void ConcreteOnly_GeneratesFactoryLambda()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             [Transient]
@@ -152,7 +152,7 @@ public class FactoryRegistrationTests
     public void OpenGeneric_StillUsesServiceDescriptor()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IRepository<T> { }
@@ -171,7 +171,7 @@ public class FactoryRegistrationTests
     public void MultipleParameters_GeneratesAllGetRequiredService()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IMyService { }
@@ -195,7 +195,7 @@ public class FactoryRegistrationTests
     public void MixedRequiredAndOptionalParameters()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IMyService { }
@@ -219,7 +219,7 @@ public class FactoryRegistrationTests
     public void KeyedService_GeneratesKeyedFactoryLambda()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface ICache { }
@@ -238,7 +238,7 @@ public class FactoryRegistrationTests
     public void KeyedService_WithParameters_GeneratesKeyedFactoryLambda()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface ICache { }
@@ -261,7 +261,7 @@ public class FactoryRegistrationTests
     public void MultipleConstructors_WithActivatorUtilitiesConstructor_UsesMarked()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             namespace Microsoft.Extensions.DependencyInjection
@@ -293,7 +293,7 @@ public class FactoryRegistrationTests
     public void ConcreteOnly_WithParameters_GeneratesFactoryLambda()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface ILogger { }
@@ -315,7 +315,7 @@ public class FactoryRegistrationTests
     public void AsProperty_WithParameters_GeneratesFactoryLambda()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IFoo { }
@@ -340,7 +340,7 @@ public class FactoryRegistrationTests
     public void InterfaceParameter_DoesNotProduceZI010()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IMyService { }
@@ -362,7 +362,7 @@ public class FactoryRegistrationTests
     public void ClassParameter_DoesNotProduceZI010()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IMyService { }
@@ -385,7 +385,7 @@ public class FactoryRegistrationTests
     public void PrimitiveParameter_Bool_ProducesZI010()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IMyService { }
@@ -406,7 +406,7 @@ public class FactoryRegistrationTests
     public void PrimitiveParameter_Enum_ProducesZI010()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IMyService { }
@@ -428,7 +428,7 @@ public class FactoryRegistrationTests
     public void PrimitiveParameter_Struct_ProducesZI010()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IMyService { }
@@ -450,7 +450,7 @@ public class FactoryRegistrationTests
     public void KeyedService_WithOptionalParameter_GeneratesGetService()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface ICache { }

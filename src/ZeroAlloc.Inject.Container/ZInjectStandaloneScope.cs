@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ZInject.Container;
+namespace ZeroAlloc.Inject.Container;
 
 public abstract class ZInjectStandaloneScope : IServiceScope, IServiceProvider, IServiceProviderIsService, IServiceProviderIsKeyedService, IDisposable, IAsyncDisposable
 {

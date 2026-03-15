@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace ZInject.Tests;
+namespace ZeroAlloc.Inject.Tests;
 
 public class AttributeTests
 {

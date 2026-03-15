@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 
-namespace ZInject.Generator
+namespace ZeroAlloc.Inject.Generator
 {
     [Generator]
     public sealed class ZInjectGenerator : IIncrementalGenerator
@@ -35,28 +35,28 @@ namespace ZInject.Generator
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
             var transients = context.SyntaxProvider.ForAttributeWithMetadataName(
-                "ZInject.TransientAttribute",
+                "ZeroAlloc.Inject.TransientAttribute",
                 predicate: static (node, _) => true,
                 transform: static (ctx, ct) => GetServiceInfo(ctx, "Transient", ct))
                 .Where(static x => x != null)
                 .Collect();
 
             var scopeds = context.SyntaxProvider.ForAttributeWithMetadataName(
-                "ZInject.ScopedAttribute",
+                "ZeroAlloc.Inject.ScopedAttribute",
                 predicate: static (node, _) => true,
                 transform: static (ctx, ct) => GetServiceInfo(ctx, "Scoped", ct))
                 .Where(static x => x != null)
                 .Collect();
 
             var singletons = context.SyntaxProvider.ForAttributeWithMetadataName(
-                "ZInject.SingletonAttribute",
+                "ZeroAlloc.Inject.SingletonAttribute",
                 predicate: static (node, _) => true,
                 transform: static (ctx, ct) => GetServiceInfo(ctx, "Singleton", ct))
                 .Where(static x => x != null)
                 .Collect();
 
             var assemblyAttr = context.SyntaxProvider.ForAttributeWithMetadataName(
-                "ZInject.ZInjectAttribute",
+                "ZeroAlloc.Inject.ZeroAllocInjectAttribute",
                 predicate: static (node, _) => true,
                 transform: static (ctx, ct) =>
                 {
@@ -82,7 +82,7 @@ namespace ZInject.Generator
                 {
                     foreach (var asm in compilation.ReferencedAssemblyNames)
                     {
-                        if (asm.Name == "ZInject.Container")
+                        if (asm.Name == "ZeroAlloc.Inject.Container")
                         {
                             return true;
                         }
@@ -91,14 +91,14 @@ namespace ZInject.Generator
                 });
 
             var decorators = context.SyntaxProvider.ForAttributeWithMetadataName(
-                "ZInject.DecoratorAttribute",
+                "ZeroAlloc.Inject.DecoratorAttribute",
                 predicate: static (node, _) => true,
                 transform: static (ctx, ct) => GetDecoratorInfo(ctx, ct))
                 .Where(static x => x != null)
                 .Collect();
 
             var decoratorOfs = context.SyntaxProvider.ForAttributeWithMetadataName(
-                "ZInject.DecoratorOfAttribute",
+                "ZeroAlloc.Inject.DecoratorOfAttribute",
                 predicate: static (node, _) => true,
                 transform: static (ctx, ct) => GetDecoratorOfInfo(ctx, ct))
                 .Where(static x => x != null)
@@ -334,12 +334,12 @@ namespace ZInject.Generator
                 }
 
                 var source = GenerateExtensionClass(allServices, asmName, methodNameOverride, decoratorsByInterface);
-                spc.AddSource("ZInject.ServiceCollectionExtensions.g.cs", source);
+                spc.AddSource("ZeroAlloc.Inject.ServiceCollectionExtensions.g.cs", source);
 
                 if (containerReferenced)
                 {
                     var providerSource = GenerateServiceProviderClass(allServices, asmName, decoratorsByInterface);
-                    spc.AddSource("ZInject.ServiceProvider.g.cs", providerSource);
+                    spc.AddSource("ZeroAlloc.Inject.ServiceProvider.g.cs", providerSource);
 
                     var standaloneCode = GenerateStandaloneServiceProviderClass(allServices, asmName, decoratorsByInterface, closedGenericFactories);
                     spc.AddSource(asmName + ".StandaloneServiceProvider.g.cs", standaloneCode);
@@ -552,7 +552,7 @@ namespace ZInject.Generator
                     var paramTypeFqn = param.Type.ToDisplayString(FullyQualifiedFormat);
                     var paramAttrs = param.GetAttributes();
                     bool hasOptionalAttr = !param.HasExplicitDefaultValue
-                        && paramAttrs.Any(a => a.AttributeClass?.ToDisplayString() == "ZInject.OptionalDependencyAttribute");
+                        && paramAttrs.Any(a => a.AttributeClass?.ToDisplayString() == "ZeroAlloc.Inject.OptionalDependencyAttribute");
                     bool isOptional = param.HasExplicitDefaultValue || hasOptionalAttr;
 
                     // Check if [OptionalDependency] is used on a non-nullable reference type
@@ -1084,9 +1084,9 @@ namespace ZInject.Generator
             sb.AppendLine("using System.Threading;");
             sb.AppendLine("using Microsoft.Extensions.DependencyInjection;");
             sb.AppendLine();
-            sb.AppendLine("namespace ZInject.Generated");
+            sb.AppendLine("namespace ZeroAlloc.Inject.Generated");
             sb.AppendLine("{");
-            var baseClass = "global::ZInject.Container.ZInjectServiceProviderBase";
+            var baseClass = "global::ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase";
             if (hasKeyedServices)
             {
                 baseClass = baseClass + ", IKeyedServiceProvider";
@@ -1299,14 +1299,14 @@ namespace ZInject.Generator
             }
 
             // CreateScopeCore
-            sb.AppendLine("        protected override global::ZInject.Container.ZInjectScope CreateScopeCore(IServiceScope fallbackScope)");
+            sb.AppendLine("        protected override global::ZeroAlloc.Inject.Container.ZeroAllocInjectScope CreateScopeCore(IServiceScope fallbackScope)");
             sb.AppendLine("        {");
             sb.AppendLine("            return new Scope(this, fallbackScope);");
             sb.AppendLine("        }");
             sb.AppendLine();
 
             // Nested Scope class
-            var scopeBase = "global::ZInject.Container.ZInjectScope";
+            var scopeBase = "global::ZeroAlloc.Inject.Container.ZeroAllocInjectScope";
             if (hasKeyedServices)
             {
                 scopeBase = scopeBase + ", IKeyedServiceProvider";
@@ -1576,26 +1576,26 @@ namespace ZInject.Generator
             sb.AppendLine("namespace Microsoft.Extensions.DependencyInjection");
             sb.AppendLine("{");
 
-            // BuildZInjectServiceProvider extension method
-            sb.AppendLine("    public static class ZInjectServiceCollectionExtensions");
+            // BuildZeroAllocInjectServiceProvider extension method
+            sb.AppendLine("    public static class ZeroAllocInjectServiceCollectionExtensions");
             sb.AppendLine("    {");
-            sb.AppendLine("        public static IServiceProvider BuildZInjectServiceProvider(this IServiceCollection services)");
+            sb.AppendLine("        public static IServiceProvider BuildZeroAllocInjectServiceProvider(this IServiceCollection services)");
             sb.AppendLine("        {");
             sb.AppendLine("            var fallback = services.BuildServiceProvider();");
-            sb.AppendLine("            return new global::ZInject.Generated." + className + "(fallback);");
+            sb.AppendLine("            return new global::ZeroAlloc.Inject.Generated." + className + "(fallback);");
             sb.AppendLine("        }");
             sb.AppendLine("    }");
             sb.AppendLine();
 
-            // ZInjectServiceProviderFactory
-            sb.AppendLine("    public sealed class ZInjectServiceProviderFactory : IServiceProviderFactory<IServiceCollection>");
+            // ZeroAllocInjectServiceProviderFactory
+            sb.AppendLine("    public sealed class ZeroAllocInjectServiceProviderFactory : IServiceProviderFactory<IServiceCollection>");
             sb.AppendLine("    {");
             sb.AppendLine("        public IServiceCollection CreateBuilder(IServiceCollection services) => services;");
             sb.AppendLine();
             sb.AppendLine("        public IServiceProvider CreateServiceProvider(IServiceCollection containerBuilder)");
             sb.AppendLine("        {");
             sb.AppendLine("            var fallback = containerBuilder.BuildServiceProvider();");
-            sb.AppendLine("            return new global::ZInject.Generated." + className + "(fallback);");
+            sb.AppendLine("            return new global::ZeroAlloc.Inject.Generated." + className + "(fallback);");
             sb.AppendLine("        }");
             sb.AppendLine("    }");
             sb.AppendLine("}");
@@ -1699,9 +1699,9 @@ namespace ZInject.Generator
             sb.AppendLine("using System.Threading;");
             sb.AppendLine("using Microsoft.Extensions.DependencyInjection;");
             sb.AppendLine();
-            sb.AppendLine("namespace ZInject.Generated");
+            sb.AppendLine("namespace ZeroAlloc.Inject.Generated");
             sb.AppendLine("{");
-            var baseClass = "global::ZInject.Container.ZInjectStandaloneProvider";
+            var baseClass = "global::ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider";
             if (hasKeyedServices)
             {
                 baseClass = baseClass + ", IKeyedServiceProvider";
@@ -1949,7 +1949,7 @@ namespace ZInject.Generator
             }
 
             // CreateScopeCore - no parameter for standalone
-            sb.AppendLine("        protected override global::ZInject.Container.ZInjectStandaloneScope CreateScopeCore()");
+            sb.AppendLine("        protected override global::ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope CreateScopeCore()");
             sb.AppendLine("        {");
             sb.AppendLine("            return new Scope(this);");
             sb.AppendLine("        }");
@@ -2033,7 +2033,7 @@ namespace ZInject.Generator
             }
 
             // Nested Scope class
-            var scopeBase = "global::ZInject.Container.ZInjectStandaloneScope";
+            var scopeBase = "global::ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope";
             if (hasKeyedServices)
             {
                 scopeBase = scopeBase + ", IKeyedServiceProvider";
@@ -2804,7 +2804,7 @@ namespace ZInject.Generator
                         ? ToUnboundGenericString(paramTypeFqn, arity)
                         : paramTypeFqn;
                     bool isOptional = param.HasExplicitDefaultValue
-                        || param.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "ZInject.OptionalDependencyAttribute");
+                        || param.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == "ZeroAlloc.Inject.OptionalDependencyAttribute");
                     ctorParams.Add(new ConstructorParameterInfo(matchFqn, param.Name, isOptional));
                     if (decoratedInterface == null && interfaces.Contains(matchFqn))
                         decoratedInterface = matchFqn;
@@ -2895,7 +2895,7 @@ namespace ZInject.Generator
                         : paramTypeFqn;
                     var paramAttrs = param.GetAttributes();
                     bool isOptional = param.HasExplicitDefaultValue
-                        || paramAttrs.Any(a => a.AttributeClass?.ToDisplayString() == "ZInject.OptionalDependencyAttribute");
+                        || paramAttrs.Any(a => a.AttributeClass?.ToDisplayString() == "ZeroAlloc.Inject.OptionalDependencyAttribute");
                     ctorParams.Add(new ConstructorParameterInfo(matchFqn, param.Name, isOptional));
                 }
             }

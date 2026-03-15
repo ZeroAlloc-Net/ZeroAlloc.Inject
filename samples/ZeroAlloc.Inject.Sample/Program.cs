@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using ZInject.Sample.UseCases;
+using ZeroAlloc.Inject.Sample.UseCases;
 
 // ============================================================
 // ZInject Sample — E-Commerce use cases
@@ -12,7 +12,7 @@ using ZInject.Sample.UseCases;
 Console.WriteLine("=== Use case 1: Product catalog (MS DI extension, decorator) ===");
 {
     var services = new ServiceCollection();
-    services.AddZInjectSampleServices();
+    services.AddZeroAllocInjectSampleServices();
     using var provider = services.BuildServiceProvider();
 
     var repo = provider.GetRequiredService<IProductRepository>();
@@ -25,8 +25,8 @@ Console.WriteLine();
 Console.WriteLine("=== Use case 2: Order processing (hybrid container, scoped) ===");
 {
     var services = new ServiceCollection();
-    services.AddZInjectSampleServices();
-    var provider = services.BuildZInjectServiceProvider();
+    services.AddZeroAllocInjectSampleServices();
+    var provider = services.BuildZeroAllocInjectServiceProvider();
     var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
 
     using var scope = scopeFactory.CreateScope();
@@ -40,7 +40,7 @@ Console.WriteLine();
 Console.WriteLine("=== Use case 3: Notifications (singleton email gateway) ===");
 {
     var services = new ServiceCollection();
-    services.AddZInjectSampleServices();
+    services.AddZeroAllocInjectSampleServices();
     using var provider = services.BuildServiceProvider();
 
     var notifier = provider.GetRequiredService<INotificationService>();
@@ -55,7 +55,7 @@ Console.WriteLine("=== Use case 3: Notifications (singleton email gateway) ===")
 Console.WriteLine();
 Console.WriteLine("=== Use case 4: Inventory (standalone provider, open generics) ===");
 {
-    using var provider = new ZInject.Generated.ZInjectSampleStandaloneServiceProvider();
+    using var provider = new ZeroAlloc.Inject.Generated.ZeroAllocInjectSampleStandaloneServiceProvider();
 
     // Open generic resolved at runtime via MakeGenericType
     var inventoryType = typeof(IInventory<Product>);

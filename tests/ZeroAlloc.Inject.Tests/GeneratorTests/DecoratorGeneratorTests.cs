@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace ZInject.Tests.GeneratorTests;
+namespace ZeroAlloc.Inject.Tests.GeneratorTests;
 
 public class DecoratorGeneratorTests
 {
@@ -8,7 +8,7 @@ public class DecoratorGeneratorTests
     public void Decorator_NonGeneric_RegistrationExtension_WrapsInner()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             public interface IOrderService { }
             [Scoped]
             public class OrderService : IOrderService { }
@@ -35,7 +35,7 @@ public class DecoratorGeneratorTests
     public void Decorator_WithExtraDeps_RegistrationExtension_InjectsAll()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             public interface IFoo { }
             public interface ILogger { }
             [Transient]
@@ -60,7 +60,7 @@ public class DecoratorGeneratorTests
     public void NoDecorator_Registration_IsUnchanged()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             public interface IFoo { }
             [Transient]
             public class FooImpl : IFoo { }
@@ -74,7 +74,7 @@ public class DecoratorGeneratorTests
     public void MultiDecorator_TwoDecorators_ChainsInRegistrationOrder()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             public interface IRepo { }
             [Transient]
             public class ConcreteRepo : IRepo { }
@@ -101,7 +101,7 @@ public class DecoratorGeneratorTests
     public void MultiDecorator_ThreeDecorators_ChainsAll()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             public interface IRepo { }
             [Transient]
             public class ConcreteRepo : IRepo { }
@@ -124,7 +124,7 @@ public class DecoratorGeneratorTests
     public void MultiDecorator_WithExtraDeps_InjectsAllDeps()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             public interface IRepo { }
             public interface ILogger { }
             public interface ICache { }
@@ -146,7 +146,7 @@ public class DecoratorGeneratorTests
     public void DecoratorOf_BasicWrapping_GeneratesCorrectly()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             public interface IFoo { }
             [Transient]
             public class FooImpl : IFoo { }
@@ -167,7 +167,7 @@ public class DecoratorGeneratorTests
     public void DecoratorOf_WhenRegistered_EmitsConditionalCheck()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             public interface IFoo { }
             public class SomeOptions { }
             [Transient]
@@ -190,7 +190,7 @@ public class DecoratorGeneratorTests
     public void DecoratorOf_NoWhenRegistered_DoesNotEmitConditionalCheck()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             public interface IFoo { }
             [Transient]
             public class FooImpl : IFoo { }
@@ -211,7 +211,7 @@ public class DecoratorGeneratorTests
     public void DecoratorOf_Order_InnerMostFirst()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             public interface IFoo { }
             [Transient]
             public class FooImpl : IFoo { }
@@ -239,7 +239,7 @@ public class DecoratorGeneratorTests
     public void DecoratorOf_FullChain_OrderAndWhenRegisteredAndOptional()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             public interface IRetriever { }
             public class SomeOptions { }
             public interface ILogger { }
@@ -273,7 +273,7 @@ public class DecoratorGeneratorTests
     public void DecoratorOf_AllowMultiple_OneClassDecoratesTwoInterfaces_GeneratesBoth()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             public interface IFoo { }
             public interface IBar { }
             [Transient]

@@ -1,4 +1,4 @@
-namespace ZInject.Tests.GeneratorTests;
+namespace ZeroAlloc.Inject.Tests.GeneratorTests;
 
 public class BasicRegistrationTests
 {
@@ -19,7 +19,7 @@ public class BasicRegistrationTests
     public void TransientAttribute_GeneratesTryAddTransient()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IMyService { }
@@ -39,7 +39,7 @@ public class BasicRegistrationTests
     public void ScopedAttribute_GeneratesTryAddScoped()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IRepo { }
@@ -58,7 +58,7 @@ public class BasicRegistrationTests
     public void SingletonAttribute_GeneratesTryAddSingleton()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface ICache { }
@@ -77,7 +77,7 @@ public class BasicRegistrationTests
     public void ConcreteOnly_RegistersConcreteType()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             [Transient]
@@ -93,7 +93,7 @@ public class BasicRegistrationTests
     public void FilteredInterfaces_AreExcluded()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             using System;
             namespace TestApp;
 
@@ -116,7 +116,7 @@ public class BasicRegistrationTests
     public void GeneratedMethod_ReturnsIServiceCollection()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             [Transient]
@@ -133,7 +133,7 @@ public class BasicRegistrationTests
     public void KeyedService_GeneratesKeyedRegistration()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface ICache { }
@@ -152,7 +152,7 @@ public class BasicRegistrationTests
     public void AllowMultiple_GeneratesAddInsteadOfTryAdd()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IJob { }
@@ -171,7 +171,7 @@ public class BasicRegistrationTests
     public void AsProperty_NarrowsRegistration()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IFoo { }
@@ -192,7 +192,7 @@ public class BasicRegistrationTests
     public void MultipleInterfaces_RegistersAll()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IFoo { }
@@ -215,7 +215,7 @@ public class BasicRegistrationTests
     public void MixedLifetimes_AllRegistered()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IA { }
@@ -243,7 +243,7 @@ public class BasicRegistrationTests
     public void OnlyFilteredInterfaces_RegistersConcreteOnly()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             using System;
             namespace TestApp;
 
@@ -264,7 +264,7 @@ public class BasicRegistrationTests
     public void IEquatable_IsFiltered()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             using System;
             namespace TestApp;
 
@@ -287,7 +287,7 @@ public class BasicRegistrationTests
     public void KeyedPlusAllowMultiple_GeneratesAddKeyed()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface ICache { }
@@ -306,7 +306,7 @@ public class BasicRegistrationTests
     public void KeyedPlusAs_NarrowsKeyedRegistration()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IRead { }
@@ -326,7 +326,7 @@ public class BasicRegistrationTests
     public void AsProperty_StillRegistersConcreteType()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IFoo { }

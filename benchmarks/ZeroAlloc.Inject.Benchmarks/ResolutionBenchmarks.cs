@@ -2,7 +2,7 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ZInject.Benchmarks;
+namespace ZeroAlloc.Inject.Benchmarks;
 
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.Net90)]
@@ -32,11 +32,11 @@ public class ResolutionBenchmarks
 
         // ZInject Container (generated container)
         var containerServices = new ServiceCollection();
-        containerServices.AddZInjectBenchmarksServices();
-        _containerProvider = containerServices.BuildZInjectServiceProvider();
+        containerServices.AddZeroAllocInjectBenchmarksServices();
+        _containerProvider = containerServices.BuildZeroAllocInjectServiceProvider();
 
         // ZInject Standalone provider
-        _standaloneProvider = new ZInject.Generated.ZInjectBenchmarksStandaloneServiceProvider();
+        _standaloneProvider = new ZeroAlloc.Inject.Generated.ZeroAllocInjectBenchmarksStandaloneServiceProvider();
     }
 
     [GlobalCleanup]

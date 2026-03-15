@@ -2,7 +2,7 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 
-namespace ZInject.Generator
+namespace ZeroAlloc.Inject.Generator
 {
     internal sealed class ClosedGenericFactoryInfo : IEquatable<ClosedGenericFactoryInfo>
     {

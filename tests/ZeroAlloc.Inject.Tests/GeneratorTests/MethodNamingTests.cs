@@ -1,4 +1,4 @@
-namespace ZInject.Tests.GeneratorTests;
+namespace ZeroAlloc.Inject.Tests.GeneratorTests;
 
 public class MethodNamingTests
 {
@@ -6,7 +6,7 @@ public class MethodNamingTests
     public void DefaultMethodName_DerivedFromAssemblyName()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             [Transient]
@@ -23,7 +23,7 @@ public class MethodNamingTests
     public void ZInjectAttribute_OverridesMethodName()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
 
             [assembly: ZInject("AddDomainServices")]
 
@@ -43,7 +43,7 @@ public class MethodNamingTests
     public void ClassName_DerivedFromMethodName()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
 
             [assembly: ZInject("AddDomainServices")]
 
@@ -62,7 +62,7 @@ public class MethodNamingTests
     public void MethodNameWithoutAddPrefix_ClassNameHandledCorrectly()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
 
             [assembly: ZInject("RegisterServices")]
 

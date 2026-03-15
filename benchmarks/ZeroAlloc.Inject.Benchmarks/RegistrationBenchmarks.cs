@@ -2,7 +2,7 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace ZInject.Benchmarks;
+namespace ZeroAlloc.Inject.Benchmarks;
 
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.Net90)]
@@ -31,13 +31,13 @@ public class RegistrationBenchmarks
     public IServiceProvider ZInject_ContainerBuild()
     {
         var services = new ServiceCollection();
-        services.AddZInjectBenchmarksServices();
-        return services.BuildZInjectServiceProvider();
+        services.AddZeroAllocInjectBenchmarksServices();
+        return services.BuildZeroAllocInjectServiceProvider();
     }
 
     [Benchmark(Description = "Standalone: Direct instantiation")]
     public IServiceProvider Standalone_DirectInstantiation()
     {
-        return new ZInject.Generated.ZInjectBenchmarksStandaloneServiceProvider();
+        return new ZeroAlloc.Inject.Generated.ZeroAllocInjectBenchmarksStandaloneServiceProvider();
     }
 }

@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace ZInject.Generator
+namespace ZeroAlloc.Inject.Generator
 {
     internal sealed class DecoratorRegistrationInfo : IEquatable<DecoratorRegistrationInfo>
     {

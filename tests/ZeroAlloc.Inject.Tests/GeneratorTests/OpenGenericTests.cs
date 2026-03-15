@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace ZInject.Tests.GeneratorTests;
+namespace ZeroAlloc.Inject.Tests.GeneratorTests;
 
 public class OpenGenericTests
 {
@@ -8,7 +8,7 @@ public class OpenGenericTests
     public void OpenGeneric_GeneratesServiceDescriptor()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IRepository<T> { }
@@ -26,7 +26,7 @@ public class OpenGenericTests
     public void OpenGeneric_WithAs_NarrowsRegistration()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IReadRepo<T> { }
@@ -46,7 +46,7 @@ public class OpenGenericTests
     public void OpenGeneric_DefaultTryAdd_UsesTryAdd()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IRepository<T> { }
@@ -64,7 +64,7 @@ public class OpenGenericTests
     public void MultiTypeParameter_GeneratesCorrectUnboundForm()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IRepository<TKey, TValue> { }
@@ -82,7 +82,7 @@ public class OpenGenericTests
     public void OpenGeneric_AllowMultiple_UsesAdd()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
 
             public interface IRepo<T> { }
@@ -101,7 +101,7 @@ public class OpenGenericTests
     public void OpenGeneric_StandaloneContainer_EmitsExplicitClosedTypeEntry()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IRepository<T> { }
             public class OrderContext { }
@@ -128,7 +128,7 @@ public class OpenGenericTests
     public void OpenGeneric_StandaloneContainer_ContainsNoReflection()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IRepository<T> { }
             public class Order { }
@@ -155,7 +155,7 @@ public class OpenGenericTests
     public void OpenGeneric_ChainedDependency_BothClosedTypesEmitted()
     {
         var source = """
-            using ZInject;
+            using ZeroAlloc.Inject;
             namespace TestApp;
             public interface IRepository<T> { }
             public interface IContext<T> { }

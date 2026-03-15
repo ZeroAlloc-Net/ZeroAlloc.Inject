@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace ZInject.Generator
+namespace ZeroAlloc.Inject.Generator
 {
     internal static class DiagnosticDescriptors
     {

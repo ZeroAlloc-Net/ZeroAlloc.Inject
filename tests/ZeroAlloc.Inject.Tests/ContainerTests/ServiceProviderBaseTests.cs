@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
-using ZInject.Container;
+using ZeroAlloc.Inject.Container;
 
-namespace ZInject.Tests.ContainerTests;
+namespace ZeroAlloc.Inject.Tests.ContainerTests;
 
 public class ServiceProviderBaseTests
 {

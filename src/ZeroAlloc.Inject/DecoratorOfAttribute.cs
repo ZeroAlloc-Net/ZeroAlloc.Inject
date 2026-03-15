@@ -1,4 +1,4 @@
-namespace ZInject;
+namespace ZeroAlloc.Inject;
 
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
 public sealed class DecoratorOfAttribute : Attribute
