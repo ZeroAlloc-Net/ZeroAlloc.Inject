@@ -1289,6 +1289,83 @@ public class IntegrationTests
     }
 
     // ---------------------------------------------------------------
+    // Open generic narrowing (As = typeof(IReadRepo<>))
+    // ---------------------------------------------------------------
+    [Fact]
+    public void OpenGeneric_Narrowed_Standalone_ResolvesNarrowedInterface_NotOther()
+    {
+        const string source = """
+            using ZInject;
+            namespace TestApp;
+            public interface IReadRepo<T> { string Read(); }
+            public interface IWriteRepo<T> { }
+            [Transient(As = typeof(IReadRepo<>))]
+            public class Repo<T> : IReadRepo<T>, IWriteRepo<T>
+            {
+                public string Read() => typeof(T).Name;
+            }
+            [Transient]
+            public class Consumer
+            {
+                public IReadRepo<string> Repo { get; }
+                public Consumer(IReadRepo<string> repo) { Repo = repo; }
+            }
+            """;
+
+        var (assembly, provider) = BuildAndCreateStandaloneProvider(source);
+        var consumerType = assembly.GetType("TestApp.Consumer")!;
+        var consumer = provider.GetService(consumerType)!;
+        var repoProp = consumerType.GetProperty("Repo")!;
+        var repo = repoProp.GetValue(consumer)!;
+        var readMethod = repo.GetType().GetMethod("Read")!;
+        Assert.Equal("String", (string)readMethod.Invoke(repo, null)!);
+
+        // IWriteRepo<string> should not be registered (narrowed away)
+        var writeRepoType = assembly.GetType("TestApp.IWriteRepo`1")!
+            .MakeGenericType(typeof(string));
+        Assert.Null(provider.GetService(writeRepoType));
+    }
+
+    // ---------------------------------------------------------------
+    // Open generic + decorator via standalone container
+    // ---------------------------------------------------------------
+    [Fact]
+    public void OpenGeneric_WithDecorator_Standalone_WrapsInnerWithDecorator()
+    {
+        const string source = """
+            using ZInject;
+            namespace TestApp;
+            public interface IRepo<T> { string Tag { get; } }
+            [Transient]
+            public class Repo<T> : IRepo<T>
+            {
+                public string Tag => "impl:" + typeof(T).Name;
+            }
+            [Decorator]
+            public class LoggingRepo<T> : IRepo<T>
+            {
+                private readonly IRepo<T> _inner;
+                public LoggingRepo(IRepo<T> inner) { _inner = inner; }
+                public string Tag => "logging:" + _inner.Tag;
+            }
+            [Transient]
+            public class Consumer
+            {
+                public IRepo<string> Repo { get; }
+                public Consumer(IRepo<string> repo) { Repo = repo; }
+            }
+            """;
+
+        var (assembly, provider) = BuildAndCreateStandaloneProvider(source);
+        var consumerType = assembly.GetType("TestApp.Consumer")!;
+        var consumer = provider.GetService(consumerType)!;
+        var repoProp = consumerType.GetProperty("Repo")!;
+        var repo = repoProp.GetValue(consumer)!;
+        var tagProp = repo.GetType().GetProperty("Tag")!;
+        Assert.Equal("logging:impl:String", (string)tagProp.GetValue(repo)!);
+    }
+
+    // ---------------------------------------------------------------
     // Decorator 1. Non-generic decorator via hybrid container
     // ---------------------------------------------------------------
     [Fact]

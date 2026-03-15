@@ -395,4 +395,40 @@ public class DiagnosticTests
         var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
         Assert.DoesNotContain(diagnostics, static d => string.Equals(d.Id, "ZI018", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void ZI018_OpenGenericWithAsNarrowing_NoDetectedUsages_ReportsWarning()
+    {
+        // As narrows to IReadRepo<> but no consumer of IReadRepo<SomeType> exists
+        var source = """
+            using ZInject;
+            public interface IReadRepo<T> { }
+            public interface IWriteRepo<T> { }
+            [Transient(As = typeof(IReadRepo<>))]
+            public class Repo<T> : IReadRepo<T>, IWriteRepo<T> { }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+        Assert.Contains(diagnostics, static d => string.Equals(d.Id, "ZI018", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ZI018_OpenGenericWithAsNarrowing_WithDetectedUsage_NoWarning()
+    {
+        var source = """
+            using ZInject;
+            public interface IReadRepo<T> { }
+            public interface IWriteRepo<T> { }
+            [Transient(As = typeof(IReadRepo<>))]
+            public class Repo<T> : IReadRepo<T>, IWriteRepo<T> { }
+            [Transient]
+            public class OrderService
+            {
+                public OrderService(IReadRepo<string> repo) { }
+            }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+        Assert.DoesNotContain(diagnostics, static d => string.Equals(d.Id, "ZI018", StringComparison.Ordinal));
+    }
 }

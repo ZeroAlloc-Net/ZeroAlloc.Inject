@@ -186,14 +186,14 @@ public class ResolutionBenchmarks
     public IDecoratedService Standalone_ResolveDecorated()
         => _standaloneProvider.GetRequiredService<IDecoratedService>();
 
-    // --- Open generic resolution (standalone runtime) ---
+    // --- Open generic resolution ---
 
     [Benchmark(Description = "MS DI: Resolve open generic (string)")]
     [BenchmarkCategory("OpenGeneric")]
     public object? MsDi_ResolveOpenGeneric()
         => _msDiProvider.GetService(typeof(IGenericRepo<string>));
 
-    [Benchmark(Description = "Standalone: Resolve open generic (string) - runtime via MakeGenericType")]
+    [Benchmark(Description = "Standalone: Resolve open generic (string) - compile-time closed type")]
     [BenchmarkCategory("OpenGeneric")]
     public object? Standalone_ResolveOpenGeneric()
         => _standaloneProvider.GetService(typeof(IGenericRepo<string>));

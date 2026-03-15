@@ -128,7 +128,8 @@ public class LoggingDecoratedService : IDecoratedService
     public void Execute() => _inner.Execute();
 }
 
-// Open generic service (standalone runtime resolution)
+// Open generic service — closed type IGenericRepo<string> is discovered
+// at compile time via GenericRepoConsumer, enabling AOT-safe resolution.
 public interface IGenericRepo<T>
 {
     T? Get();
@@ -138,4 +139,14 @@ public interface IGenericRepo<T>
 public class GenericRepo<T> : IGenericRepo<T>
 {
     public T? Get() => default;
+}
+
+// Consuming service that references IGenericRepo<string>, making the
+// closed type detectable by FindClosedGenericUsages at compile time.
+[Transient]
+public class GenericRepoConsumer
+{
+    private readonly IGenericRepo<string> _repo;
+    public GenericRepoConsumer(IGenericRepo<string> repo) { _repo = repo; }
+    public string? Execute() => _repo.Get();
 }
