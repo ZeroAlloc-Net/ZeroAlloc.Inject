@@ -279,6 +279,49 @@ namespace ZInject.Generator
 
                 DetectCircularDependencies(spc, allServices, decoratorsByInterface);
 
+                // ZI018: warn when an open generic has no detected closed usages
+                {
+                    var closedFqnSet = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+                    foreach (var cgf in closedGenericFactories)
+                        closedFqnSet.Add(cgf.InterfaceFqn);
+
+                    foreach (var svc in allServices)
+                    {
+                        if (!svc.IsOpenGeneric) continue;
+
+                        var ifaces = svc.AsType != null
+                            ? new System.Collections.Generic.List<string> { svc.AsType }
+                            : svc.Interfaces;
+
+                        bool anyUsage = false;
+                        foreach (var iface in ifaces)
+                        {
+                            var prefix = iface.IndexOf('<') >= 0
+                                ? iface.Substring(0, iface.IndexOf('<'))
+                                : iface;
+                            foreach (var fqn in closedFqnSet)
+                            {
+                                if (fqn.Length > prefix.Length
+                                    && fqn.StartsWith(prefix, StringComparison.Ordinal)
+                                    && fqn[prefix.Length] == '<')
+                                {
+                                    anyUsage = true;
+                                    break;
+                                }
+                            }
+                            if (anyUsage) break;
+                        }
+
+                        if (!anyUsage)
+                        {
+                            spc.ReportDiagnostic(Diagnostic.Create(
+                                DiagnosticDescriptors.NoDetectedClosedUsages,
+                                Location.None,
+                                svc.TypeName));
+                        }
+                    }
+                }
+
                 if (allServices.Count == 0)
                 {
                     return;

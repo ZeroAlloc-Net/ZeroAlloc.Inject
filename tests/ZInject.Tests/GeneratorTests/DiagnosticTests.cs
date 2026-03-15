@@ -359,4 +359,40 @@ public class DiagnosticTests
         var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
         Assert.Contains(diagnostics, static d => string.Equals(d.Id, "ZI017", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void ZI018_OpenGenericNoDetectedUsages_ReportsWarning()
+    {
+        var source = """
+            using ZInject;
+            public interface IRepository<T> { }
+            [Transient]
+            public class Repository<T> : IRepository<T> { }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+        Assert.Contains(diagnostics, static d => string.Equals(d.Id, "ZI018", StringComparison.Ordinal));
+        Assert.All(
+            diagnostics.Where(static d => string.Equals(d.Id, "ZI018", StringComparison.Ordinal)).ToList(),
+            static d => Assert.Equal(DiagnosticSeverity.Warning, d.Severity));
+    }
+
+    [Fact]
+    public void ZI018_OpenGenericWithDetectedUsage_NoWarning()
+    {
+        var source = """
+            using ZInject;
+            public interface IRepository<T> { }
+            [Transient]
+            public class Repository<T> : IRepository<T> { }
+            [Transient]
+            public class OrderService
+            {
+                public OrderService(IRepository<string> repo) { }
+            }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+        Assert.DoesNotContain(diagnostics, static d => string.Equals(d.Id, "ZI018", StringComparison.Ordinal));
+    }
 }

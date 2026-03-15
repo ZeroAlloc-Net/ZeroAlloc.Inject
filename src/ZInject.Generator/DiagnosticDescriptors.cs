@@ -139,5 +139,14 @@ namespace ZInject.Generator
             "ZInject",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor NoDetectedClosedUsages = new DiagnosticDescriptor(
+            "ZI018",
+            "No closed usages detected for open generic",
+            "Open generic '{0}' is registered but no closed usages were detected in this assembly. " +
+            "It will not be resolvable from the standalone or hybrid container.",
+            "ZInject",
+            DiagnosticSeverity.Warning,
+            isEnabledByDefault: true);
     }
 }
