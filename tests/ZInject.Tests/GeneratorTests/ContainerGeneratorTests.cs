@@ -1215,6 +1215,9 @@ public class ContainerGeneratorTests
         Assert.DoesNotContain("MakeGenericType", output);
         Assert.DoesNotContain("GetMethod(", output);
         Assert.Contains("typeof(global::IRepo<string>)", output);
+        // Decorator must be applied in the standalone container
+        Assert.Contains("new global::LoggingRepo<string>(", output);
+        Assert.Contains("new global::Repo<string>(", output);
     }
 
     [Fact]

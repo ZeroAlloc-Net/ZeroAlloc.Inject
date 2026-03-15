@@ -1814,7 +1814,7 @@ namespace ZInject.Generator
                 {
                     sb.AppendLine("            {");
                     sb.AppendLine("                if (_cg_s_" + i + " != null) return _cg_s_" + i + ";");
-                    sb.AppendLine("                var _cg_instance_" + i + " = " + BuildClosedGenericNewExpr(cgf) + ";");
+                    sb.AppendLine("                var _cg_instance_" + i + " = " + BuildDecoratedClosedGenericExpr(cgf, decoratorsByInterface) + ";");
                     if (cgf.ImplementsDisposable)
                     {
                         sb.AppendLine("                var _cg_existing_" + i + " = Interlocked.CompareExchange(ref _cg_s_" + i + ", _cg_instance_" + i + ", null);");
@@ -1829,7 +1829,7 @@ namespace ZInject.Generator
                 }
                 else // Transient
                 {
-                    sb.AppendLine("                return " + BuildClosedGenericNewExpr(cgf) + ";");
+                    sb.AppendLine("                return " + BuildDecoratedClosedGenericExpr(cgf, decoratorsByInterface) + ";");
                 }
             }
 
@@ -2199,18 +2199,18 @@ namespace ZInject.Generator
                     sb.AppendLine("                {");
                     if (cgf.ImplementsDisposable)
                     {
-                        sb.AppendLine("                    if (_cg_sc_" + i + " == null) { _cg_sc_" + i + " = " + BuildClosedGenericNewExpr(cgf) + "; TrackDisposable(_cg_sc_" + i + "); }");
+                        sb.AppendLine("                    if (_cg_sc_" + i + " == null) { _cg_sc_" + i + " = " + BuildDecoratedClosedGenericExpr(cgf, decoratorsByInterface) + "; TrackDisposable(_cg_sc_" + i + "); }");
                     }
                     else
                     {
-                        sb.AppendLine("                    if (_cg_sc_" + i + " == null) _cg_sc_" + i + " = " + BuildClosedGenericNewExpr(cgf) + ";");
+                        sb.AppendLine("                    if (_cg_sc_" + i + " == null) _cg_sc_" + i + " = " + BuildDecoratedClosedGenericExpr(cgf, decoratorsByInterface) + ";");
                     }
                     sb.AppendLine("                    return _cg_sc_" + i + ";");
                     sb.AppendLine("                }");
                 }
                 else // Transient — fresh instance each call
                 {
-                    sb.AppendLine("                    return " + BuildClosedGenericNewExpr(cgf) + ";");
+                    sb.AppendLine("                    return " + BuildDecoratedClosedGenericExpr(cgf, decoratorsByInterface) + ";");
                 }
             }
 
@@ -2574,6 +2574,107 @@ namespace ZInject.Generator
             }
             sb.Append(")");
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Builds the instantiation expression for a closed generic factory, wrapping with decorator chain
+        /// if an open-generic decorator is registered for the interface's unbound form.
+        /// </summary>
+        private static string BuildDecoratedClosedGenericExpr(
+            ClosedGenericFactoryInfo cgf,
+            System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<DecoratorRegistrationInfo>> decoratorsByInterface)
+        {
+            var innerExpr = BuildClosedGenericNewExpr(cgf);
+
+            // Derive unbound FQN (e.g. "global::IRepo<>" from "global::IRepo<string>")
+            var unboundFqn = GetUnboundFqnFromClosed(cgf.InterfaceFqn);
+            if (unboundFqn == null) return innerExpr;
+
+            if (!decoratorsByInterface.TryGetValue(unboundFqn, out var decorators) || decorators.Count == 0)
+                return innerExpr;
+
+            var typeArgs = ExtractTypeArgsFromClosedFqn(cgf.InterfaceFqn);
+            if (typeArgs.Length == 0) return innerExpr;
+
+            // Chain decorators innermost-first (list is already sorted by Order ascending)
+            var currentExpr = innerExpr;
+            var closedInterfaceFqn = cgf.InterfaceFqn;
+            foreach (var decorator in decorators)
+            {
+                var closedDecoratorFqn = CloseUnboundFqn(decorator.DecoratorFqn, typeArgs);
+                var sb = new System.Text.StringBuilder();
+                sb.Append("new ").Append(closedDecoratorFqn).Append("(");
+                bool first = true;
+                foreach (var param in decorator.ConstructorParameters)
+                {
+                    if (!first) sb.Append(", ");
+                    first = false;
+                    var closedParamType = CloseUnboundFqn(param.FullyQualifiedTypeName, typeArgs);
+                    // Identify the "inner" parameter by matching the closed or unbound interface FQN
+                    if (closedParamType == closedInterfaceFqn || param.FullyQualifiedTypeName == unboundFqn)
+                    {
+                        sb.Append("(").Append(closedInterfaceFqn).Append(")(").Append(currentExpr).Append(")");
+                    }
+                    else if (param.IsOptional)
+                    {
+                        sb.Append("(").Append(closedParamType).Append("?)GetService(typeof(")
+                          .Append(closedParamType).Append("))");
+                    }
+                    else
+                    {
+                        sb.Append("(").Append(closedParamType).Append(")GetService(typeof(")
+                          .Append(closedParamType).Append("))!");
+                    }
+                }
+                sb.Append(")");
+                currentExpr = sb.ToString();
+            }
+            return currentExpr;
+        }
+
+        /// <summary>Returns the unbound generic FQN from a closed generic FQN, e.g. "global::IFoo&lt;global::Bar&gt;" → "global::IFoo&lt;&gt;".</summary>
+        private static string? GetUnboundFqnFromClosed(string closedFqn)
+        {
+            var idx = closedFqn.IndexOf('<');
+            if (idx < 0) return null;
+            var prefix = closedFqn.Substring(0, idx);
+            var typeArgs = ExtractTypeArgsFromClosedFqn(closedFqn);
+            if (typeArgs.Length == 0) return null;
+            var commas = typeArgs.Length > 1 ? new string(',', typeArgs.Length - 1) : "";
+            return prefix + "<" + commas + ">";
+        }
+
+        /// <summary>Closes an unbound generic FQN with the supplied type args, e.g. "global::IFoo&lt;&gt;" + ["global::Bar"] → "global::IFoo&lt;global::Bar&gt;".</summary>
+        private static string CloseUnboundFqn(string unboundFqn, string[] typeArgs)
+        {
+            var idx = unboundFqn.IndexOf('<');
+            if (idx < 0) return unboundFqn; // Not generic — return as-is
+            var prefix = unboundFqn.Substring(0, idx);
+            return prefix + "<" + string.Join(", ", typeArgs) + ">";
+        }
+
+        /// <summary>Extracts the outermost type arguments from a closed generic FQN string.</summary>
+        private static string[] ExtractTypeArgsFromClosedFqn(string closedFqn)
+        {
+            var openIdx = closedFqn.IndexOf('<');
+            if (openIdx < 0) return new string[0];
+            var closeIdx = closedFqn.LastIndexOf('>');
+            if (closeIdx <= openIdx) return new string[0];
+            var inner = closedFqn.Substring(openIdx + 1, closeIdx - openIdx - 1);
+            var result = new System.Collections.Generic.List<string>();
+            int depth = 0, start = 0;
+            for (int i = 0; i < inner.Length; i++)
+            {
+                if (inner[i] == '<') depth++;
+                else if (inner[i] == '>') depth--;
+                else if (inner[i] == ',' && depth == 0)
+                {
+                    result.Add(inner.Substring(start, i - start).Trim());
+                    start = i + 1;
+                }
+            }
+            result.Add(inner.Substring(start).Trim());
+            return result.ToArray();
         }
 
         private static void EmitConcreteRegistration(
