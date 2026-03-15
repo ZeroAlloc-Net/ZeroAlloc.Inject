@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v0.11.2...v0.11.3) (2026-03-15)
+
+
+### Bug Fixes
+
+* chain publish job inside release-please workflow ([9f14c6a](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/9f14c6a3554190e6869a95aa7ed2e40b287ce48b))
+* chain publish job inside release-please workflow ([bd3d934](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/bd3d9345575b9fa455d0689e529f6172dc9dc1e9))
+
 ## [0.11.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v0.11.1...v0.11.2) (2026-03-15)
 
 
