@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.11.0](https://github.com/MarcelRoozekrans/ZInject/compare/v0.10.5...v0.11.0) (2026-03-15)
+
+
+### Features
+
+* add [DecoratorOf] and [OptionalDependency] attributes ([d255080](https://github.com/MarcelRoozekrans/ZInject/commit/d255080d8cac0faac2bbc2edb75638c7122049f8))
+* add FindClosedGenericUsages analysis pass for AOT open generic discovery ([35aa149](https://github.com/MarcelRoozekrans/ZInject/commit/35aa14950334d5d8412f84e7a1e67a735a7f0a78))
+* add ZI018 warning when open generic has no detected closed usages ([6b3dda6](https://github.com/MarcelRoozekrans/ZInject/commit/6b3dda61b9604590b36c515207adb7fb1e7b0070))
+* emit explicit closed generic entries in standalone container ResolveKnown/ResolveScoped ([5570360](https://github.com/MarcelRoozekrans/ZInject/commit/5570360e232ce5aeda7c9db7f8ff80be020e0c3a))
+* emit WhenRegistered conditional guard in AddXxxServices() for [DecoratorOf] ([72a8a7c](https://github.com/MarcelRoozekrans/ZInject/commit/72a8a7cffcd367d2c54b5028b2f42af023946372))
+* extend data models with open generic metadata for AOT analysis ([a5da590](https://github.com/MarcelRoozekrans/ZInject/commit/a5da590b5d7e75f035721bcb3f6d03646afdde6e))
+* integration test and README for DecoratorOf/OptionalDependency ([811433f](https://github.com/MarcelRoozekrans/ZInject/commit/811433f5e31b4e5beb7a729d86338bad20f064b2))
+* Native AOT — compile-time closed generic enumeration ([b0d3576](https://github.com/MarcelRoozekrans/ZInject/commit/b0d35769d48d14d3e542c0b83d148836b26fecb7))
+* remove MakeGenericType open generic machinery — standalone container is now reflection-free ([c7881df](https://github.com/MarcelRoozekrans/ZInject/commit/c7881dfba70b68c55421bfe8c9008f9387b234b0))
+* sort decorators by Order and emit ZI017 for duplicate Order ([ae63a3f](https://github.com/MarcelRoozekrans/ZInject/commit/ae63a3ffdb5eb347efb09706977470681e5b317b))
+
+
+### Bug Fixes
+
+* add IDisposable disposal-on-race for singleton closed generics, cache scoped closed generics per scope ([d389a29](https://github.com/MarcelRoozekrans/ZInject/commit/d389a29cc5916eb3fc6b15d8948c12bc4f0694cd))
+* align UnboundGenericInterfaceFqn format with Interfaces FQN format ([1f09a28](https://github.com/MarcelRoozekrans/ZInject/commit/1f09a28b4cb39aa9950ba100686aabe2a5041374))
+* apply open-generic decorator chain in standalone closed-type entries ([1e0020a](https://github.com/MarcelRoozekrans/ZInject/commit/1e0020a07a54c11f7ae3e92ebcc9e5ec6d1d9f68))
+* clarify ordering assertion comment in integration test ([6c0fd59](https://github.com/MarcelRoozekrans/ZInject/commit/6c0fd59d0d3f3998d20345bd08990b4ce4c08437))
+* dispose closed-generic singleton fields in generated container Dispose/DisposeAsync ([400e34d](https://github.com/MarcelRoozekrans/ZInject/commit/400e34ded46e36b79d03f543c943d859268d6d37))
+* emit 'using System.Linq;' in generated file when WhenRegistered guard is used ([47e05ca](https://github.com/MarcelRoozekrans/ZInject/commit/47e05ca817fae203e53a3f0f15d57d73d71cb57e))
+* emit ZI016 for [DecoratorOf] interface not implemented, not ZI011 ([91334dc](https://github.com/MarcelRoozekrans/ZInject/commit/91334dcff30460427d9b719a19c17b28222cfa55))
+* improve GetHashCode for TypeArgumentMetadataNames, fix namespace style ([10c3613](https://github.com/MarcelRoozekrans/ZInject/commit/10c3613e2b718118b34459d7e0b2f3795e73e60a))
+* sort decorator Order ascending so Order=1 is innermost (closest to implementation) ([3e054d2](https://github.com/MarcelRoozekrans/ZInject/commit/3e054d2cdf7630f49d14a7a389e937b41d681ce7))
+* trigger publish workflow on version tags only ([d7744c1](https://github.com/MarcelRoozekrans/ZInject/commit/d7744c1e6427408f20cf81dd4608ca05ad1d9b87))
+* trigger publish workflow on version tags only ([571d171](https://github.com/MarcelRoozekrans/ZInject/commit/571d17133b2a9fd1fd0fed67088f55a8ebc2256b))
+
 ## [0.10.5](https://github.com/MarcelRoozekrans/ZInject/compare/v0.10.4...v0.10.5) (2026-03-14)
 
 
