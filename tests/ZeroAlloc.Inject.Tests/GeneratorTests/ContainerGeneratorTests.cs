@@ -402,7 +402,7 @@ public class ContainerGeneratorTests
         Assert.Contains("typeof(global::TestApp.IRepo)", scopeSection);
     }
 
-    // --- Task 9: BuildZInjectServiceProvider extension method ---
+    // --- Task 9: BuildZeroAllocInjectServiceProvider extension method ---
 
     [Fact]
     public void GeneratesBuildExtensionMethod()
@@ -419,7 +419,7 @@ public class ContainerGeneratorTests
         Assert.Contains("BuildServiceProvider()", output);
     }
 
-    // --- Task 10: ZInjectServiceProviderFactory ---
+    // --- Task 10: ZeroAllocInjectServiceProviderFactory ---
 
     [Fact]
     public void GeneratesServiceProviderFactory()
@@ -1266,7 +1266,7 @@ public class ContainerGeneratorTests
     {
         var source = """
             using ZeroAlloc.Inject;
-            [assembly: ZInject("Register", standalone: true)]
+            [assembly: ZeroAllocInject("Register", standalone: true)]
             public interface ICache { }
             [Singleton(Key = "memory")]
             public class MemoryCache : ICache { }

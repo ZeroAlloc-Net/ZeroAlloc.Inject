@@ -81,7 +81,7 @@ public class IntegrationTests
         // Ensure key assemblies are present even if not yet loaded.
         var extraAssemblies = new[]
         {
-            typeof(TransientAttribute).Assembly,                                    // ZInject (attributes)
+            typeof(TransientAttribute).Assembly,                                    // ZeroAlloc.Inject (attributes)
             typeof(ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase).Assembly,     // ZeroAlloc.Inject.Container
             typeof(ServiceCollectionContainerBuilderExtensions).Assembly,            // M.E.DI (BuildServiceProvider)
             typeof(ServiceCollection).Assembly,                                     // M.E.DI.Abstractions
@@ -385,7 +385,7 @@ public class IntegrationTests
     }
 
     // ---------------------------------------------------------------
-    // 11. ZInjectServiceProviderFactory creates working provider
+    // 11. ZeroAllocInjectServiceProviderFactory creates working provider
     // ---------------------------------------------------------------
     [Fact]
     public void ServiceProviderFactory_CreatesWorkingProvider()
@@ -1561,7 +1561,7 @@ public class IntegrationTests
 
     /// <summary>
     /// Builds an <see cref="IServiceProvider"/> using the generated MS DI extension method
-    /// (<c>AddZInjectServices</c>) on top of a standard <see cref="ServiceCollection"/>.
+    /// (<c>AddZeroAllocInjectServices</c>) on top of a standard <see cref="ServiceCollection"/>.
     /// </summary>
     private static (Assembly assembly, IServiceProvider provider) BuildAndCreateMsDiProvider(string source)
     {
