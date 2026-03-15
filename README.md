@@ -1,7 +1,7 @@
-# ZInject
+# ZeroAlloc.Inject
 
-[![CI](https://github.com/MarcelRoozekrans/ZInject/actions/workflows/ci.yml/badge.svg)](https://github.com/MarcelRoozekrans/ZInject/actions/workflows/ci.yml)
-[![NuGet](https://img.shields.io/nuget/v/ZInject.svg)](https://www.nuget.org/packages/ZInject)
+[![CI](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/actions/workflows/ci.yml/badge.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/actions/workflows/ci.yml)
+[![NuGet](https://img.shields.io/nuget/v/ZeroAlloc.Inject.svg)](https://www.nuget.org/packages/ZeroAlloc.Inject)
 
 Compile-time DI registration for .NET. A Roslyn source generator that auto-discovers services via attributes and generates `IServiceCollection` extension methods and a **Native AOT-compatible** `IServiceProvider`. No reflection, no runtime scanning.
 
@@ -10,16 +10,16 @@ Compile-time DI registration for .NET. A Roslyn source generator that auto-disco
 Install the packages:
 
 ```
-dotnet add package ZInject
-dotnet add package ZInject.Generator
+dotnet add package ZeroAlloc.Inject
+dotnet add package ZeroAlloc.Inject.Generator
 ```
 
-> **Tip:** If you plan to use the [generated container](#generated-container), install `ZInject.Container` instead — it bundles the generator and attributes in a single package.
+> **Tip:** If you plan to use the [generated container](#generated-container), install `ZeroAlloc.Inject.Container` instead — it bundles the generator and attributes in a single package.
 
 Decorate your services:
 
 ```csharp
-using ZInject;
+using ZeroAlloc.Inject;
 
 [Transient]
 public class OrderService : IOrderService { }
@@ -98,7 +98,7 @@ public class Repository<T> : IRepository<T> { }
 Override the generated method name with an assembly-level attribute:
 
 ```csharp
-[assembly: ZInject("AddDomainServices")]
+[assembly: ZeroAllocInject("AddDomainServices")]
 ```
 
 ### Decorator Ordering and Conditional Decorators
@@ -127,40 +127,40 @@ public class TracingRetriever : IRetriever
 
 ## Diagnostics
 
-ZInject reports issues at compile time:
+ZeroAlloc.Inject reports issues at compile time:
 
 | ID | Severity | Description |
 |---|---|---|
-| ZI001 | Error | Multiple lifetime attributes on same class |
-| ZI002 | Error | Attribute on non-class type |
-| ZI003 | Error | Attribute on abstract or static class |
-| ZI004 | Error | `As` type not implemented by the class |
-| ZI005 | Error | `Key` used below .NET 8 |
-| ZI006 | Warning | No public constructor |
-| ZI007 | Warning | No interfaces (concrete-only registration) |
-| ZI008 | Warning | Missing `Microsoft.Extensions.DependencyInjection.Abstractions` |
-| ZI009 | Error | Multiple public constructors without `[ActivatorUtilitiesConstructor]` |
-| ZI010 | Error | Constructor parameter is a primitive/value type |
-| ZI011 | Error | Decorator has no matching interface parameter |
-| ZI012 | Error | Decorated interface not registered as a service |
-| ZI013 | Warning | Decorator on abstract or static class |
-| ZI014 | Error | Circular dependency detected (compile-time cycle detection) |
-| ZI015 | Error | `[OptionalDependency]` on non-nullable parameter |
-| ZI016 | Error | `[DecoratorOf]` interface not implemented by the class |
-| ZI017 | Error | Two decorators for the same interface share the same `Order` |
-| ZI018 | Warning | Open generic has no detected closed usages — won't resolve from standalone container |
+| ZAI001 | Error | Multiple lifetime attributes on same class |
+| ZAI002 | Error | Attribute on non-class type |
+| ZAI003 | Error | Attribute on abstract or static class |
+| ZAI004 | Error | `As` type not implemented by the class |
+| ZAI005 | Error | `Key` used below .NET 8 |
+| ZAI006 | Warning | No public constructor |
+| ZAI007 | Warning | No interfaces (concrete-only registration) |
+| ZAI008 | Warning | Missing `Microsoft.Extensions.DependencyInjection.Abstractions` |
+| ZAI009 | Error | Multiple public constructors without `[ActivatorUtilitiesConstructor]` |
+| ZAI010 | Error | Constructor parameter is a primitive/value type |
+| ZAI011 | Error | Decorator has no matching interface parameter |
+| ZAI012 | Error | Decorated interface not registered as a service |
+| ZAI013 | Warning | Decorator on abstract or static class |
+| ZAI014 | Error | Circular dependency detected (compile-time cycle detection) |
+| ZAI015 | Error | `[OptionalDependency]` on non-nullable parameter |
+| ZAI016 | Error | `[DecoratorOf]` interface not implemented by the class |
+| ZAI017 | Error | Two decorators for the same interface share the same `Order` |
+| ZAI018 | Warning | Open generic has no detected closed usages — won't resolve from standalone container |
 
 ## Generated Container
 
-ZInject can replace the default MS DI container with a source-generated `IServiceProvider`. This eliminates reflection-based resolution at runtime. Two modes are available depending on whether you need MS DI integration.
+ZeroAlloc.Inject can replace the default MS DI container with a source-generated `IServiceProvider`. This eliminates reflection-based resolution at runtime. Two modes are available depending on whether you need MS DI integration.
 
 ### Installation
 
 ```
-dotnet add package ZInject.Container
+dotnet add package ZeroAlloc.Inject.Container
 ```
 
-This single package includes everything: the source generator, the attributes (`ZInject`), and the container base classes. When the generator detects a reference to `ZInject.Container`, it automatically emits two generated provider classes per assembly.
+This single package includes everything: the source generator, the attributes (`ZeroAlloc.Inject`), and the container base classes. When the generator detects a reference to `ZeroAlloc.Inject.Container`, it automatically emits two generated provider classes per assembly.
 
 ### Hybrid Mode (MS DI integration)
 
@@ -171,7 +171,7 @@ Wraps the generated container around an MS DI fallback. Unknown service types (f
 var services = new ServiceCollection();
 services.AddMyAppServices(); // Generated registration method
 
-IServiceProvider provider = services.BuildZInjectServiceProvider();
+IServiceProvider provider = services.BuildZeroAllocInjectServiceProvider();
 var myService = provider.GetRequiredService<IMyService>();
 ```
 
@@ -179,7 +179,7 @@ var myService = provider.GetRequiredService<IMyService>();
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddMyAppServices();
-builder.Host.UseServiceProviderFactory(new ZInjectServiceProviderFactory());
+builder.Host.UseServiceProviderFactory(new ZeroAllocInjectServiceProviderFactory());
 
 var app = builder.Build();
 ```
@@ -202,7 +202,7 @@ The generated container uses a type-switch (`if`/`else if` chain on `typeof(T)`)
 
 ### Current Limitations
 
-- **Open generics** (e.g., `IRepository<>`) delegate to the fallback in hybrid mode. In standalone mode, closed types are enumerated at compile time via constructor parameter analysis — services that are never used as a constructor parameter in the assembly won't be resolvable (ZI018 warning).
+- **Open generics** (e.g., `IRepository<>`) delegate to the fallback in hybrid mode. In standalone mode, closed types are enumerated at compile time via constructor parameter analysis — services that are never used as a constructor parameter in the assembly won't be resolvable (ZAI018 warning).
 
 ## Benchmarks
 
@@ -213,14 +213,14 @@ All benchmarks on .NET 9.0, BenchmarkDotNet v0.15.8, Windows 11 (Intel Core i9-1
 | Method | Mean | Allocated |
 |---|---:|---:|
 | MS DI — `BuildServiceProvider()` | 139 ns | 528 B |
-| ZInject Container — `BuildZInjectServiceProvider()` | 4,477 ns | 9,368 B |
+| ZeroAlloc.Inject Container — `BuildZeroAllocInjectServiceProvider()` | 4,477 ns | 9,368 B |
 | Standalone — `new MyAppStandaloneServiceProvider()` | **5 ns** | **32 B** |
 
 The hybrid container has a one-time build cost (generating internal data structures). The standalone provider has virtually none.
 
 ### Resolution
 
-| Scenario | MS DI | ZInject Container | Standalone |
+| Scenario | MS DI | ZeroAlloc.Inject Container | Standalone |
 |---|---:|---:|---:|
 | Transient (no deps) | 23 ns | **13 ns** | 15 ns |
 | Transient (1 dep) | 20 ns | 28 ns | **27 ns** |
@@ -236,21 +236,21 @@ The standalone provider's `CreateScope` is ~2.5× faster and uses ~60% less memo
 
 ## Native AOT
 
-Because ZInject generates all service instantiation as plain `new ClassName(...)` constructor calls at compile time, it is compatible with Native AOT publishing — no `Activator.CreateInstance`, no `Type.GetMethod`, no reflection in generated code.
+Because ZeroAlloc.Inject generates all service instantiation as plain `new ClassName(...)` constructor calls at compile time, it is compatible with Native AOT publishing — no `Activator.CreateInstance`, no `Type.GetMethod`, no reflection in generated code.
 
 | Mode | Native AOT |
 |---|---|
 | `AddXxxServices()` extension method | ✅ Generated registration code is AOT-safe. Runtime resolution uses your MS DI configuration. |
 | Standalone container (closed generics) | ✅ Fully AOT-compatible. Direct `new` calls, `typeof(T)` type switches, `Interlocked.CompareExchange` for singletons — zero reflection. |
 | Standalone container (open generics) | ✅ Compile-time enumerated. Closed types are discovered via constructor parameter analysis at build time. Fully AOT-safe. |
-| Hybrid container (known services) | ✅ AOT-safe for services registered with ZInject. |
+| Hybrid container (known services) | ✅ AOT-safe for services registered with ZeroAlloc.Inject. |
 | Hybrid container (unknown services) | ⚠️ Falls back to MS DI, which uses reflection. |
 
 **The standalone container is 100% AOT-compatible**, including open generics. Closed types are enumerated at compile time via constructor parameter analysis — zero reflection at runtime.
 
 ## How It Compares to Scrutor
 
-| | ZInject | Scrutor |
+| | ZeroAlloc.Inject | Scrutor |
 |---|---|---|
 | Discovery | Compile-time source gen | Runtime assembly scanning |
 | Reflection | None | Yes |

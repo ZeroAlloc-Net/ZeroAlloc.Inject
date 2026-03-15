@@ -7,8 +7,8 @@
     <Authors>Marcel Roozekrans</Authors>
     <Company>Marcel Roozekrans</Company>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/MarcelRoozekrans/ZInject</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/MarcelRoozekrans/ZInject</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <Description>A compile-time DI registration library for .NET. Roslyn source generator wires all service registrations at compile time — no reflection, no scanning.</Description>
     <PackageTags>dependency-injection;di;source-generator;roslyn;ioc</PackageTags>

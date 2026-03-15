@@ -39,13 +39,13 @@ jobs:
           fi
 
       - name: Build
-        run: dotnet build ZInject.slnx --configuration Release -p:Version=${{ steps.version.outputs.version }}
+        run: dotnet build ZeroAlloc.Inject.slnx --configuration Release -p:Version=${{ steps.version.outputs.version }}
 
       - name: Test
-        run: dotnet test tests/ZInject.Tests/ZInject.Tests.csproj --configuration Release --no-build --verbosity normal
+        run: dotnet test tests/ZeroAlloc.Inject.Tests/ZeroAlloc.Inject.Tests.csproj --configuration Release --no-build --verbosity normal
 
       - name: Pack
-        run: dotnet pack ZInject.slnx --configuration Release --no-build --output ./artifacts -p:Version=${{ steps.version.outputs.version }}
+        run: dotnet pack ZeroAlloc.Inject.slnx --configuration Release --no-build --output ./artifacts -p:Version=${{ steps.version.outputs.version }}
 
       - name: Push to NuGet
         run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate

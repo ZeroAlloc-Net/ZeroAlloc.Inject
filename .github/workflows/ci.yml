@@ -25,16 +25,16 @@ jobs:
             10.0.x
 
       - name: Restore
-        run: dotnet restore ZInject.slnx
+        run: dotnet restore ZeroAlloc.Inject.slnx
 
       - name: Build
-        run: dotnet build ZInject.slnx --configuration Release --no-restore
+        run: dotnet build ZeroAlloc.Inject.slnx --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test tests/ZInject.Tests/ZInject.Tests.csproj --configuration Release --no-build --verbosity normal
+        run: dotnet test tests/ZeroAlloc.Inject.Tests/ZeroAlloc.Inject.Tests.csproj --configuration Release --no-build --verbosity normal
 
       - name: Pack (verify)
-        run: dotnet pack ZInject.slnx --configuration Release --no-build --output ./artifacts
+        run: dotnet pack ZeroAlloc.Inject.slnx --configuration Release --no-build --output ./artifacts
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
