@@ -1248,6 +1248,47 @@ public class IntegrationTests
     }
 
     // ---------------------------------------------------------------
+    // Open generic chained dependency (fixed-point AOT discovery)
+    // ---------------------------------------------------------------
+    [Fact]
+    public void OpenGeneric_ChainedDependency_Standalone_ResolvesCorrectly()
+    {
+        const string source = """
+            using ZInject;
+            namespace TestApp;
+            public interface IRepository<T> { string Name { get; } }
+            public interface IContext<T> { string Tag { get; } }
+            [Transient]
+            public class Repository<T> : IRepository<T>
+            {
+                private readonly IContext<T> _ctx;
+                public Repository(IContext<T> ctx) { _ctx = ctx; }
+                public string Name => "repo:" + _ctx.Tag;
+            }
+            [Transient]
+            public class Context<T> : IContext<T>
+            {
+                public string Tag => typeof(T).Name;
+            }
+            [Transient]
+            public class OrderService
+            {
+                public IRepository<Order> Repo { get; }
+                public OrderService(IRepository<Order> repo) { Repo = repo; }
+            }
+            public class Order { }
+            """;
+
+        var (assembly, provider) = BuildAndCreateStandaloneProvider(source);
+        var svcType = assembly.GetType("TestApp.OrderService")!;
+        var svc = provider.GetService(svcType)!;
+        var repoProp = svcType.GetProperty("Repo")!;
+        var repo = repoProp.GetValue(svc)!;
+        var nameProp = repo.GetType().GetProperty("Name")!;
+        Assert.Equal("repo:Order", (string)nameProp.GetValue(repo)!);
+    }
+
+    // ---------------------------------------------------------------
     // Decorator 1. Non-generic decorator via hybrid container
     // ---------------------------------------------------------------
     [Fact]

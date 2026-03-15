@@ -150,4 +150,35 @@ public class OpenGenericTests
         Assert.DoesNotContain("ConcurrentDictionary", output);
         Assert.DoesNotContain("GetGenericTypeDefinition", output);
     }
+
+    [Fact]
+    public void OpenGeneric_ChainedDependency_BothClosedTypesEmitted()
+    {
+        var source = """
+            using ZInject;
+            namespace TestApp;
+            public interface IRepository<T> { }
+            public interface IContext<T> { }
+            public class Order { }
+            [Transient]
+            public class Repository<T> : IRepository<T>
+            {
+                public Repository(IContext<T> ctx) { }
+            }
+            [Transient]
+            public class Context<T> : IContext<T> { }
+            [Transient]
+            public class OrderService
+            {
+                public OrderService(IRepository<Order> repo) { }
+            }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+        Assert.DoesNotContain(diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        // Both closed types discovered transitively via fixed-point iteration
+        Assert.Contains("typeof(global::TestApp.IRepository<global::TestApp.Order>)", output);
+        Assert.Contains("typeof(global::TestApp.IContext<global::TestApp.Order>)", output);
+        Assert.DoesNotContain("MakeGenericType", output);
+    }
 }
