@@ -27,8 +27,8 @@ public class RegistrationBenchmarks
         return services;
     }
 
-    [Benchmark(Description = "ZInject Container: Build provider")]
-    public IServiceProvider ZInject_ContainerBuild()
+    [Benchmark(Description = "ZeroAlloc.Inject Container: Build provider")]
+    public IServiceProvider ZeroAllocInject_ContainerBuild()
     {
         var services = new ServiceCollection();
         services.AddZeroAllocInjectBenchmarksServices();
