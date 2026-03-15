@@ -141,4 +141,25 @@ public class DecoratorGeneratorTests
         Assert.Contains("GetRequiredService<global::ICache>", output);
         Assert.Contains("GetRequiredService<global::ILogger>", output);
     }
+
+    [Fact]
+    public void DecoratorOf_BasicWrapping_GeneratesCorrectly()
+    {
+        var source = """
+            using ZInject;
+            public interface IFoo { }
+            [Transient]
+            public class FooImpl : IFoo { }
+            [DecoratorOf(typeof(IFoo))]
+            public class LoggingFoo : IFoo
+            {
+                public LoggingFoo(IFoo inner) { }
+            }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+        Assert.DoesNotContain(diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains("new global::LoggingFoo", output);
+        Assert.Contains("GetRequiredService<global::FooImpl>", output);
+    }
 }

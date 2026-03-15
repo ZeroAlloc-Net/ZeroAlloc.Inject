@@ -97,13 +97,29 @@ namespace ZInject.Generator
                 .Where(static x => x != null)
                 .Collect();
 
+            var decoratorOfs = context.SyntaxProvider.ForAttributeWithMetadataName(
+                "ZInject.DecoratorOfAttribute",
+                predicate: static (node, _) => true,
+                transform: static (ctx, ct) => GetDecoratorOfInfo(ctx, ct))
+                .Where(static x => x != null)
+                .Collect();
+
+            var allDecorators = decorators.Combine(decoratorOfs)
+                .Select(static (pair, _) =>
+                {
+                    var builder = ImmutableArray.CreateBuilder<DecoratorRegistrationInfo?>();
+                    builder.AddRange(pair.Left);
+                    builder.AddRange(pair.Right);
+                    return builder.ToImmutable();
+                });
+
             var combined = transients
                 .Combine(scopeds)
                 .Combine(singletons)
                 .Combine(assemblyAttr)
                 .Combine(assemblyName)
                 .Combine(hasContainer)
-                .Combine(decorators);
+                .Combine(allDecorators);
 
             context.RegisterSourceOutput(combined, static (spc, data) =>
             {
@@ -2676,6 +2692,95 @@ namespace ZInject.Generator
                 typeName, fqn, decoratedInterface,
                 isOpenGeneric, ctorParams, implementsDisposable, isAbstractOrStatic,
                 order: 0, whenRegisteredFqn: null, isDecoratorOf: false);
+        }
+
+        private static DecoratorRegistrationInfo? GetDecoratorOfInfo(
+            GeneratorAttributeSyntaxContext ctx,
+            CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (ctx.TargetSymbol is not INamedTypeSymbol typeSymbol) return null;
+
+            var typeName = typeSymbol.Name;
+            var fqn = typeSymbol.ToDisplayString(FullyQualifiedFormat);
+            bool isAbstractOrStatic = typeSymbol.IsAbstract || typeSymbol.IsStatic;
+            bool isOpenGeneric = typeSymbol.IsGenericType;
+            int arity = typeSymbol.TypeParameters.Length;
+
+            if (isOpenGeneric)
+                fqn = ToUnboundGenericString(fqn, arity);
+
+            var attr = ctx.Attributes.FirstOrDefault();
+            if (attr == null) return null;
+
+            string? decoratedInterfaceFqn = null;
+            if (attr.ConstructorArguments.Length > 0
+                && attr.ConstructorArguments[0].Value is INamedTypeSymbol decoratedSymbol)
+            {
+                decoratedInterfaceFqn = decoratedSymbol.ToDisplayString(FullyQualifiedFormat);
+                if (isOpenGeneric && decoratedSymbol.IsGenericType)
+                    decoratedInterfaceFqn = ToUnboundGenericString(decoratedInterfaceFqn, arity);
+            }
+
+            int order = 0;
+            string? whenRegisteredFqn = null;
+
+            foreach (var named in attr.NamedArguments)
+            {
+                if (named.Key == "Order" && named.Value.Value is int orderVal)
+                    order = orderVal;
+                else if (named.Key == "WhenRegistered" && named.Value.Value is INamedTypeSymbol whenSymbol)
+                    whenRegisteredFqn = whenSymbol.ToDisplayString(FullyQualifiedFormat);
+            }
+
+            // Collect interfaces to validate — null decoratedInterfaceFqn signals ZI016 in RegisterSourceOutput
+            var interfaces = new System.Collections.Generic.HashSet<string>();
+            foreach (var iface in typeSymbol.AllInterfaces)
+            {
+                var ifaceFqn = iface.ToDisplayString(FullyQualifiedFormat);
+                if (isOpenGeneric && iface.IsGenericType)
+                    ifaceFqn = ToUnboundGenericString(ifaceFqn, arity);
+                interfaces.Add(ifaceFqn);
+            }
+
+            if (decoratedInterfaceFqn != null && !interfaces.Contains(decoratedInterfaceFqn))
+                decoratedInterfaceFqn = null;
+
+            // Build constructor params
+            IMethodSymbol? ctor = null;
+            foreach (var c in typeSymbol.InstanceConstructors)
+            {
+                if (c.DeclaredAccessibility == Accessibility.Public) { ctor = c; break; }
+            }
+
+            var ctorParams = new List<ConstructorParameterInfo>();
+            if (ctor != null && !isAbstractOrStatic)
+            {
+                foreach (var param in ctor.Parameters)
+                {
+                    var paramTypeFqn = param.Type.ToDisplayString(FullyQualifiedFormat);
+                    var matchFqn = (isOpenGeneric && param.Type is INamedTypeSymbol pt && pt.IsGenericType)
+                        ? ToUnboundGenericString(paramTypeFqn, arity)
+                        : paramTypeFqn;
+                    var paramAttrs = param.GetAttributes();
+                    bool isOptional = param.HasExplicitDefaultValue
+                        || paramAttrs.Any(a => a.AttributeClass?.ToDisplayString() == "ZInject.OptionalDependencyAttribute");
+                    ctorParams.Add(new ConstructorParameterInfo(matchFqn, param.Name, isOptional));
+                }
+            }
+
+            bool implementsDisposable = false;
+            foreach (var iface in typeSymbol.AllInterfaces)
+            {
+                var name = iface.ToDisplayString();
+                if (name == "System.IDisposable" || name == "System.IAsyncDisposable")
+                { implementsDisposable = true; break; }
+            }
+
+            return new DecoratorRegistrationInfo(
+                typeName, fqn, decoratedInterfaceFqn, isOpenGeneric, ctorParams,
+                implementsDisposable, isAbstractOrStatic,
+                order: order, whenRegisteredFqn: whenRegisteredFqn, isDecoratorOf: true);
         }
     }
 
