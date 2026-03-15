@@ -335,4 +335,28 @@ public class DiagnosticTests
         Assert.Contains(diagnostics, static d => string.Equals(d.Id, "ZI016", StringComparison.Ordinal));
         Assert.DoesNotContain(diagnostics, static d => string.Equals(d.Id, "ZI011", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void DecoratorOf_DuplicateOrder_ReportsZI017()
+    {
+        var source = """
+            using ZInject;
+            public interface IFoo { }
+            [Transient]
+            public class FooImpl : IFoo { }
+            [DecoratorOf(typeof(IFoo), Order = 1)]
+            public class DecoratorA : IFoo
+            {
+                public DecoratorA(IFoo inner) { }
+            }
+            [DecoratorOf(typeof(IFoo), Order = 1)]
+            public class DecoratorB : IFoo
+            {
+                public DecoratorB(IFoo inner) { }
+            }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+        Assert.Contains(diagnostics, static d => string.Equals(d.Id, "ZI017", StringComparison.Ordinal));
+    }
 }

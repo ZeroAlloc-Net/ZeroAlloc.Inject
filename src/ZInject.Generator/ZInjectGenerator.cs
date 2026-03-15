@@ -248,6 +248,27 @@ namespace ZInject.Generator
                     list.Add(dec);
                 }
 
+                // Sort each decorator list by Order ascending, and check for ZI017 (duplicate Order)
+                foreach (var kvp in decoratorsByInterface)
+                {
+                    var list = kvp.Value;
+                    list.Sort(static (a, b) => b.Order.CompareTo(a.Order));
+
+                    for (int i = 0; i < list.Count - 1; i++)
+                    {
+                        if (list[i].IsDecoratorOf && list[i + 1].IsDecoratorOf && list[i].Order == list[i + 1].Order)
+                        {
+                            spc.ReportDiagnostic(Diagnostic.Create(
+                                DiagnosticDescriptors.DecoratorOfDuplicateOrder,
+                                Location.None,
+                                kvp.Key,
+                                list[i].Order.ToString(),
+                                list[i].TypeName,
+                                list[i + 1].TypeName));
+                        }
+                    }
+                }
+
                 DetectCircularDependencies(spc, allServices, decoratorsByInterface);
 
                 if (allServices.Count == 0)

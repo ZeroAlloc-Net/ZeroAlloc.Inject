@@ -162,4 +162,32 @@ public class DecoratorGeneratorTests
         Assert.Contains("new global::LoggingFoo", output);
         Assert.Contains("GetRequiredService<global::FooImpl>", output);
     }
+
+    [Fact]
+    public void DecoratorOf_Order_InnerMostFirst()
+    {
+        var source = """
+            using ZInject;
+            public interface IFoo { }
+            [Transient]
+            public class FooImpl : IFoo { }
+            [DecoratorOf(typeof(IFoo), Order = 2)]
+            public class OuterFoo : IFoo
+            {
+                public OuterFoo(IFoo inner) { }
+            }
+            [DecoratorOf(typeof(IFoo), Order = 1)]
+            public class InnerFoo : IFoo
+            {
+                public InnerFoo(IFoo inner) { }
+            }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+        Assert.DoesNotContain(diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        var innerIdx = output.IndexOf("new global::InnerFoo");
+        var outerIdx = output.IndexOf("new global::OuterFoo");
+        Assert.True(innerIdx >= 0 && outerIdx >= 0, "Both decorators must appear in output");
+        Assert.True(innerIdx < outerIdx, "InnerFoo (Order=1) must be emitted before OuterFoo (Order=2)");
+    }
 }
