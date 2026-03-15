@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v0.11.1...v0.11.2) (2026-03-15)
+
+
+### Bug Fixes
+
+* update GitHub Packages source URL to ZeroAlloc-Net org ([a500441](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/a500441c1ac4d2a6a7d9b06e161d02bc6d4f904f))
+* update GitHub Packages source URL to ZeroAlloc-Net org ([92ef6e5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/92ef6e520511d143a87c88a999c0188eea33b05c))
+
 ## [0.11.1](https://github.com/MarcelRoozekrans/ZInject/compare/v0.11.0...v0.11.1) (2026-03-15)
 
 
