@@ -514,10 +514,30 @@ namespace ZInject.Generator
                         optionalNonNullableParamType = paramTypeFqn;
                     }
 
+                    string? unboundFqn = null;
+                    ImmutableArray<string> typeArgMetadataNames = ImmutableArray<string>.Empty;
+                    if (param.Type is INamedTypeSymbol namedParam
+                        && namedParam.IsGenericType
+                        && !namedParam.IsUnboundGenericType)
+                    {
+                        unboundFqn = namedParam.ConstructedFrom.ToDisplayString(FullyQualifiedFormat);
+                        var taBuilder = ImmutableArray.CreateBuilder<string>(namedParam.TypeArguments.Length);
+                        foreach (var typeArg in namedParam.TypeArguments)
+                        {
+                            var typeArgNs = typeArg.ContainingNamespace is { IsGlobalNamespace: false } nns
+                                ? nns.ToDisplayString()
+                                : null;
+                            taBuilder.Add(typeArgNs != null ? typeArgNs + "." + typeArg.MetadataName : typeArg.MetadataName);
+                        }
+                        typeArgMetadataNames = taBuilder.ToImmutable();
+                    }
+
                     constructorParameters.Add(new ConstructorParameterInfo(
                         paramTypeFqn,
                         param.Name,
-                        isOptional));
+                        isOptional,
+                        unboundFqn,
+                        typeArgMetadataNames));
 
                     // Check for primitive/value types
                     if (primitiveParameterName == null)
@@ -533,6 +553,17 @@ namespace ZInject.Generator
                         }
                     }
                 }
+            }
+
+            string? implementationMetadataName = null;
+            if (isOpenGeneric)
+            {
+                var implNs = typeSymbol.ContainingNamespace is { IsGlobalNamespace: false } ns2
+                    ? ns2.ToDisplayString()
+                    : null;
+                implementationMetadataName = implNs != null
+                    ? implNs + "." + typeSymbol.MetadataName
+                    : typeSymbol.MetadataName;
             }
 
             return new ServiceRegistrationInfo(
@@ -553,7 +584,8 @@ namespace ZInject.Generator
                 primitiveParameterType,
                 optionalNonNullableParamName,
                 optionalNonNullableParamType,
-                implementsDisposable);
+                implementsDisposable,
+                implementationMetadataName);
         }
 
         private static string GenerateExtensionClass(

@@ -1,5 +1,7 @@
 #nullable enable
 using System;
+using System.Collections.Immutable;
+using System.Linq;
 
 namespace ZInject.Generator
 {
@@ -8,15 +10,23 @@ namespace ZInject.Generator
         public string FullyQualifiedTypeName { get; }
         public string ParameterName { get; }
         public bool IsOptional { get; }
+        public string? UnboundGenericInterfaceFqn { get; }
+        public ImmutableArray<string> TypeArgumentMetadataNames { get; }
 
         public ConstructorParameterInfo(
             string fullyQualifiedTypeName,
             string parameterName,
-            bool isOptional)
+            bool isOptional,
+            string? unboundGenericInterfaceFqn = null,
+            ImmutableArray<string> typeArgumentMetadataNames = default)
         {
             FullyQualifiedTypeName = fullyQualifiedTypeName;
             ParameterName = parameterName;
             IsOptional = isOptional;
+            UnboundGenericInterfaceFqn = unboundGenericInterfaceFqn;
+            TypeArgumentMetadataNames = typeArgumentMetadataNames.IsDefault
+                ? ImmutableArray<string>.Empty
+                : typeArgumentMetadataNames;
         }
 
         public bool Equals(ConstructorParameterInfo? other)
@@ -24,7 +34,9 @@ namespace ZInject.Generator
             if (other is null) return false;
             return FullyQualifiedTypeName == other.FullyQualifiedTypeName
                 && ParameterName == other.ParameterName
-                && IsOptional == other.IsOptional;
+                && IsOptional == other.IsOptional
+                && string.Equals(UnboundGenericInterfaceFqn, other.UnboundGenericInterfaceFqn, StringComparison.Ordinal)
+                && TypeArgumentMetadataNames.SequenceEqual(other.TypeArgumentMetadataNames);
         }
 
         public override bool Equals(object? obj) => Equals(obj as ConstructorParameterInfo);
@@ -37,6 +49,7 @@ namespace ZInject.Generator
                 hash = hash * 31 + FullyQualifiedTypeName.GetHashCode();
                 hash = hash * 31 + ParameterName.GetHashCode();
                 hash = hash * 31 + IsOptional.GetHashCode();
+                hash = hash * 31 + (UnboundGenericInterfaceFqn?.GetHashCode() ?? 0);
                 return hash;
             }
         }

@@ -24,6 +24,7 @@ namespace ZInject.Generator
         public string? OptionalNonNullableParamName { get; }
         public string? OptionalNonNullableParamType { get; }
         public bool ImplementsDisposable { get; }
+        public string? ImplementationMetadataName { get; }
 
         public ServiceRegistrationInfo(
             string ns,
@@ -43,7 +44,8 @@ namespace ZInject.Generator
             string? primitiveParameterType,
             string? optionalNonNullableParamName,
             string? optionalNonNullableParamType,
-            bool implementsDisposable)
+            bool implementsDisposable,
+            string? implementationMetadataName = null)
         {
             Namespace = ns;
             TypeName = typeName;
@@ -63,6 +65,7 @@ namespace ZInject.Generator
             OptionalNonNullableParamName = optionalNonNullableParamName;
             OptionalNonNullableParamType = optionalNonNullableParamType;
             ImplementsDisposable = implementsDisposable;
+            ImplementationMetadataName = implementationMetadataName;
         }
 
         public bool Equals(ServiceRegistrationInfo? other)
@@ -81,6 +84,7 @@ namespace ZInject.Generator
                 || OptionalNonNullableParamName != other.OptionalNonNullableParamName
                 || OptionalNonNullableParamType != other.OptionalNonNullableParamType
                 || ImplementsDisposable != other.ImplementsDisposable
+                || ImplementationMetadataName != other.ImplementationMetadataName
                 || ConstructorParameters.Count != other.ConstructorParameters.Count
                 || Interfaces.Count != other.Interfaces.Count)
             {
