@@ -2,12 +2,12 @@ using Microsoft.Extensions.DependencyInjection;
 using ZeroAlloc.Inject.Sample.UseCases;
 
 // ============================================================
-// ZInject Sample — E-Commerce use cases
+// ZeroAlloc.Inject Sample — E-Commerce use cases
 // ============================================================
 // This program exercises the three integration modes:
-//   1. MS DI extension method  (AddZInjectSampleServices)
-//   2. Hybrid ZInject container  (BuildZInjectServiceProvider)
-//   3. Standalone ZInject provider  (new ...StandaloneServiceProvider())
+//   1. MS DI extension method  (AddZeroAllocInjectSampleServices)
+//   2. Hybrid ZeroAlloc.Inject container  (BuildZeroAllocInjectServiceProvider)
+//   3. Standalone ZeroAlloc.Inject provider  (new ...StandaloneServiceProvider())
 
 Console.WriteLine("=== Use case 1: Product catalog (MS DI extension, decorator) ===");
 {
