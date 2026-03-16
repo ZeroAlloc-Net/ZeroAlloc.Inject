@@ -106,7 +106,7 @@ When you annotate a class without specifying `As`, the generator automatically r
 Certain framework interfaces that almost every class implements incidentally are excluded from registration to prevent polluting the container:
 
 - `IDisposable`, `IAsyncDisposable`
-- `IComparable<T>`, `IEquatable<T>`
+- `IComparable`, `IComparable<T>`, `IEquatable<T>`
 - `IFormattable`, `ICloneable`, `IConvertible`
 
 If your class implements `IOrderService` and `IDisposable`, only `IOrderService` (and the concrete type) will be registered:
@@ -123,8 +123,8 @@ flowchart TD
 The generated code for the above would look like:
 
 ```csharp
-services.TryAddTransient<IOrderService, OrderService>();
-services.TryAddTransient<OrderService>();
+services.TryAddTransient<IOrderService>(sp => new OrderService());
+services.TryAddTransient(sp => new OrderService());
 ```
 
 ### TryAdd semantics
@@ -170,6 +170,16 @@ public class ProductRepository : IReadRepository<Product>, IWriteRepository<Prod
 ```
 
 The generator validates that the `As` type is actually implemented by the class. If not, you get a **ZAI004** compile error, so mistakes are caught before runtime.
+
+> **Important:** When `As` is set, the generator registers **only** the named type. The concrete type is **not** additionally registered. In the example above, only `IReadRepository<Product>` is registered — `ProductRepository` itself is not:
+>
+> ```csharp
+> // Generates ONLY:
+> services.TryAddTransient<IReadRepository<Product>>(sp => new ProductRepository());
+> // NOT: services.TryAddTransient(sp => new ProductRepository()); ← concrete not registered
+> ```
+>
+> As a result, `provider.GetService<ProductRepository>()` returns `null`.
 
 `As` also accepts open generic type arguments. See [Open Generics](#open-generics) for details.
 
@@ -282,15 +292,15 @@ services.TryAdd(ServiceDescriptor.Scoped(typeof(IRepository<>), typeof(Repositor
 
 This single registration covers all closed types — `IRepository<Product>`, `IRepository<Order>`, `IRepository<Customer>` — without requiring a separate attribute on each.
 
-### Standalone container note (ZAI018)
+### Standalone and hybrid container note (ZAI018)
 
-In **standalone mode** (no MS DI runtime), the generated container cannot resolve open generics dynamically because it uses a compile-time type switch. The generator analyses constructor parameters across the assembly to enumerate all closed usages at build time. If you use `[Scoped]` on an open generic class but no constructor in the assembly ever takes `IRepository<SomeType>` as a parameter, the generator emits a **ZAI018 warning**:
+The generated container cannot resolve open generics dynamically because it uses a compile-time type switch. This applies to both **standalone mode** (no MS DI runtime) and **hybrid mode**. The generator analyses constructor parameters across the assembly to enumerate all closed usages at build time. If you use `[Scoped]` on an open generic class but no constructor in the assembly ever takes `IRepository<SomeType>` as a parameter, the generator emits a **ZAI018 warning**:
 
 ```
-ZAI018  warning  Open generic 'Repository<T>' has no detected closed usages — it will not be resolvable from the standalone container.
+ZAI018  warning  Open generic 'Repository<T>' is registered but no closed usages were detected in this assembly. It will not be resolvable from the standalone or hybrid container.
 ```
 
-In hybrid mode (backed by MS DI), open generic resolution is delegated to the MS DI fallback and works as normal.
+This warning fires in both modes because the generated container — not the MS DI fallback — is responsible for resolving registered types, and it cannot handle open generics that have no detected closed usages at compile time.
 
 ## Customising the Extension Method Name
 
