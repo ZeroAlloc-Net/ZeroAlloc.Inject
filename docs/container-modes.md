@@ -182,7 +182,7 @@ Singleton instances are stored in generated fields on the provider class. Lazy i
 
 ### Open Generics
 
-In standalone mode, open generic types cannot be registered with `typeof(IRepository<>)` at runtime (there is no runtime to query). Instead, the generator analyses constructor parameters across the entire assembly at compile time to enumerate every closed form (e.g., `IRepository<Order>`, `IRepository<Product>`) that is actually used. Each closed form gets its own branch in the type-switch. If no closed usages are found, the generator emits a **ZAI018** warning: the open generic will not be resolvable from the standalone container.
+In standalone mode, open generic types cannot be registered with `typeof(IRepository<>)` at runtime (there is no runtime to query). Instead, the generator analyses constructor parameters across the entire assembly at compile time to enumerate every closed form (e.g., `IRepository<Order>`, `IRepository<Product>`) that is actually used. Each closed form gets its own branch in the type-switch. If no closed usages are found, the generator emits a **ZAI018** warning: "It will not be resolvable from the standalone or hybrid container." ZAI018 applies to both standalone and hybrid mode, because the hybrid container's generated resolver also relies on compile-time closed forms for open generics registered via ZeroAlloc.Inject attributes.
 
 ### Unknown Services
 
@@ -196,7 +196,14 @@ Scoped services exist for the lifetime of an `IServiceScope`. A scope is a child
 
 ### How Disposal Works
 
-When a scope is disposed, all tracked instances are disposed in **reverse construction order**: the last service created within the scope is disposed first. This mirrors the standard MS DI behaviour and ensures that services with dependencies are not disposed before the services that depend on them. If a service implements `IAsyncDisposable`, `DisposeAsync()` is called; otherwise, `Dispose()` is used.
+When a scope is disposed, all tracked instances are disposed in **reverse construction order**: the last service created within the scope is disposed first. This mirrors the standard MS DI behaviour and ensures that services with dependencies are not disposed before the services that depend on them.
+
+The method used for disposal depends on how the scope itself is disposed:
+
+- **`await using` / `DisposeAsync()`** — if a service implements `IAsyncDisposable`, `DisposeAsync()` is awaited; otherwise `Dispose()` is called.
+- **`using` / `Dispose()`** — only `IDisposable` is invoked. Services that implement `IAsyncDisposable` but **not** `IDisposable` are **not disposed** when the scope is disposed synchronously.
+
+> **Recommendation:** prefer `await using` in async contexts whenever any scoped service may implement only `IAsyncDisposable` (e.g., `DbContext`, `HttpClient` wrappers). Using synchronous `Dispose()` in those cases silently skips async cleanup.
 
 ```mermaid
 sequenceDiagram
