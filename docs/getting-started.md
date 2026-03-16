@@ -101,7 +101,7 @@ public class PricingCache : IPricingCache
 
 ### 2. Call the generated extension method
 
-The generator creates an `IServiceCollection` extension method whose name is derived from your **assembly name**: dots are removed and `Services` is appended.
+The generator creates an `IServiceCollection` extension method whose name is derived from your **assembly name**: the `Add` prefix is prepended, dots are removed, and `Services` is appended.
 
 | Assembly name | Generated method |
 |---|---|
@@ -131,10 +131,10 @@ If the default name does not fit your conventions, place an assembly-level attri
 // AssemblyInfo.cs  (or any file)
 using ZeroAlloc.Inject;
 
-[assembly: ZeroAllocInject("Commerce")]
+[assembly: ZeroAllocInject("AddCommerceServices")]
 ```
 
-This changes the generated method to `AddCommerceServices()`.
+This changes the generated method to `AddCommerceServices()`. The string argument is used **verbatim** as the full method name — no `Add` prefix or `Services` suffix is appended automatically.
 
 ### What the generator actually emits
 
@@ -155,7 +155,7 @@ public static class MyAppDomainServiceCollectionExtensions
 }
 ```
 
-Every registration is a direct `new ClassName(...)` call under the hood — the runtime never needs to inspect types via reflection.
+When using this MS DI path, constructor resolution happens at runtime via the standard Microsoft DI container. The direct `new ClassName(...)` call pattern — where every dependency is resolved statically at compile time with no reflection — applies to the generated Standalone and Hybrid providers described in the next section.
 
 ---
 
@@ -166,7 +166,7 @@ The following diagram shows how source code flows through ZeroAlloc.Inject at bu
 ```mermaid
 flowchart LR
     A["[Transient] class OrderService"] -->|Roslyn analyses| B[Source Generator]
-    B --> C["Generated AddMyAppServices()"]
+    B --> C["Generated AddMyAppDomainServices()"]
     B --> D[Generated StandaloneServiceProvider]
     B --> E[Generated HybridServiceProvider]
     C -->|registered into| F[IServiceCollection / MS DI]
