@@ -2,7 +2,7 @@
 
 The Decorator pattern lets you layer cross-cutting concerns — logging, caching, tracing, retry logic — around a service without touching its implementation. A decorator implements the same interface as the real service, accepts the inner service as a constructor parameter, and delegates work to it while adding behaviour before or after each call. From the consumer's perspective, nothing changes: they receive an `IProductRepository` and have no idea how many wrappers surround the real one.
 
-The traditional drawback of runtime decorator wiring (used by libraries such as Scrutor) is that the chain is assembled through reflection and is invisible until the application starts. A misconfiguration silently fails or throws at resolution time. ZeroAlloc.Inject wires decorators at compile time. The generator reads your attributes, validates the chain, and emits plain constructor calls — `new LoggingProductRepository(new ProductRepository(...))` — into the generated extension method. Errors such as a missing interface implementation (ZAI016), an unresolvable inner service (ZAI012), or a duplicate ordering conflict (ZAI017) surface as build errors, not production incidents.
+The traditional drawback of runtime decorator wiring (used by libraries such as Scrutor) is that the chain is assembled through reflection and is invisible until the application starts. A misconfiguration silently fails or throws at resolution time. ZeroAlloc.Inject wires decorators at compile time. The generator reads your attributes, validates the chain, and emits plain constructor calls — `new LoggingProductRepository(new ProductRepository(...))` — into the generated extension method. Errors such as a decorator with no matching interface parameter (ZAI011), a missing interface implementation (ZAI016), an unresolvable inner service (ZAI012), or a duplicate ordering conflict (ZAI017) surface as build errors, not production incidents.
 
 Because the output is ordinary source code, you can inspect exactly what the generator produced, step through it in a debugger, and publish with Native AOT without any reflection-based ceremony.
 
@@ -308,7 +308,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Catalog.Infrastructure;
 
-public record Product(int Id, string Name, string Category, decimal Price);
+public record Product(int Id, string Name, decimal Price);
 
 public interface IProductCatalog
 {
