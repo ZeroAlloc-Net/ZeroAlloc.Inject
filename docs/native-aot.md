@@ -43,9 +43,9 @@ private EmailGateway? _emailGateway;
 
 private EmailGateway ResolveEmailGateway()
 {
-    if (_emailGateway is not null) return _emailGateway;
-    Interlocked.CompareExchange(ref _emailGateway, new EmailGateway(), null);
-    return _emailGateway!;
+    if (_emailGateway != null) return _emailGateway;
+    var instance = new EmailGateway();
+    return Interlocked.CompareExchange(ref _emailGateway, instance, null) ?? _emailGateway;
 }
 ```
 
@@ -84,7 +84,7 @@ flowchart LR
 |------|---------------|-------|
 | `AddXxxServices()` extension method | ✅ | Generated registration code is AOT-safe. Runtime resolution depends on your MS DI configuration. |
 | Standalone container (closed generics) | ✅ | Direct `new` calls, `typeof(T)` type switches, `Interlocked.CompareExchange`. Zero reflection. |
-| Standalone container (open generics) | ✅ | Closed types enumerated at compile time via constructor parameter analysis. Fully AOT-safe. |
+| Standalone container (open generics) | ✅ | Closed types enumerated at compile time via constructor parameter analysis. Fully AOT-safe, provided at least one constructor parameter referencing the closed type exists in the assembly; otherwise ZAI018 is emitted and the type is not resolvable (see Limitations). |
 | Hybrid container (known services) | ✅ | AOT-safe for services registered with ZeroAlloc.Inject. |
 | Hybrid container (unknown services) | ⚠️ | Falls back to MS DI, which uses reflection. Not AOT-safe for the fallback path. |
 
@@ -186,6 +186,8 @@ dotnet publish -c Release -r linux-x64
 # or
 dotnet publish -c Release -r osx-arm64
 ```
+
+> **Note:** `PublishAot` implies self-contained publishing — you do not need to pass `--self-contained` explicitly. The resulting binary carries its own runtime and requires no .NET installation on the target machine.
 
 The output is a single self-contained native binary in `bin/Release/net9.0/<rid>/publish/`. No `.NET` runtime installation is required on the target machine.
 
