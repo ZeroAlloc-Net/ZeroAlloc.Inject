@@ -1,3 +1,7 @@
+---
+slug: /
+---
+
 # Getting Started with ZeroAlloc.Inject
 
 ## What is ZeroAlloc.Inject?
