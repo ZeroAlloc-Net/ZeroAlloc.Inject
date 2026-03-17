@@ -148,5 +148,13 @@ namespace ZeroAlloc.Inject.Generator
             "ZeroAlloc.Inject",
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor InjectOnNonSettableProperty = new DiagnosticDescriptor(
+            "ZAI019",
+            "[Inject] on non-settable property",
+            "Property '{0}' of class '{1}' is marked [Inject] but has no public setter; add a public setter or remove [Inject]",
+            "ZeroAlloc.Inject",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
     }
 }
