@@ -1886,7 +1886,18 @@ namespace ZeroAlloc.Inject.Generator
                     {
                         var newExpr = BuildDecoratedNewExpression(svc, serviceType, decoratorsByInterface, false);
                         sb.AppendLine("            if (serviceType == typeof(" + serviceType + "))");
-                        sb.AppendLine("                return " + newExpr + ";");
+                        if (svc.PropertyInjections.Count > 0)
+                        {
+                            sb.AppendLine("            {");
+                            sb.AppendLine("                var instance = " + newExpr + ";");
+                            AppendPropertySetters(sb, svc.PropertyInjections, "                ");
+                            sb.AppendLine("                return instance;");
+                            sb.AppendLine("            }");
+                        }
+                        else
+                        {
+                            sb.AppendLine("                return " + newExpr + ";");
+                        }
                     }
                 }
             }
@@ -1912,6 +1923,7 @@ namespace ZeroAlloc.Inject.Generator
                     sb.AppendLine("            {");
                     sb.AppendLine("                if (" + fieldName + " != null) return " + fieldName + ";");
                     sb.AppendLine("                var instance = " + newExpr + ";");
+                    AppendPropertySetters(sb, svc.PropertyInjections, "                ");
                     if (svc.ImplementsDisposable)
                     {
                         sb.AppendLine("                var existing = Interlocked.CompareExchange(ref " + fieldName + ", instance, null);");
