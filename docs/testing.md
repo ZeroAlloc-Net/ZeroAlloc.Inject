@@ -190,6 +190,16 @@ public class HybridContainerIntegrationTests
 
 The standalone container is instantiated directly with `new`. No `ServiceCollection`, no `BuildServiceProvider()`. Use it in tests exactly as you would in application code:
 
+> **Note:** The generated standalone container class is `internal sealed`, so it is not directly accessible from a separate test project. You have two options:
+>
+> - Add `[assembly: InternalsVisibleTo("YourTestProject")]` to the main project's `AssemblyInfo.cs` or any code file, which grants the test project access to all internal types.
+> - Use reflection to instantiate the type without needing access to its name at compile time:
+>   ```csharp
+>   var providerType = typeof(SomeTypeInMainProject).Assembly
+>       .GetType("ZeroAlloc.Inject.Generated.MyAppDomainStandaloneServiceProvider");
+>   using var provider = (IServiceProvider)Activator.CreateInstance(providerType)!;
+>   ```
+
 ```csharp
 public class StandaloneContainerIntegrationTests
 {
@@ -253,7 +263,7 @@ var source = """
 
 var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-Assert.DoesNotContain("Error", diagnostics.Select(d => d.Severity.ToString()));
+Assert.DoesNotContain("Error", diagnostics.AsEnumerable().Select(d => d.Severity.ToString()));
 Assert.Contains("TryAddTransient<global::TestApp.IMyService>", output);
 ```
 

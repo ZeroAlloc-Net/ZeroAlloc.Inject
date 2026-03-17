@@ -266,4 +266,4 @@ A scope obtained from a standalone provider tracks all disposables in a `List<ob
 | Open generics                | ✅ MS DI handles        | delegated to MS DI         | compile-time closed           |
 | Best for                     | Gradual adoption        | ASP.NET Core apps          | Owned-service apps, AOT       |
 
-Benchmark numbers are from .NET 9.0, BenchmarkDotNet v0.15.8, Windows 11 (Intel Core i9-12900HK), x64 RyuJIT AVX2. See the [README benchmarks section](../README.md#benchmarks) for full resolution tables.
+Benchmark numbers are from .NET 9.0, BenchmarkDotNet v0.15.8, Windows 11 (Intel Core i9-12900HK), x64 RyuJIT AVX2. See the [performance page](performance.md) for full resolution tables.

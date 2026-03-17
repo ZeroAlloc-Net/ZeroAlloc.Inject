@@ -6,7 +6,7 @@ description: Startup time and resolution benchmarks for MS DI Extension, Hybrid,
 sidebar_position: 8
 ---
 
-# Benchmarks Reference
+# Performance
 
 ## Methodology
 

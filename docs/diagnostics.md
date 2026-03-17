@@ -2,7 +2,7 @@
 id: diagnostics
 title: Compiler Diagnostics
 slug: /docs/diagnostics
-description: ZAI001–ZAI017 Roslyn analyzer rules with triggers, severities, and fix guidance.
+description: ZAI001–ZAI018 Roslyn analyzer rules with triggers, severities, and fix guidance.
 sidebar_position: 7
 ---
 
