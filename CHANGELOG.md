@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.2.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.1.0...v1.2.0) (2026-03-17)
+
+
+### Features
+
+* add [Inject] attribute for property injection ([d752e76](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/d752e76e45b6b15635af44d4bc291a530906e665))
+* add [Inject] attribute for property injection ([142b75e](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/142b75ef6d19c3210ec73034d1ed0d44bf7cf996))
+* add PropertyInjectionInfo model ([14d024d](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/14d024d753beb7ea29a9c53674cb306a68952114))
+* add PropertyInjections and NonSettableInjectProperties to ServiceRegistrationInfo ([2e2c1f5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/2e2c1f5a88d6110364b05bc790cd7af44205c703))
+* add ZAI019 diagnostic for [Inject] on non-settable property ([c212e01](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/c212e015f3c7c2a4a23facbcc080c951bb9bc865))
+* emit block lambda when property injections are present ([62fbc37](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/62fbc3719e2fa57593b01737811cb31f2b407556))
+* scan [Inject] properties in GetServiceInfo, emit ZAI019 ([7f56e54](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/7f56e54f3417e0916b011fe404e898e456a33bea))
+
+
+### Bug Fixes
+
+* apply property injection setters in standalone provider ResolveKnown ([f66e5fb](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/f66e5fb2908d399953a6c0c605cdc9d07c84efb4))
+* reject init-only setters for [Inject] and apply property injection in keyed standalone fast-path ([1a567fe](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/1a567feb1810f43fe9f3a7c7cef3a49ec18deb1e))
+
 ## [1.1.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.0.0...v1.1.0) (2026-03-16)
 
 
