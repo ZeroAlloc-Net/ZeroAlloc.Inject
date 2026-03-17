@@ -125,4 +125,27 @@ public class PropertyInjectionGeneratorTests
         Assert.Contains("sp => new global::TestApp.MyService()", output);
         Assert.DoesNotContain("var instance =", output);
     }
+
+    [Fact]
+    public void InjectProperty_InitOnlySetter_ProducesZAI019()
+    {
+        var source = """
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+
+            public interface IDep { }
+            public interface IMyService { }
+
+            [Transient]
+            public class MyService : IMyService
+            {
+                [Inject]
+                public IDep Dep { get; init; } = null!;
+            }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.Contains(diagnostics, d => string.Equals(d.Id, "ZAI019", StringComparison.Ordinal));
+    }
 }

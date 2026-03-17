@@ -630,9 +630,10 @@ namespace ZeroAlloc.Inject.Generator
                     .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "ZeroAlloc.Inject.InjectAttribute");
                 if (injectAttr == null) continue;
 
-                // Validate: must have a public setter
+                // Validate: must have a public setter (init-only setters are treated as get-only)
                 bool hasPublicSetter = propSymbol.SetMethod != null
-                    && propSymbol.SetMethod.DeclaredAccessibility == Accessibility.Public;
+                    && propSymbol.SetMethod.DeclaredAccessibility == Accessibility.Public
+                    && !propSymbol.SetMethod.IsInitOnly;
                 if (!hasPublicSetter)
                 {
                     nonSettableInjectPropNames.Add(propSymbol.Name);
@@ -1330,6 +1331,10 @@ namespace ZeroAlloc.Inject.Generator
                         sb.AppendLine("                {");
                         sb.AppendLine("                    if (" + fieldName + " != null) return " + fieldName + ";");
                         sb.AppendLine("                    var instance = " + newExpr + ";");
+                        if (svc.PropertyInjections.Count > 0)
+                        {
+                            AppendPropertySetters(sb, svc.PropertyInjections, "                    ");
+                        }
                         if (svc.ImplementsDisposable)
                         {
                             sb.AppendLine("                    var existing = Interlocked.CompareExchange(ref " + fieldName + ", instance, null);");
@@ -1353,7 +1358,18 @@ namespace ZeroAlloc.Inject.Generator
                     foreach (var serviceType in serviceTypes)
                     {
                         sb.AppendLine("                if (serviceType == typeof(" + serviceType + ") && key == \"" + escapedKey + "\")");
-                        sb.AppendLine("                    return " + newExpr + ";");
+                        if (svc.PropertyInjections.Count > 0)
+                        {
+                            sb.AppendLine("                {");
+                            sb.AppendLine("                    var instance = " + newExpr + ";");
+                            AppendPropertySetters(sb, svc.PropertyInjections, "                    ");
+                            sb.AppendLine("                    return instance;");
+                            sb.AppendLine("                }");
+                        }
+                        else
+                        {
+                            sb.AppendLine("                    return " + newExpr + ";");
+                        }
                     }
                 }
 
@@ -2037,6 +2053,10 @@ namespace ZeroAlloc.Inject.Generator
                         sb.AppendLine("                {");
                         sb.AppendLine("                    if (" + fieldName + " != null) return " + fieldName + ";");
                         sb.AppendLine("                    var instance = " + newExpr + ";");
+                        if (svc.PropertyInjections.Count > 0)
+                        {
+                            AppendPropertySetters(sb, svc.PropertyInjections, "                    ");
+                        }
                         if (svc.ImplementsDisposable)
                         {
                             sb.AppendLine("                    var existing = Interlocked.CompareExchange(ref " + fieldName + ", instance, null);");
@@ -2060,7 +2080,18 @@ namespace ZeroAlloc.Inject.Generator
                     foreach (var serviceType in serviceTypes)
                     {
                         sb.AppendLine("                if (serviceType == typeof(" + serviceType + ") && key == \"" + escapedKey + "\")");
-                        sb.AppendLine("                    return " + newExpr + ";");
+                        if (svc.PropertyInjections.Count > 0)
+                        {
+                            sb.AppendLine("                {");
+                            sb.AppendLine("                    var instance = " + newExpr + ";");
+                            AppendPropertySetters(sb, svc.PropertyInjections, "                    ");
+                            sb.AppendLine("                    return instance;");
+                            sb.AppendLine("                }");
+                        }
+                        else
+                        {
+                            sb.AppendLine("                    return " + newExpr + ";");
+                        }
                     }
                 }
 
