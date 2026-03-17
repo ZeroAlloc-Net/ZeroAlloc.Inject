@@ -2,7 +2,7 @@
 id: diagnostics
 title: Compiler Diagnostics
 slug: /docs/diagnostics
-description: ZAI001–ZAI018 Roslyn analyzer rules with triggers, severities, and fix guidance.
+description: ZAI001–ZAI019 Roslyn analyzer rules with triggers, severities, and fix guidance.
 sidebar_position: 7
 ---
 
@@ -32,6 +32,7 @@ All diagnostics are emitted at compile time by the Roslyn source generator. Erro
 | ZAI016 | ❌ Error | `[DecoratorOf]` interface not implemented by the class | The interface listed in `[DecoratorOf(typeof(IFoo))]` is not implemented by the class | Implement the interface or correct the type argument |
 | ZAI017 | ❌ Error | Two decorators share the same `Order` for the same interface | Ambiguous decorator ordering: two `[DecoratorOf]` attributes target the same interface with identical `Order` values | Assign unique `Order` values to each decorator for the same interface |
 | ZAI018 | ⚠️ Warning | Open generic has no detected closed usages | An open generic class is registered but no constructor in the assembly takes a closed form of its interface as a parameter; it will not be resolvable from the standalone or hybrid generated container | Ensure at least one constructor parameter of the closed generic type exists in the assembly, or switch to the MS DI extension method mode |
+| ZAI019 | ❌ Error | `[Inject]` on a non-settable property | The property has no public setter (or uses `init`); the generator cannot emit a property assignment | Add a `public` setter, or remove `[Inject]` |
 
 ## Per-Diagnostic Details
 
@@ -648,7 +649,7 @@ public class ReportExporter : IReportExporter
 
 ---
 
-### Container Warnings (ZAI018)
+### Container Warnings (ZAI018–ZAI019)
 
 #### ZAI018 — Open generic has no detected closed usages
 
@@ -693,4 +694,53 @@ If the open generic is intentional and closed types are determined at runtime, s
 [Scoped]
 public class Repository<T> : IRepository<T> { }
 #pragma warning restore ZAI018
+```
+
+---
+
+### Property Injection Errors (ZAI019)
+
+#### ZAI019 — `[Inject]` on a non-settable property {#zai019}
+
+**Title:** `[Inject]` on non-settable property
+
+**Message:** `Property '{0}' of class '{1}' is marked [Inject] but has no public setter; add a public setter or remove [Inject]`
+
+The `[Inject]` attribute tells the generator to set a property after the service is constructed. For the generator to emit `instance.Property = sp.GetRequiredService<T>()`, the property must have a `public` setter. Properties with `init`-only accessors or no setter at all cannot be assigned outside an object initialiser, so the generator rejects them.
+
+**Triggers ZAI019:**
+
+```csharp
+[Transient]
+public class MyService : IMyService
+{
+    [Inject]
+    public IDep Dep { get; } = null!;        // ZAI019: no setter
+
+    [Inject]
+    public IDep Other { get; init; } = null!; // ZAI019: init-only setter
+}
+```
+
+**Fix — add a `public` setter:**
+
+```csharp
+[Transient]
+public class MyService : IMyService
+{
+    [Inject]
+    public IDep Dep { get; set; } = null!;   // OK: public setter
+}
+```
+
+**Alternative — remove `[Inject]` and use constructor injection instead:**
+
+```csharp
+[Transient]
+public class MyService : IMyService
+{
+    private readonly IDep _dep;
+
+    public MyService(IDep dep) => _dep = dep;
+}
 ```

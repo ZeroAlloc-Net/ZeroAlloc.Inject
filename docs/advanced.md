@@ -283,4 +283,67 @@ var inventoryType = typeof(IInventory<>).MakeGenericType(typeof(Product));
 var inventory = (IInventory<Product>)provider.GetRequiredService(inventoryType);
 ```
 
+## Property Injection
+
+ZeroAlloc.Inject supports property injection via the `[Inject]` attribute. Annotate a public, settable property on a registered service class and the generator will set it after construction.
+
+```csharp
+[Transient]
+public class OrderProcessor : IOrderProcessor
+{
+    [Inject]
+    public ILogger<OrderProcessor> Logger { get; set; } = null!;
+
+    public void Process(Order order)
+    {
+        Logger.LogInformation("Processing {OrderId}", order.Id);
+    }
+}
+```
+
+The generator rewrites the factory lambda from an expression form to a block form:
+
+```csharp
+// Generated (simplified)
+services.TryAddTransient<IOrderProcessor>(sp =>
+{
+    var instance = new OrderProcessor();
+    instance.Logger = sp.GetRequiredService<ILogger<OrderProcessor>>();
+    return instance;
+});
+```
+
+### Optional property injection
+
+Use `Required = false` to inject a property only when the dependency is registered. The property will be `null` if the service is not found — make the property type nullable to reflect this.
+
+```csharp
+[Transient]
+public class ReportGenerator : IReportGenerator
+{
+    [Inject(Required = false)]
+    public IMetricsCollector? Metrics { get; set; }
+
+    public Report Generate()
+    {
+        Metrics?.Record("report.generated");
+        // ...
+    }
+}
+```
+
+### Property injection vs constructor injection
+
+Constructor injection is the preferred pattern for required dependencies. Property injection is appropriate for:
+
+- **Optional dependencies** — services that may or may not be registered
+- **Circular dependency breaking** — when two services each depend on the other (use with care; restructuring is usually better)
+- **Framework integration** — when a base class constructor signature cannot be modified
+
+### Limitations
+
+- The property must have a `public` setter. `get`-only and `init`-only properties trigger [ZAI019](./diagnostics#zai019).
+- Inherited properties (declared on a base class) are not scanned — apply `[Inject]` on the class that is directly registered.
+- `IEnumerable<T>` multi-service resolution in the standalone container fast-path does not apply property injection; use the MS DI or hybrid mode for services resolved via `IEnumerable<T>`.
+
 See [Container Modes](container-modes.md) for a full comparison of when to use each mode.
