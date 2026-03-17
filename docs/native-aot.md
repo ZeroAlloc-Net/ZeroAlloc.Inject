@@ -1,3 +1,11 @@
+---
+id: native-aot
+title: Native AOT
+slug: /docs/native-aot
+description: Why ZeroAlloc.Inject is trimmer-safe and how to publish a Native AOT application.
+sidebar_position: 5
+---
+
 # Native AOT
 
 Native AOT (Ahead-of-Time) compilation converts your .NET application into a self-contained native binary at publish time. The resulting executable requires no installed .NET runtime — the code is pre-compiled to machine instructions, not IL that a JIT compiler processes at startup. The practical benefits are significant: startup times drop from hundreds of milliseconds to single-digit milliseconds, RSS memory usage shrinks because there is no JIT compiler or reflection metadata kept in memory, and the deployment artifact is a single file with no framework dependency. Native AOT is particularly valuable for CLI tools, serverless functions, sidecar processes, and containerised microservices where cold-start latency and image size are first-class concerns.

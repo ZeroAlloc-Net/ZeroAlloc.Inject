@@ -1,3 +1,11 @@
+---
+id: advanced
+title: Advanced Patterns
+slug: /docs/advanced
+description: Multi-assembly setup, constructor disambiguation, collection injection, and custom method names.
+sidebar_position: 6
+---
+
 # Advanced Patterns
 
 This guide covers patterns that go beyond basic service registration: wiring up services across multiple assemblies, disambiguating constructors when a class has more than one, injecting all implementations of an interface at once, avoiding the captive dependency pitfall, and working around the compile-time closed-type requirement for open generics in standalone mode.

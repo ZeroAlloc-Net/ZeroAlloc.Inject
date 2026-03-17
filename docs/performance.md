@@ -1,4 +1,12 @@
-# Benchmarks Reference
+---
+id: performance
+title: Performance
+slug: /docs/performance
+description: Startup time and resolution benchmarks for MS DI Extension, Hybrid, and Standalone modes.
+sidebar_position: 8
+---
+
+# Performance
 
 ## Methodology
 

@@ -1,3 +1,11 @@
+---
+id: diagnostics
+title: Compiler Diagnostics
+slug: /docs/diagnostics
+description: ZAI001–ZAI018 Roslyn analyzer rules with triggers, severities, and fix guidance.
+sidebar_position: 7
+---
+
 # Diagnostics Reference
 
 All diagnostics are emitted at compile time by the Roslyn source generator. Errors (❌) prevent the registration code from being generated. Warnings (⚠️) allow generation to continue but flag potential issues.

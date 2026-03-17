@@ -1,3 +1,11 @@
+---
+id: decorators
+title: Decorators
+slug: /docs/decorators
+description: Apply the decorator pattern at compile time with the [Decorator] attribute.
+sidebar_position: 4
+---
+
 # Decorators
 
 The Decorator pattern lets you layer cross-cutting concerns — logging, caching, tracing, retry logic — around a service without touching its implementation. A decorator implements the same interface as the real service, accepts the inner service as a constructor parameter, and delegates work to it while adding behaviour before or after each call. From the consumer's perspective, nothing changes: they receive an `IProductRepository` and have no idea how many wrappers surround the real one.

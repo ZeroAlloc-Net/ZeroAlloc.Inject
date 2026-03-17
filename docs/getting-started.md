@@ -1,5 +1,9 @@
 ---
+id: getting-started
+title: Getting Started
 slug: /
+description: Install ZeroAlloc.Inject and register your first service with a lifetime attribute in two minutes.
+sidebar_position: 1
 ---
 
 # Getting Started with ZeroAlloc.Inject
@@ -196,4 +200,4 @@ flowchart LR
 - [Decorators](decorators.md) — wrapping services at compile time without touching the original implementation
 - [Container Modes](container-modes.md) — choosing between MS DI integration, Hybrid, and Standalone providers
 - [Native AOT](native-aot.md) — publishing AOT-safe applications with zero trimming warnings
-- [Diagnostics Reference](reference/diagnostics.md) — full list of compiler errors and warnings emitted by the generator
+- [Diagnostics Reference](diagnostics.md) — full list of compiler errors and warnings emitted by the generator

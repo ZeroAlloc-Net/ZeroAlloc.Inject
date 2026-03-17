@@ -1,3 +1,11 @@
+---
+id: service-registration
+title: Service Registration
+slug: /docs/service-registration
+description: Lifetime attributes, default discovery, As() narrowing, keyed services, and open generics.
+sidebar_position: 2
+---
+
 # Service Registration
 
 ZeroAlloc.Inject eliminates boilerplate DI wiring by letting you express lifetime intent directly on your class. You annotate your implementation with `[Transient]`, `[Scoped]`, or `[Singleton]`; the Roslyn source generator reads those attributes at compile time and emits the corresponding `IServiceCollection.Add*` call inside a generated extension method. There is no runtime assembly scanning, no reflection, and no `BuildServiceProvider` guesswork — if something is wrong (e.g., a typo in `As`, a missing interface, an incompatible target framework), you get a compiler error or warning before the application ever starts.
