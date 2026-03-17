@@ -190,6 +190,15 @@ namespace ZeroAlloc.Inject.Generator
                             svc.TypeName,
                             svc.OptionalNonNullableParamType));
                     }
+
+                    foreach (var propName in svc.NonSettableInjectProperties)
+                    {
+                        spc.ReportDiagnostic(Diagnostic.Create(
+                            DiagnosticDescriptors.InjectOnNonSettableProperty,
+                            Location.None,
+                            propName,
+                            svc.TypeName));
+                    }
                 }
 
                 if (allServices.Count == 0 && decoratorInfos.Length == 0)
@@ -611,6 +620,39 @@ namespace ZeroAlloc.Inject.Generator
                 }
             }
 
+            // Property injection scanning
+            var propertyInjections = new List<PropertyInjectionInfo>();
+            var nonSettableInjectPropNames = new List<string>();
+            foreach (var member in typeSymbol.GetMembers())
+            {
+                if (member is not IPropertySymbol propSymbol) continue;
+                var injectAttr = propSymbol.GetAttributes()
+                    .FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "ZeroAlloc.Inject.InjectAttribute");
+                if (injectAttr == null) continue;
+
+                // Validate: must have a public setter
+                bool hasPublicSetter = propSymbol.SetMethod != null
+                    && propSymbol.SetMethod.DeclaredAccessibility == Accessibility.Public;
+                if (!hasPublicSetter)
+                {
+                    nonSettableInjectPropNames.Add(propSymbol.Name);
+                    continue;
+                }
+
+                bool isRequired = true;
+                foreach (var namedArg in injectAttr.NamedArguments)
+                {
+                    if (namedArg.Key == "Required" && namedArg.Value.Value is bool reqVal)
+                    {
+                        isRequired = reqVal;
+                        break;
+                    }
+                }
+
+                var propTypeFqn = propSymbol.Type.ToDisplayString(FullyQualifiedFormat);
+                propertyInjections.Add(new PropertyInjectionInfo(propTypeFqn, propSymbol.Name, isRequired));
+            }
+
             string? implementationMetadataName = null;
             if (isOpenGeneric)
             {
@@ -641,7 +683,9 @@ namespace ZeroAlloc.Inject.Generator
                 optionalNonNullableParamName,
                 optionalNonNullableParamType,
                 implementsDisposable,
-                implementationMetadataName);
+                implementationMetadataName,
+                propertyInjections: propertyInjections,
+                nonSettableInjectProperties: nonSettableInjectPropNames);
         }
 
         private static string GenerateExtensionClass(
