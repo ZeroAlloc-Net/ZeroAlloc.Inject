@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.2.1...v1.2.2) (2026-03-19)
+
+
+### Bug Fixes
+
+* update PackageProjectUrl and trigger CI on release-please branches ([31ba634](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/31ba6342d859ea8fbcc1115616fe2ed613dfeca9))
+
 ## [1.2.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.2.0...v1.2.1) (2026-03-19)
 
 
