@@ -7,51 +7,49 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  packages: write
 
 jobs:
   release-please:
     runs-on: ubuntu-latest
     outputs:
-      releases_created: ${{ steps.release.outputs.releases_created }}
+      release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
       version: ${{ steps.release.outputs.version }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - name: Release Please
+        uses: googleapis/release-please-action@v4
         id: release
         with:
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
+          release-type: simple
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
     needs: release-please
-    if: needs.release-please.outputs.releases_created == 'true'
+    if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
-          fetch-depth: 0
+      - uses: actions/checkout@v6
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
-            10.0.x
+          dotnet-version: net10.0
 
       - name: Build
-        run: dotnet build ZeroAlloc.Inject.slnx --configuration Release -p:Version=${{ needs.release-please.outputs.version }}
+        run: dotnet build -c Release -p:Version=${{ needs.release-please.outputs.version }}
 
       - name: Test
-        run: dotnet test tests/ZeroAlloc.Inject.Tests/ZeroAlloc.Inject.Tests.csproj --configuration Release --no-build --verbosity normal
+        run: dotnet test -c Release --no-build
 
       - name: Pack
-        run: dotnet pack ZeroAlloc.Inject.slnx --configuration Release --no-build --output ./artifacts -p:Version=${{ needs.release-please.outputs.version }}
+        run: |
+          dotnet pack src/ZeroAlloc.Inject/ZeroAlloc.Inject.csproj -c Release --no-build -p:PackageVersion=${{ needs.release-please.outputs.version }} -o ./nupkg
+          dotnet pack src/ZeroAlloc.Inject.Generator/ZeroAlloc.Inject.Generator.csproj -c Release --no-build -p:PackageVersion=${{ needs.release-please.outputs.version }} -o ./nupkg
+          dotnet pack src/ZeroAlloc.Inject.Container/ZeroAlloc.Inject.Container.csproj -c Release --no-build -p:PackageVersion=${{ needs.release-please.outputs.version }} -o ./nupkg
 
       - name: Push to NuGet
-        run: dotnet nuget push ./artifacts/*.nupkg --source https://api.nuget.org/v3/index.json --api-key ${{ secrets.NUGET_API_KEY }} --skip-duplicate
+        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
-      - name: Push to GitHub Packages
-        run: dotnet nuget push ./artifacts/*.nupkg --source https://nuget.pkg.github.com/ZeroAlloc-Net/index.json --api-key ${{ secrets.GITHUB_TOKEN }} --skip-duplicate
+      - name: Upload to GitHub Release
+        run: gh release upload ${{ needs.release-please.outputs.tag_name }} ./nupkg/*.nupkg
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
