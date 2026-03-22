@@ -30,6 +30,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -38,6 +40,16 @@ jobs:
             8.0.x
             9.0.x
             10.0.x
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Calculate version
+        id: gitversion
+        run: |
+          version=$(dotnet dotnet-gitversion /output json /showvariable SemVer)
+          echo "semver=$version" >> $GITHUB_OUTPUT
+          echo "Calculated version: $version"
 
       - name: Restore
         run: dotnet restore ZeroAlloc.Inject.slnx
