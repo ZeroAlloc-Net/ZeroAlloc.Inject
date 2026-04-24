@@ -13,6 +13,7 @@
     <ProjectReference Include="..\ZeroAlloc.Inject.Generator\ZeroAlloc.Inject.Generator.csproj"
                       ReferenceOutputAssembly="false"
                       PrivateAssets="all" />
+    <PackageReference Include="ZeroAlloc.Collections" Version="0.1.5" />
   </ItemGroup>
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)..\ZeroAlloc.Inject.Generator\bin\$(Configuration)\netstandard2.0\ZeroAlloc.Inject.Generator.dll"

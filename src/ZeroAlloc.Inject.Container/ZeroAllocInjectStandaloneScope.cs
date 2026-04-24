@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using ZeroAlloc.Collections;
 
 namespace ZeroAlloc.Inject.Container;
 
@@ -8,7 +9,7 @@ public abstract class ZeroAllocInjectStandaloneScope : IServiceScope, IServicePr
     private readonly object _trackLock = new object();
     private List<object>? _disposables;
     private int _disposed;
-    private System.Collections.Generic.Dictionary<Type, object>? _openGenericScoped;
+    private HeapSpanDictionary<Type, object>? _openGenericScoped;
 
     protected ZeroAllocInjectStandaloneScope(ZeroAllocInjectStandaloneProvider root)
     {
@@ -73,7 +74,7 @@ public abstract class ZeroAllocInjectStandaloneScope : IServiceScope, IServicePr
     {
         lock (_trackLock)
         {
-            _openGenericScoped ??= new System.Collections.Generic.Dictionary<Type, object>();
+            _openGenericScoped ??= new HeapSpanDictionary<Type, object>();
             if (_openGenericScoped.TryGetValue(serviceType, out var existing)) return existing;
             var instance = factory();
             _openGenericScoped[serviceType] = instance;
@@ -93,11 +94,16 @@ public abstract class ZeroAllocInjectStandaloneScope : IServiceScope, IServicePr
         if (disposing && Interlocked.Exchange(ref _disposed, 1) == 0)
         {
             List<object>? snapshot;
+            HeapSpanDictionary<Type, object>? openGenericScoped;
             lock (_trackLock)
             {
                 snapshot = _disposables;
                 _disposables = null;
+                openGenericScoped = _openGenericScoped;
+                _openGenericScoped = null;
             }
+
+            openGenericScoped?.Dispose();
 
             if (snapshot is not null)
             {
@@ -117,11 +123,16 @@ public abstract class ZeroAllocInjectStandaloneScope : IServiceScope, IServicePr
         if (Interlocked.Exchange(ref _disposed, 1) == 0)
         {
             List<object>? snapshot;
+            HeapSpanDictionary<Type, object>? openGenericScoped;
             lock (_trackLock)
             {
                 snapshot = _disposables;
                 _disposables = null;
+                openGenericScoped = _openGenericScoped;
+                _openGenericScoped = null;
             }
+
+            openGenericScoped?.Dispose();
 
             if (snapshot is not null)
             {
