@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.2.2...v1.3.0) (2026-04-24)
+
+
+### Features
+
+* PooledDictionary scope + cross-repo NuGet isolation ([#45](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/45)) ([edea17a](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/edea17ad3b6ca12063c755b67b7f8faf55f15456))
+
 ## [1.2.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.2.1...v1.2.2) (2026-03-19)
 
 
