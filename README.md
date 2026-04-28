@@ -3,6 +3,7 @@
 [![NuGet](https://img.shields.io/nuget/v/ZeroAlloc.Inject.svg)](https://www.nuget.org/packages/ZeroAlloc.Inject)
 [![CI](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/actions/workflows/ci.yml/badge.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/MarcelRoozekrans?style=flat&logo=githubsponsors&color=ea4aaa&label=Sponsor)](https://github.com/sponsors/MarcelRoozekrans)
 
 Compile-time DI registration for .NET. A Roslyn source generator that auto-discovers services via attributes and generates `IServiceCollection` extension methods and a **Native AOT-compatible** `IServiceProvider`. No reflection, no runtime scanning — misconfigured dependencies surface as build errors before the application ever starts.
 
