@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.3.0...v1.3.1) (2026-04-29)
+
+
+### Documentation
+
+* add GitHub Sponsors badge to README ([23596be](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/23596beca3c234eac05c09d7e50425ffc5251045))
+
 ## [1.3.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.2.2...v1.3.0) (2026-04-24)
 
 
