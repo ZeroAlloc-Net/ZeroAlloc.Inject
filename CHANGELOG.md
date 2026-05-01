@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.3.2...v1.4.0) (2026-05-01)
+
+
+### Features
+
+* lock public API surface (PublicApiAnalyzers + api-compat gate) ([#51](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/51)) ([1287738](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/1287738259f7714ae494efe33d8ccc5128f999bc))
+
 ## [1.3.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.3.1...v1.3.2) (2026-04-29)
 
 
