@@ -1,0 +1,33 @@
+#nullable enable
+ZeroAlloc.Inject.DecoratorAttribute
+ZeroAlloc.Inject.DecoratorAttribute.DecoratorAttribute() -> void
+ZeroAlloc.Inject.DecoratorOfAttribute
+ZeroAlloc.Inject.DecoratorOfAttribute.DecoratedInterface.get -> System.Type!
+ZeroAlloc.Inject.DecoratorOfAttribute.DecoratorOfAttribute(System.Type! decoratedInterface) -> void
+ZeroAlloc.Inject.DecoratorOfAttribute.Order.get -> int
+ZeroAlloc.Inject.DecoratorOfAttribute.Order.set -> void
+ZeroAlloc.Inject.DecoratorOfAttribute.WhenRegistered.get -> System.Type?
+ZeroAlloc.Inject.DecoratorOfAttribute.WhenRegistered.set -> void
+ZeroAlloc.Inject.InjectAttribute
+ZeroAlloc.Inject.InjectAttribute.InjectAttribute() -> void
+ZeroAlloc.Inject.InjectAttribute.Required.get -> bool
+ZeroAlloc.Inject.InjectAttribute.Required.set -> void
+ZeroAlloc.Inject.OptionalDependencyAttribute
+ZeroAlloc.Inject.OptionalDependencyAttribute.OptionalDependencyAttribute() -> void
+ZeroAlloc.Inject.ScopedAttribute
+ZeroAlloc.Inject.ScopedAttribute.ScopedAttribute() -> void
+ZeroAlloc.Inject.ServiceAttribute
+ZeroAlloc.Inject.ServiceAttribute.AllowMultiple.get -> bool
+ZeroAlloc.Inject.ServiceAttribute.AllowMultiple.set -> void
+ZeroAlloc.Inject.ServiceAttribute.As.get -> System.Type?
+ZeroAlloc.Inject.ServiceAttribute.As.set -> void
+ZeroAlloc.Inject.ServiceAttribute.Key.get -> string?
+ZeroAlloc.Inject.ServiceAttribute.Key.set -> void
+ZeroAlloc.Inject.ServiceAttribute.ServiceAttribute() -> void
+ZeroAlloc.Inject.SingletonAttribute
+ZeroAlloc.Inject.SingletonAttribute.SingletonAttribute() -> void
+ZeroAlloc.Inject.TransientAttribute
+ZeroAlloc.Inject.TransientAttribute.TransientAttribute() -> void
+ZeroAlloc.Inject.ZeroAllocInjectAttribute
+ZeroAlloc.Inject.ZeroAllocInjectAttribute.MethodName.get -> string!
+ZeroAlloc.Inject.ZeroAllocInjectAttribute.ZeroAllocInjectAttribute(string! methodName) -> void
