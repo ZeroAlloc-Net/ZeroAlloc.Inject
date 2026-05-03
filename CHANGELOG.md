@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.4.0...v1.4.1) (2026-05-03)
+
+
+### Bug Fixes
+
+* **release-please:** drop pre-major flags (package is post-1.0) ([#53](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/53)) ([f96f49c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/f96f49c9bb2ef6bc03bea39833c202239de54bc9))
+
 ## [1.4.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.3.2...v1.4.0) (2026-05-01)
 
 
