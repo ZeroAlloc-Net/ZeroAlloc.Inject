@@ -11,6 +11,7 @@ public class ResolutionBenchmarks
     private ServiceProvider _msDiProvider = null!;
     private IServiceProvider _containerProvider = null!;
     private IServiceProvider _standaloneProvider = null!;
+    private JabContainer _jabProvider = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -43,6 +44,9 @@ public class ResolutionBenchmarks
 
         // ZeroAlloc.Inject Standalone provider
         _standaloneProvider = new ZeroAlloc.Inject.Generated.ZeroAllocInjectBenchmarksStandaloneServiceProvider();
+
+        // Jab (source-gen competitor)
+        _jabProvider = new JabContainer();
     }
 
     [GlobalCleanup]
@@ -51,6 +55,7 @@ public class ResolutionBenchmarks
         _msDiProvider.Dispose();
         (_containerProvider as IDisposable)?.Dispose();
         (_standaloneProvider as IDisposable)?.Dispose();
+        _jabProvider.Dispose();
     }
 
     // --- Transient resolution (no dependencies) ---
@@ -70,6 +75,11 @@ public class ResolutionBenchmarks
     public ISimpleService Standalone_ResolveTransient()
         => _standaloneProvider.GetRequiredService<ISimpleService>();
 
+    [Benchmark(Description = "Jab: Resolve transient (no deps)")]
+    [BenchmarkCategory("Transient")]
+    public ISimpleService Jab_ResolveTransient()
+        => _jabProvider.GetService<ISimpleService>();
+
     // --- Transient resolution (1 dependency) ---
 
     [Benchmark(Description = "MS DI: Resolve transient (1 dep)")]
@@ -86,6 +96,11 @@ public class ResolutionBenchmarks
     [BenchmarkCategory("TransientWithDep")]
     public IServiceWithDep Standalone_ResolveWithDep()
         => _standaloneProvider.GetRequiredService<IServiceWithDep>();
+
+    [Benchmark(Description = "Jab: Resolve transient (1 dep)")]
+    [BenchmarkCategory("TransientWithDep")]
+    public IServiceWithDep Jab_ResolveWithDep()
+        => _jabProvider.GetService<IServiceWithDep>();
 
     // --- Transient resolution (1 property-injected dependency) ---
 
@@ -121,6 +136,11 @@ public class ResolutionBenchmarks
     public IServiceWithMultipleDeps Standalone_ResolveMultipleDeps()
         => _standaloneProvider.GetRequiredService<IServiceWithMultipleDeps>();
 
+    [Benchmark(Description = "Jab: Resolve transient (2 deps)")]
+    [BenchmarkCategory("TransientMultiDep")]
+    public IServiceWithMultipleDeps Jab_ResolveMultipleDeps()
+        => _jabProvider.GetService<IServiceWithMultipleDeps>();
+
     // --- Singleton resolution ---
 
     [Benchmark(Description = "MS DI: Resolve singleton")]
@@ -138,26 +158,34 @@ public class ResolutionBenchmarks
     public ISingletonService Standalone_ResolveSingleton()
         => _standaloneProvider.GetRequiredService<ISingletonService>();
 
+    [Benchmark(Description = "Jab: Resolve singleton")]
+    [BenchmarkCategory("Singleton")]
+    public ISingletonService Jab_ResolveSingleton()
+        => _jabProvider.GetService<ISingletonService>();
+
     // --- Scoped resolution ---
 
     private IServiceScope _msDiScope = null!;
     private IServiceScope _containerScope = null!;
     private IServiceScope _standaloneScope = null!;
+    private JabContainer.Scope _jabScope = null!;
 
-    [IterationSetup(Targets = [nameof(MsDi_ResolveScoped), nameof(Container_ResolveScoped), nameof(Standalone_ResolveScoped)])]
+    [IterationSetup(Targets = [nameof(MsDi_ResolveScoped), nameof(Container_ResolveScoped), nameof(Standalone_ResolveScoped), nameof(Jab_ResolveScoped)])]
     public void ScopeSetup()
     {
         _msDiScope = _msDiProvider.CreateScope();
         _containerScope = (_containerProvider as IServiceScopeFactory)!.CreateScope();
         _standaloneScope = (_standaloneProvider as IServiceScopeFactory)!.CreateScope();
+        _jabScope = _jabProvider.CreateScope();
     }
 
-    [IterationCleanup(Targets = [nameof(MsDi_ResolveScoped), nameof(Container_ResolveScoped), nameof(Standalone_ResolveScoped)])]
+    [IterationCleanup(Targets = [nameof(MsDi_ResolveScoped), nameof(Container_ResolveScoped), nameof(Standalone_ResolveScoped), nameof(Jab_ResolveScoped)])]
     public void ScopeCleanup()
     {
         _msDiScope.Dispose();
         _containerScope.Dispose();
         _standaloneScope.Dispose();
+        _jabScope.Dispose();
     }
 
     [Benchmark(Description = "MS DI: Resolve scoped")]
@@ -174,6 +202,11 @@ public class ResolutionBenchmarks
     [BenchmarkCategory("Scoped")]
     public IScopedService Standalone_ResolveScoped()
         => _standaloneScope.ServiceProvider.GetRequiredService<IScopedService>();
+
+    [Benchmark(Description = "Jab: Resolve scoped")]
+    [BenchmarkCategory("Scoped")]
+    public IScopedService Jab_ResolveScoped()
+        => _jabScope.GetService<IScopedService>();
 
     // --- IEnumerable<T> resolution ---
 
@@ -192,6 +225,11 @@ public class ResolutionBenchmarks
     public IMultiService[] Standalone_ResolveEnumerable()
         => _standaloneProvider.GetRequiredService<IEnumerable<IMultiService>>().ToArray();
 
+    [Benchmark(Description = "Jab: Resolve IEnumerable<T>")]
+    [BenchmarkCategory("Enumerable")]
+    public IMultiService[] Jab_ResolveEnumerable()
+        => _jabProvider.GetService<IEnumerable<IMultiService>>().ToArray();
+
     // --- Decorator resolution ---
 
     [Benchmark(Description = "MS DI: Resolve decorated transient")]
@@ -208,6 +246,11 @@ public class ResolutionBenchmarks
     [BenchmarkCategory("Decorator")]
     public IDecoratedService Standalone_ResolveDecorated()
         => _standaloneProvider.GetRequiredService<IDecoratedService>();
+
+    [Benchmark(Description = "Jab: Resolve decorated transient (via factory)")]
+    [BenchmarkCategory("Decorator")]
+    public IDecoratedService Jab_ResolveDecorated()
+        => _jabProvider.GetService<IDecoratedService>();
 
     // --- Open generic resolution ---
 
@@ -246,6 +289,15 @@ public class ResolutionBenchmarks
     public IServiceScope Standalone_CreateScope()
     {
         var scope = (_standaloneProvider as IServiceScopeFactory)!.CreateScope();
+        scope.Dispose();
+        return scope;
+    }
+
+    [Benchmark(Description = "Jab: Create scope")]
+    [BenchmarkCategory("ScopeCreation")]
+    public JabContainer.Scope Jab_CreateScope()
+    {
+        var scope = _jabProvider.CreateScope();
         scope.Dispose();
         return scope;
     }

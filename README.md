@@ -54,16 +54,22 @@ The generator derives the method name from the assembly name: `MyApp` → `AddMy
 
 ## Performance
 
-.NET 9.0, BenchmarkDotNet v0.15.8, Windows 11 (Intel Core i9-12900HK), X64 RyuJIT AVX2.
+.NET 10 host / .NET 9.0.15 runtime, BenchmarkDotNet v0.15.8, Intel Core i9-12900HK. Compared against MS DI (reflection) and **Jab** (the other source-gen DI library).
 
-| Scenario | MS DI | Hybrid Container | Standalone |
-|---|---:|---:|---:|
-| Startup / registration | 139 ns / 528 B | 4,477 ns / 9,368 B | **5 ns / 32 B** |
-| Transient (no deps) | 23 ns | **13 ns** | 15 ns |
-| Singleton | 16 ns | **11 ns** | 12 ns |
-| Decorated transient | 41 ns / 48 B | **18 ns / 48 B** | 17 ns / 48 B |
-| Transient (1 property-injected dep) | 38 ns / 48 B | **19 ns / 48 B** | 22 ns / 48 B |
-| Resolve scoped (full lifecycle) | ~26,000 ns / 808 B | ~12,300 ns / 120 B | **~12,000 ns / 120 B** |
+| Scenario | MS DI | ZA Container | ZA Standalone | Jab |
+|---|---:|---:|---:|---:|
+| Startup / registration | 138 ns / 528 B | 10,998 ns / 11,192 B | **4 ns / 32 B** | 8 ns / 40 B |
+| Transient (1 dep) | 31 ns | 27 ns | **24 ns** | 47 ns |
+| Transient (1 property dep) | 44 ns | 27 ns | **22 ns** | N/A¹ |
+| Decorated transient | 44 ns | **21 ns** | 22 ns | 29 ns² |
+| `IEnumerable<T>` (3 impls) | **68 ns** | 75 ns | 82 ns | 151 ns |
+| Open generic (closed type) | 14 ns | (via MS DI) | **8 ns** | N/A³ |
+| Create scope | 60 ns / 128 B | 123 ns / 216 B | 56 ns / 88 B | **8 ns / 40 B** |
+| Resolve scoped (full lifecycle) | 8,225 ns / 304 B | 4,808 ns / 120 B | 3,393 ns / 120 B | **3,025 ns / 120 B** |
+
+_¹ Jab is constructor-only. ² Jab decorator wired via factory. ³ Jab 0.10.x requires closed types._
+
+**ZA wins** where the generator's domain knowledge matters: property injection (2× MS DI), decorators (2.1× MS DI), open generics (1.8× MS DI). **Jab wins** on scope creation and pure scoped lifecycle. **MS DI wins** on `IEnumerable<T>` (its cached multi-registration enumeration is excellent).
 
 Full methodology, all scenarios, and analysis: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/performance.md).
 
