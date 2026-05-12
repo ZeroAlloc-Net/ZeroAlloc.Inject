@@ -40,4 +40,10 @@ public class RegistrationBenchmarks
     {
         return new ZeroAlloc.Inject.Generated.ZeroAllocInjectBenchmarksStandaloneServiceProvider();
     }
+
+    [Benchmark(Description = "Jab: Direct instantiation")]
+    public JabContainer Jab_DirectInstantiation()
+    {
+        return new JabContainer();
+    }
 }
