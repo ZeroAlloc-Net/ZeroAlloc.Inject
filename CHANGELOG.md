@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.4.1...v1.4.2) (2026-05-12)
+
+
+### Bug Fixes
+
+* **readme:** absolute GitHub URLs so nuget.org links resolve ([#58](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/58)) ([1d8b73a](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/1d8b73adc834443b692bb7e2af05a4272b50c4b2))
+
 ## [1.4.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.4.0...v1.4.1) (2026-05-03)
 
 
