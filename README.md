@@ -65,7 +65,7 @@ The generator derives the method name from the assembly name: `MyApp` → `AddMy
 | Transient (1 property-injected dep) | 38 ns / 48 B | **19 ns / 48 B** | 22 ns / 48 B |
 | Resolve scoped (full lifecycle) | ~26,000 ns / 808 B | ~12,300 ns / 120 B | **~12,000 ns / 120 B** |
 
-Full methodology, all scenarios, and analysis: [docs/performance.md](docs/performance.md).
+Full methodology, all scenarios, and analysis: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/performance.md).
 
 ## Features
 
@@ -84,15 +84,15 @@ Full methodology, all scenarios, and analysis: [docs/performance.md](docs/perfor
 
 | Page | Description |
 |---|---|
-| [Getting Started](docs/getting-started.md) | Install, annotate services, call the generated method |
-| [Service Registration](docs/service-registration.md) | Lifetime attributes, `As`, keyed services, open generics |
-| [Container Modes](docs/container-modes.md) | MS DI Extension, Hybrid, and Standalone — trade-offs and setup |
-| [Decorators](docs/decorators.md) | `[Decorator]`, `[DecoratorOf]`, ordering, conditional decorators |
-| [Native AOT](docs/native-aot.md) | Trimmer safety, publishing, ASP.NET Core AOT setup |
-| [Advanced Patterns](docs/advanced.md) | Multi-assembly, constructor disambiguation, collection injection |
-| [Compiler Diagnostics](docs/diagnostics.md) | ZAI001–ZAI018 reference with triggers and fixes |
-| [Performance](docs/performance.md) | Full benchmark tables and analysis |
-| [Testing](docs/testing.md) | Unit testing without the container, integration test setup per mode |
+| [Getting Started](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/getting-started.md) | Install, annotate services, call the generated method |
+| [Service Registration](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/service-registration.md) | Lifetime attributes, `As`, keyed services, open generics |
+| [Container Modes](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/container-modes.md) | MS DI Extension, Hybrid, and Standalone — trade-offs and setup |
+| [Decorators](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/decorators.md) | `[Decorator]`, `[DecoratorOf]`, ordering, conditional decorators |
+| [Native AOT](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/native-aot.md) | Trimmer safety, publishing, ASP.NET Core AOT setup |
+| [Advanced Patterns](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/advanced.md) | Multi-assembly, constructor disambiguation, collection injection |
+| [Compiler Diagnostics](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/diagnostics.md) | ZAI001–ZAI018 reference with triggers and fixes |
+| [Performance](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/performance.md) | Full benchmark tables and analysis |
+| [Testing](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/testing.md) | Unit testing without the container, integration test setup per mode |
 
 ## How It Compares to Scrutor
 
