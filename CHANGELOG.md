@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.4.2...v1.5.0) (2026-05-12)
+
+
+### Features
+
+* **benchmarks:** add Jab as competitor; rewrite vs-Jab/MS-DI comparison ([#60](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/60)) ([2be1a55](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/2be1a55443ce4112b0bb4763c89cb7bd6265166f))
+
 ## [1.4.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.4.1...v1.4.2) (2026-05-12)
 
 
