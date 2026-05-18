@@ -19,8 +19,8 @@ public class ServiceProviderBaseTests
 
     private sealed class TestScope : ZeroAllocInjectScope
     {
-        public TestScope(ZeroAllocInjectServiceProviderBase root, IServiceScope fallbackScope)
-            : base(root, fallbackScope) { }
+        public TestScope(ZeroAllocInjectServiceProviderBase root, IServiceScopeFactory fallbackScopeFactory)
+            : base(root, fallbackScopeFactory) { }
 
         protected override object? ResolveScopedKnown(Type serviceType) => null;
     }
@@ -52,8 +52,8 @@ public class ServiceProviderBaseTests
 
         protected override bool IsKnownKeyedService(Type serviceType, object? serviceKey) => false;
 
-        protected override ZeroAllocInjectScope CreateScopeCore(IServiceScope fallbackScope)
-            => new TestScope(this, fallbackScope);
+        protected override ZeroAllocInjectScope CreateScopeCore(IServiceScopeFactory fallbackScopeFactory)
+            => new TestScope(this, fallbackScopeFactory);
     }
 
     private static TestProvider CreateProvider()

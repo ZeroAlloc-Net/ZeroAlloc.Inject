@@ -1425,9 +1425,9 @@ namespace ZeroAlloc.Inject.Generator
             }
 
             // CreateScopeCore
-            sb.AppendLine("        protected override global::ZeroAlloc.Inject.Container.ZeroAllocInjectScope CreateScopeCore(IServiceScope fallbackScope)");
+            sb.AppendLine("        protected override global::ZeroAlloc.Inject.Container.ZeroAllocInjectScope CreateScopeCore(global::Microsoft.Extensions.DependencyInjection.IServiceScopeFactory fallbackScopeFactory)");
             sb.AppendLine("        {");
-            sb.AppendLine("            return new Scope(this, fallbackScope);");
+            sb.AppendLine("            return new Scope(this, fallbackScopeFactory);");
             sb.AppendLine("        }");
             sb.AppendLine();
 
@@ -1466,7 +1466,7 @@ namespace ZeroAlloc.Inject.Generator
             }
 
             // Scope constructor
-            sb.AppendLine("            public Scope(" + className + " root, IServiceScope fallbackScope) : base(root, fallbackScope) { }");
+            sb.AppendLine("            public Scope(" + className + " root, global::Microsoft.Extensions.DependencyInjection.IServiceScopeFactory fallbackScopeFactory) : base(root, fallbackScopeFactory) { }");
             sb.AppendLine();
 
             // ResolveScopedKnown

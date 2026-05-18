@@ -586,8 +586,8 @@ public class ContainerGeneratorTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGeneratorWithContainer(source);
 
-        Assert.Contains("protected override global::ZeroAlloc.Inject.Container.ZeroAllocInjectScope CreateScopeCore(IServiceScope fallbackScope)", output);
-        Assert.Contains("return new Scope(this, fallbackScope);", output);
+        Assert.Contains("protected override global::ZeroAlloc.Inject.Container.ZeroAllocInjectScope CreateScopeCore(global::Microsoft.Extensions.DependencyInjection.IServiceScopeFactory fallbackScopeFactory)", output);
+        Assert.Contains("return new Scope(this, fallbackScopeFactory);", output);
     }
 
     // --- Phase 3 gap-fill tests ---
