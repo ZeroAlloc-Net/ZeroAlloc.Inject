@@ -61,7 +61,13 @@ public class LazyFallbackScopeTests
 
     private sealed class TestProvider : ZeroAllocInjectServiceProviderBase
     {
-        public TestProvider(IServiceProvider fallback) : base(fallback) { }
+        private readonly IServiceScopeFactory _injectedScopeFactory;
+
+        public TestProvider(IServiceCollection fallbackServices, IServiceScopeFactory injectedScopeFactory)
+            : base(fallbackServices)
+        {
+            _injectedScopeFactory = injectedScopeFactory;
+        }
 
         protected override object? ResolveKnown(Type serviceType) => null;
 
@@ -70,14 +76,23 @@ public class LazyFallbackScopeTests
         protected override bool IsKnownKeyedService(Type serviceType, object? serviceKey) => false;
 
         protected override ZeroAllocInjectScope CreateScopeCore(IServiceScopeFactory fallbackScopeFactory)
-            => new TestScope(this, fallbackScopeFactory);
+            => new TestScope(this, _injectedScopeFactory);
+
+        // Override CreateScope to bypass Fallback materialization — the counting factory is used directly.
+        public new IServiceScope CreateScope() => CreateScopeCore(_injectedScopeFactory);
+    }
+
+    private static (TestProvider provider, CountingFallback fallback) CreateProviderWithCountingFallback()
+    {
+        var counting = new CountingFallback();
+        var services = new ServiceCollection();
+        return (new TestProvider(services, counting), counting);
     }
 
     [Fact]
     public void Hybrid_CreateScope_DoesNotCreateFallbackScope()
     {
-        var fallback = new CountingFallback();
-        var provider = new TestProvider(fallback);
+        var (provider, fallback) = CreateProviderWithCountingFallback();
 
         using var scope = provider.CreateScope();
 
@@ -87,8 +102,7 @@ public class LazyFallbackScopeTests
     [Fact]
     public void Hybrid_Resolve_ZAOwnedService_NeverCreatesFallback()
     {
-        var fallback = new CountingFallback();
-        var provider = new TestProvider(fallback);
+        var (provider, fallback) = CreateProviderWithCountingFallback();
 
         using var scope = provider.CreateScope();
         var resolved = scope.ServiceProvider.GetService(typeof(ZAOwnedSentinel));
@@ -100,8 +114,7 @@ public class LazyFallbackScopeTests
     [Fact]
     public void Hybrid_Resolve_FallbackOnly_CreatesFallbackOnce()
     {
-        var fallback = new CountingFallback();
-        var provider = new TestProvider(fallback);
+        var (provider, fallback) = CreateProviderWithCountingFallback();
 
         using var scope = provider.CreateScope();
         _ = scope.ServiceProvider.GetService(typeof(string));
@@ -113,8 +126,7 @@ public class LazyFallbackScopeTests
     [Fact]
     public void Hybrid_Dispose_WithNoFallback_DoesNotThrow()
     {
-        var fallback = new CountingFallback();
-        var provider = new TestProvider(fallback);
+        var (provider, fallback) = CreateProviderWithCountingFallback();
         var scope = provider.CreateScope();
 
         var exception = Record.Exception(() => scope.Dispose());
@@ -126,8 +138,7 @@ public class LazyFallbackScopeTests
     [Fact]
     public async Task Hybrid_DisposeAsync_WithNoFallback_DoesNotThrow()
     {
-        var fallback = new CountingFallback();
-        var provider = new TestProvider(fallback);
+        var (provider, fallback) = CreateProviderWithCountingFallback();
         var scope = (IAsyncDisposable)provider.CreateScope();
 
         var exception = await Record.ExceptionAsync(async () => await scope.DisposeAsync());

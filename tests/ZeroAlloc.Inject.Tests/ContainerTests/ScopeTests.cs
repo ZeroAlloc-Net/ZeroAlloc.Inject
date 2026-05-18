@@ -73,7 +73,7 @@ public class ScopeTests
     {
         private SingletonService? _singleton;
 
-        public TestProvider(IServiceProvider fallback) : base(fallback) { }
+        public TestProvider(IServiceCollection fallbackServices) : base(fallbackServices) { }
 
         protected override object? ResolveKnown(Type serviceType)
         {
@@ -98,8 +98,7 @@ public class ScopeTests
     {
         var services = new ServiceCollection();
         services.AddTransient<IFallbackOnly, FallbackOnlyService>();
-        var fallback = services.BuildServiceProvider();
-        return new TestProvider(fallback);
+        return new TestProvider(services);
     }
 
     [Fact]
@@ -271,8 +270,7 @@ public class ScopeTests
     [Fact]
     public void GetService_IServiceProviderIsService_ReturnsRoot()
     {
-        var fallback = new ServiceCollection().BuildServiceProvider();
-        var provider = new TestProvider(fallback);
+        var provider = new TestProvider(new ServiceCollection());
         using var scope = provider.CreateScope();
         var result = scope.ServiceProvider.GetService(typeof(IServiceProviderIsService));
         Assert.NotNull(result);
@@ -282,8 +280,7 @@ public class ScopeTests
     [Fact]
     public void GetService_IServiceProviderIsKeyedService_ReturnsRoot()
     {
-        var fallback = new ServiceCollection().BuildServiceProvider();
-        var provider = new TestProvider(fallback);
+        var provider = new TestProvider(new ServiceCollection());
         using var scope = provider.CreateScope();
         var result = scope.ServiceProvider.GetService(typeof(IServiceProviderIsKeyedService));
         Assert.NotNull(result);
@@ -293,8 +290,7 @@ public class ScopeTests
     [Fact]
     public void IsKeyedService_DelegatesToRoot()
     {
-        var fallback = new ServiceCollection().BuildServiceProvider();
-        var provider = new TestProvider(fallback);
+        var provider = new TestProvider(new ServiceCollection());
         using var scope = provider.CreateScope();
         Assert.False(((IServiceProviderIsKeyedService)scope.ServiceProvider).IsKeyedService(typeof(string), "unknown"));
     }

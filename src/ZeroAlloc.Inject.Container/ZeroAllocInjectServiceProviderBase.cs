@@ -4,15 +4,33 @@ namespace ZeroAlloc.Inject.Container;
 
 public abstract class ZeroAllocInjectServiceProviderBase : IServiceProvider, IServiceScopeFactory, IServiceProviderIsService, IServiceProviderIsKeyedService, IDisposable, IAsyncDisposable
 {
-    private readonly IServiceProvider _fallback;
+    private readonly IServiceCollection _fallbackServices;
+    private IServiceProvider? _fallback;
     private int _disposed;
 
-    protected ZeroAllocInjectServiceProviderBase(IServiceProvider fallback)
+    protected ZeroAllocInjectServiceProviderBase(IServiceCollection fallbackServices)
     {
-        _fallback = fallback ?? throw new ArgumentNullException(nameof(fallback));
+        _fallbackServices = fallbackServices ?? throw new ArgumentNullException(nameof(fallbackServices));
     }
 
-    protected IServiceProvider Fallback => _fallback;
+    /// <summary>The MS DI fallback provider. Materializes on first access via Interlocked.CompareExchange — applications whose registrations are fully ZA-owned never pay the BuildServiceProvider cost.</summary>
+    protected IServiceProvider Fallback => GetOrCreateFallbackProvider();
+
+    private IServiceProvider GetOrCreateFallbackProvider()
+    {
+        var existing = _fallback;
+        if (existing is not null) return existing;
+        var fresh = _fallbackServices.BuildServiceProvider();
+        var winner = Interlocked.CompareExchange(ref _fallback, fresh, null);
+        if (winner is not null)
+        {
+            // Lost the race — another thread materialized the provider first.
+            // Dispose our loser (it never resolved anything) and use the winner.
+            (fresh as IDisposable)?.Dispose();
+            return winner;
+        }
+        return fresh;
+    }
 
     public object? GetService(Type serviceType)
     {
@@ -36,7 +54,7 @@ public abstract class ZeroAllocInjectServiceProviderBase : IServiceProvider, ISe
             return this;
         }
 
-        return ResolveKnown(serviceType) ?? _fallback.GetService(serviceType);
+        return ResolveKnown(serviceType) ?? Fallback.GetService(serviceType);
     }
 
     protected abstract object? ResolveKnown(Type serviceType);
@@ -50,19 +68,27 @@ public abstract class ZeroAllocInjectServiceProviderBase : IServiceProvider, ISe
         if (serviceType == typeof(IServiceProvider) || serviceType == typeof(IServiceScopeFactory)
             || serviceType == typeof(IServiceProviderIsService) || serviceType == typeof(IServiceProviderIsKeyedService))
             return true;
-        return IsKnownService(serviceType)
-            || (_fallback as IServiceProviderIsService)?.IsService(serviceType) == true;
+        if (IsKnownService(serviceType)) return true;
+        // Don't materialize the fallback just to answer IsService — only consult if it's already built.
+        var existing = _fallback;
+        if (existing is null) return false;
+        var iss = existing as IServiceProviderIsService ?? (IServiceProviderIsService?)existing.GetService(typeof(IServiceProviderIsService));
+        return iss?.IsService(serviceType) == true;
     }
 
     public bool IsKeyedService(Type serviceType, object? serviceKey)
     {
-        return IsKnownKeyedService(serviceType, serviceKey)
-            || (_fallback as IServiceProviderIsKeyedService)?.IsKeyedService(serviceType, serviceKey) == true;
+        if (IsKnownKeyedService(serviceType, serviceKey)) return true;
+        // Same short-circuit as IsService — don't build the fallback to answer a query.
+        var existing = _fallback;
+        if (existing is null) return false;
+        var iks = existing as IServiceProviderIsKeyedService ?? (IServiceProviderIsKeyedService?)existing.GetService(typeof(IServiceProviderIsKeyedService));
+        return iks?.IsKeyedService(serviceType, serviceKey) == true;
     }
 
     public IServiceScope CreateScope()
     {
-        var fallbackScopeFactory = _fallback.GetRequiredService<IServiceScopeFactory>();
+        var fallbackScopeFactory = Fallback.GetRequiredService<IServiceScopeFactory>();
         return CreateScopeCore(fallbackScopeFactory);
     }
 

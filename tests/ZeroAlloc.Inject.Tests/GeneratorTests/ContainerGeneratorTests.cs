@@ -416,7 +416,8 @@ public class ContainerGeneratorTests
         var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
         Assert.Contains("BuildZeroAllocInjectServiceProvider", output);
         Assert.Contains("this IServiceCollection services", output);
-        Assert.Contains("BuildServiceProvider()", output);
+        // Fallback is now built lazily inside the provider — extension method snapshots the IServiceCollection.
+        Assert.Contains("new ServiceCollection()", output);
     }
 
     // --- Task 10: ZeroAllocInjectServiceProviderFactory ---

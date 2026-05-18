@@ -44,10 +44,12 @@ _Last refreshed: 2026-05-18_
 
 | Method | Mean | Allocated |
 |---|---:|---:|
-| MS DI — `BuildServiceProvider()` | 138 ns | 528 B |
-| ZA.Inject Container — `BuildZeroAllocInjectServiceProvider()` | 10,998 ns | 11,192 B |
-| ZA.Inject Standalone — `new …StandaloneServiceProvider()` | **4 ns** | **32 B** |
-| Jab — `new JabContainer()` | 8 ns | 40 B |
+| MS DI — `BuildServiceProvider()` | 6,413 ns | 6,944 B |
+| ZA.Inject Container — `BuildZeroAllocInjectServiceProvider()` | **1,034 ns** | **2,664 B** |
+| ZA.Inject Standalone — `new …StandaloneServiceProvider()` | **8 ns** | 48 B |
+| Jab — `new JabContainer()` | 8 ns | **40 B** |
+
+The Container row dropped from 10,998 ns / 11,192 B (v1.6 and earlier) to 1,034 ns / 2,664 B in v1.7: `BuildZeroAllocInjectServiceProvider()` now snapshots the `IServiceCollection` and **lazy-builds the MS DI fallback `IServiceProvider` on first need** via `Interlocked.CompareExchange`. Applications whose registrations are fully ZA-owned (the common case for `[Singleton]`/`[Transient]`/`[Scoped]`-attributed services) never pay the `BuildServiceProvider()` cost at all. The MS DI baseline above was also corrected — it previously returned `IServiceCollection` without calling `BuildServiceProvider()`, making the comparison meaningless.
 
 ## Resolution Benchmarks
 
