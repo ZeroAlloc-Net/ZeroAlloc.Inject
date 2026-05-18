@@ -30,7 +30,7 @@ public class ServiceProviderBaseTests
     {
         private TestCache? _singleton;
 
-        public TestProvider(IServiceProvider fallback) : base(fallback) { }
+        public TestProvider(IServiceCollection fallbackServices) : base(fallbackServices) { }
 
         protected override object? ResolveKnown(Type serviceType)
         {
@@ -60,8 +60,7 @@ public class ServiceProviderBaseTests
     {
         var services = new ServiceCollection();
         services.AddTransient<IFallbackOnly, FallbackOnlyService>();
-        var fallback = services.BuildServiceProvider();
-        return new TestProvider(fallback);
+        return new TestProvider(services);
     }
 
     [Fact]
@@ -133,17 +132,28 @@ public class ServiceProviderBaseTests
         Assert.IsAssignableFrom<IServiceScope>(scope);
     }
 
+    private sealed class TrackedDisposable : IDisposable
+    {
+        public bool Disposed { get; private set; }
+        public void Dispose() => Disposed = true;
+    }
+
     [Fact]
     public void Dispose_disposes_fallback_provider()
     {
         var services = new ServiceCollection();
-        var fallback = services.BuildServiceProvider();
-        var provider = new TestProvider(fallback);
+        services.AddSingleton<TrackedDisposable>();
+        var provider = new TestProvider(services);
+
+        // Force the lazy fallback to materialize and resolve the disposable from it.
+        var tracked = (TrackedDisposable)provider.GetService(typeof(TrackedDisposable))!;
+        Assert.NotNull(tracked);
+        Assert.False(tracked.Disposed);
 
         provider.Dispose();
 
-        // After disposing the fallback, resolving from it should throw
-        Assert.Throws<ObjectDisposedException>(() => fallback.GetRequiredService<IServiceProvider>());
+        // Disposing the provider should dispose the internal fallback, which disposes its singletons.
+        Assert.True(tracked.Disposed);
     }
 
     [Fact]
@@ -159,12 +169,17 @@ public class ServiceProviderBaseTests
     public async Task DisposeAsync_disposes_fallback_provider()
     {
         var services = new ServiceCollection();
-        var fallback = services.BuildServiceProvider();
-        var provider = new TestProvider(fallback);
+        services.AddSingleton<TrackedDisposable>();
+        var provider = new TestProvider(services);
+
+        // Force the lazy fallback to materialize and resolve the disposable from it.
+        var tracked = (TrackedDisposable)provider.GetService(typeof(TrackedDisposable))!;
+        Assert.NotNull(tracked);
+        Assert.False(tracked.Disposed);
 
         await provider.DisposeAsync();
 
-        Assert.Throws<ObjectDisposedException>(() => fallback.GetRequiredService<IServiceProvider>());
+        Assert.True(tracked.Disposed);
     }
 
     [Fact]
@@ -176,8 +191,7 @@ public class ServiceProviderBaseTests
     [Fact]
     public void GetService_IServiceProviderIsService_ReturnsSelf()
     {
-        var fallback = new ServiceCollection().BuildServiceProvider();
-        var provider = new TestProvider(fallback);
+        var provider = new TestProvider(new ServiceCollection());
         var result = provider.GetService(typeof(IServiceProviderIsService));
         Assert.NotNull(result);
         Assert.Same(provider, result);
@@ -189,24 +203,21 @@ public class ServiceProviderBaseTests
     [InlineData(typeof(IServiceProviderIsService))]
     public void IsService_BuiltInTypes_ReturnsTrue(Type serviceType)
     {
-        var fallback = new ServiceCollection().BuildServiceProvider();
-        var provider = new TestProvider(fallback);
+        var provider = new TestProvider(new ServiceCollection());
         Assert.True(((IServiceProviderIsService)provider).IsService(serviceType));
     }
 
     [Fact]
     public void IsService_UnknownType_ReturnsFalse()
     {
-        var fallback = new ServiceCollection().BuildServiceProvider();
-        var provider = new TestProvider(fallback);
+        var provider = new TestProvider(new ServiceCollection());
         Assert.False(((IServiceProviderIsService)provider).IsService(typeof(string)));
     }
 
     [Fact]
     public void GetService_IServiceProviderIsKeyedService_ReturnsSelf()
     {
-        var fallback = new ServiceCollection().BuildServiceProvider();
-        var provider = new TestProvider(fallback);
+        var provider = new TestProvider(new ServiceCollection());
         var result = provider.GetService(typeof(IServiceProviderIsKeyedService));
         Assert.NotNull(result);
         Assert.Same(provider, result);
@@ -215,16 +226,14 @@ public class ServiceProviderBaseTests
     [Fact]
     public void IsKeyedService_UnknownKeyedService_ReturnsFalse()
     {
-        var fallback = new ServiceCollection().BuildServiceProvider();
-        var provider = new TestProvider(fallback);
+        var provider = new TestProvider(new ServiceCollection());
         Assert.False(((IServiceProviderIsKeyedService)provider).IsKeyedService(typeof(string), "unknown"));
     }
 
     [Fact]
     public void IsService_IServiceProviderIsKeyedService_ReturnsTrue()
     {
-        var fallback = new ServiceCollection().BuildServiceProvider();
-        var provider = new TestProvider(fallback);
+        var provider = new TestProvider(new ServiceCollection());
         Assert.True(((IServiceProviderIsService)provider).IsService(typeof(IServiceProviderIsKeyedService)));
     }
 }

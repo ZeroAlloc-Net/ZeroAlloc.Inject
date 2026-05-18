@@ -1208,7 +1208,7 @@ namespace ZeroAlloc.Inject.Generator
             }
 
             // Constructor
-            sb.AppendLine("        public " + className + "(IServiceProvider fallback) : base(fallback) { }");
+            sb.AppendLine("        public " + className + "(IServiceCollection fallbackServices) : base(fallbackServices) { }");
             sb.AppendLine();
 
             // ResolveKnown - root provider: transients + singletons (scoped returns null)
@@ -1762,8 +1762,10 @@ namespace ZeroAlloc.Inject.Generator
             sb.AppendLine("    {");
             sb.AppendLine("        public static IServiceProvider BuildZeroAllocInjectServiceProvider(this IServiceCollection services)");
             sb.AppendLine("        {");
-            sb.AppendLine("            var fallback = services.BuildServiceProvider();");
-            sb.AppendLine("            return new global::ZeroAlloc.Inject.Generated." + className + "(fallback);");
+            sb.AppendLine("            // Snapshot the collection so subsequent mutations don't leak into the lazily-built fallback.");
+            sb.AppendLine("            IServiceCollection snapshot = new ServiceCollection();");
+            sb.AppendLine("            foreach (var d in services) snapshot.Add(d);");
+            sb.AppendLine("            return new global::ZeroAlloc.Inject.Generated." + className + "(snapshot);");
             sb.AppendLine("        }");
             sb.AppendLine("    }");
             sb.AppendLine();
@@ -1775,8 +1777,10 @@ namespace ZeroAlloc.Inject.Generator
             sb.AppendLine();
             sb.AppendLine("        public IServiceProvider CreateServiceProvider(IServiceCollection containerBuilder)");
             sb.AppendLine("        {");
-            sb.AppendLine("            var fallback = containerBuilder.BuildServiceProvider();");
-            sb.AppendLine("            return new global::ZeroAlloc.Inject.Generated." + className + "(fallback);");
+            sb.AppendLine("            // Snapshot the collection so subsequent mutations don't leak into the lazily-built fallback.");
+            sb.AppendLine("            IServiceCollection snapshot = new ServiceCollection();");
+            sb.AppendLine("            foreach (var d in containerBuilder) snapshot.Add(d);");
+            sb.AppendLine("            return new global::ZeroAlloc.Inject.Generated." + className + "(snapshot);");
             sb.AppendLine("        }");
             sb.AppendLine("    }");
             sb.AppendLine("}");
