@@ -8,8 +8,8 @@ namespace ZeroAlloc.Inject.Benchmarks;
 [SimpleJob(RuntimeMoniker.Net90)]
 public class RegistrationBenchmarks
 {
-    [Benchmark(Baseline = true, Description = "MS DI (reflection)")]
-    public IServiceCollection MsDi_Reflection()
+    [Benchmark(Baseline = true, Description = "MS DI: Build provider")]
+    public IServiceProvider MsDi_BuildProvider()
     {
         var services = new ServiceCollection();
 
@@ -24,7 +24,7 @@ public class RegistrationBenchmarks
         // Scoped
         services.AddScoped<IScopedService, ScopedService>();
 
-        return services;
+        return services.BuildServiceProvider();
     }
 
     [Benchmark(Description = "ZeroAlloc.Inject Container: Build provider")]
