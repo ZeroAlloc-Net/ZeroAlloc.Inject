@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.5.0...v1.6.0) (2026-05-18)
+
+
+### Features
+
+* **inject:** cache all-singleton IEnumerable&lt;T&gt; + lazy Hybrid fallback scope ([#62](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/62)) ([c63e4a4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/c63e4a422140d92ba090e5df1e1fcd9f756653d6))
+
 ## [1.5.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.4.2...v1.5.0) (2026-05-12)
 
 
