@@ -2773,6 +2773,22 @@ namespace ZeroAlloc.Inject.Generator
             }
         }
 
+        private static bool IsAllSingleton(System.Collections.Generic.List<ServiceTypeGroupEntry> entries)
+        {
+            if (entries.Count == 0) return false;
+            foreach (var e in entries)
+                if (e.Lifetime != "Singleton") return false;
+            return true;
+        }
+
+        private static string SanitizeForFieldName(string typeName)
+        {
+            var sb = new System.Text.StringBuilder(typeName.Length);
+            foreach (var c in typeName)
+                sb.Append(char.IsLetterOrDigit(c) || c == '_' ? c : '_');
+            return sb.ToString();
+        }
+
         private static string BuildNewExpression(ServiceRegistrationInfo svc)
         {
             return BuildNewExpressionCore(svc, false);
