@@ -71,7 +71,9 @@ public abstract class ZeroAllocInjectServiceProviderBase : IServiceProvider, ISe
         if (IsKnownService(serviceType)) return true;
         // Don't materialize the fallback just to answer IsService — only consult if it's already built.
         var existing = _fallback;
-        return (existing as IServiceProviderIsService)?.IsService(serviceType) == true;
+        if (existing is null) return false;
+        var iss = existing as IServiceProviderIsService ?? (IServiceProviderIsService?)existing.GetService(typeof(IServiceProviderIsService));
+        return iss?.IsService(serviceType) == true;
     }
 
     public bool IsKeyedService(Type serviceType, object? serviceKey)
@@ -79,7 +81,9 @@ public abstract class ZeroAllocInjectServiceProviderBase : IServiceProvider, ISe
         if (IsKnownKeyedService(serviceType, serviceKey)) return true;
         // Same short-circuit as IsService — don't build the fallback to answer a query.
         var existing = _fallback;
-        return (existing as IServiceProviderIsKeyedService)?.IsKeyedService(serviceType, serviceKey) == true;
+        if (existing is null) return false;
+        var iks = existing as IServiceProviderIsKeyedService ?? (IServiceProviderIsKeyedService?)existing.GetService(typeof(IServiceProviderIsKeyedService));
+        return iks?.IsKeyedService(serviceType, serviceKey) == true;
     }
 
     public IServiceScope CreateScope()
