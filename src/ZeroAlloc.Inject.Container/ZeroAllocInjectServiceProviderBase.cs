@@ -63,11 +63,10 @@ public abstract class ZeroAllocInjectServiceProviderBase : IServiceProvider, ISe
     public IServiceScope CreateScope()
     {
         var fallbackScopeFactory = _fallback.GetRequiredService<IServiceScopeFactory>();
-        var fallbackScope = fallbackScopeFactory.CreateScope();
-        return CreateScopeCore(fallbackScope);
+        return CreateScopeCore(fallbackScopeFactory);
     }
 
-    protected abstract ZeroAllocInjectScope CreateScopeCore(IServiceScope fallbackScope);
+    protected abstract ZeroAllocInjectScope CreateScopeCore(IServiceScopeFactory fallbackScopeFactory);
 
     public void Dispose()
     {
