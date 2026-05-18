@@ -1871,6 +1871,26 @@ namespace ZeroAlloc.Inject.Generator
                 lastRegistrationPerType[kvp.Key] = kvp.Value[kvp.Value.Count - 1];
             }
 
+            // Pre-compute IEnumerable<T> cache field map for all-singleton groups (root level).
+            // rootEntries excludes Scoped lifetime to match the root-level emit logic below.
+            var enumerableCacheFields = new List<(string FieldName, string ServiceType)>();
+            var cacheFieldByServiceType = new Dictionary<string, string>(StringComparer.Ordinal);
+            {
+                int counter = 0;
+                foreach (var kvp in serviceTypeGroups)
+                {
+                    var rootEntriesForCache = new List<ServiceTypeGroupEntry>();
+                    foreach (var entry in kvp.Value)
+                        if (entry.Lifetime != "Scoped") rootEntriesForCache.Add(entry);
+                    if (IsAllSingleton(rootEntriesForCache))
+                    {
+                        var fieldName = "_enumerable_" + SanitizeForFieldName(kvp.Key) + "_" + counter++;
+                        enumerableCacheFields.Add((fieldName, kvp.Key));
+                        cacheFieldByServiceType[kvp.Key] = fieldName;
+                    }
+                }
+            }
+
             bool hasKeyedServices = keyedServices.Count > 0;
 
             var sb = new StringBuilder();
@@ -1919,7 +1939,12 @@ namespace ZeroAlloc.Inject.Generator
                 if (string.Equals(cgf.Lifetime, "Singleton", StringComparison.Ordinal))
                     sb.AppendLine("        private " + cgf.ImplementationFqn + "? _cg_s_" + i + ";");
             }
-            if (singletons.Count > 0 || keyedSingletons.Count > 0 || closedGenericFactories.Length > 0)
+            // IEnumerable<T> cache fields (one per all-singleton enumerable group)
+            foreach (var (fieldName, fieldServiceType) in enumerableCacheFields)
+            {
+                sb.AppendLine("        private " + fieldServiceType + "[]? " + fieldName + ";");
+            }
+            if (singletons.Count > 0 || keyedSingletons.Count > 0 || closedGenericFactories.Length > 0 || enumerableCacheFields.Count > 0)
             {
                 sb.AppendLine();
             }
@@ -2019,24 +2044,37 @@ namespace ZeroAlloc.Inject.Generator
 
                 sb.AppendLine("            if (serviceType == typeof(System.Collections.Generic.IEnumerable<" + serviceType + ">))");
                 sb.AppendLine("            {");
-                sb.Append("                return new " + serviceType + "[] { ");
-
-                for (int j = 0; j < rootEntries.Count; j++)
+                if (cacheFieldByServiceType.TryGetValue(serviceType, out var cacheFieldName))
                 {
-                    if (j > 0) sb.Append(", ");
-                    var entry = rootEntries[j];
-
-                    if (entry.Lifetime == "Transient")
+                    sb.Append("                return " + cacheFieldName + " ??= new " + serviceType + "[] { ");
+                    for (int j = 0; j < rootEntries.Count; j++)
                     {
-                        sb.Append(BuildNewExpression(entry.Svc));
+                        if (j > 0) sb.Append(", ");
+                        sb.Append("(" + serviceType + ")GetService(typeof(" + rootEntries[j].Svc.FullyQualifiedName + "))!");
                     }
-                    else if (entry.Lifetime == "Singleton")
-                    {
-                        sb.Append("(" + serviceType + ")GetService(typeof(" + entry.Svc.FullyQualifiedName + "))!");
-                    }
+                    sb.AppendLine(" };");
                 }
+                else
+                {
+                    sb.Append("                return new " + serviceType + "[] { ");
 
-                sb.AppendLine(" };");
+                    for (int j = 0; j < rootEntries.Count; j++)
+                    {
+                        if (j > 0) sb.Append(", ");
+                        var entry = rootEntries[j];
+
+                        if (entry.Lifetime == "Transient")
+                        {
+                            sb.Append(BuildNewExpression(entry.Svc));
+                        }
+                        else if (entry.Lifetime == "Singleton")
+                        {
+                            sb.Append("(" + serviceType + ")GetService(typeof(" + entry.Svc.FullyQualifiedName + "))!");
+                        }
+                    }
+
+                    sb.AppendLine(" };");
+                }
                 sb.AppendLine("            }");
             }
 
