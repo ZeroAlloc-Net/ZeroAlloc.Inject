@@ -5,15 +5,32 @@ namespace ZeroAlloc.Inject.Container;
 public abstract class ZeroAllocInjectScope : IServiceScope, IServiceProvider, IServiceProviderIsService, IServiceProviderIsKeyedService, IDisposable, IAsyncDisposable
 {
     private readonly ZeroAllocInjectServiceProviderBase _root;
-    private readonly IServiceScope _fallbackScope;
+    private readonly IServiceScopeFactory _fallbackScopeFactory;
+    private IServiceScope? _fallbackScope;
     private readonly object _trackLock = new object();
     private List<object>? _disposables;
     private int _disposed;
 
-    protected ZeroAllocInjectScope(ZeroAllocInjectServiceProviderBase root, IServiceScope fallbackScope)
+    protected ZeroAllocInjectScope(ZeroAllocInjectServiceProviderBase root, IServiceScopeFactory fallbackScopeFactory)
     {
         _root = root ?? throw new ArgumentNullException(nameof(root));
-        _fallbackScope = fallbackScope ?? throw new ArgumentNullException(nameof(fallbackScope));
+        _fallbackScopeFactory = fallbackScopeFactory ?? throw new ArgumentNullException(nameof(fallbackScopeFactory));
+    }
+
+    private IServiceScope GetOrCreateFallbackScope()
+    {
+        var existing = _fallbackScope;
+        if (existing is not null) return existing;
+        var fresh = _fallbackScopeFactory.CreateScope();
+        var winner = Interlocked.CompareExchange(ref _fallbackScope, fresh, null);
+        if (winner is not null)
+        {
+            // Lost the race — another thread materialized the scope first.
+            // Dispose our loser (it never resolved anything) and use the winner.
+            fresh.Dispose();
+            return winner;
+        }
+        return fresh;
     }
 
     protected ZeroAllocInjectServiceProviderBase Root => _root;
@@ -42,7 +59,7 @@ public abstract class ZeroAllocInjectScope : IServiceScope, IServiceProvider, IS
             return _root;
         }
 
-        return ResolveScopedKnown(serviceType) ?? _fallbackScope.ServiceProvider.GetService(serviceType);
+        return ResolveScopedKnown(serviceType) ?? GetOrCreateFallbackScope().ServiceProvider.GetService(serviceType);
     }
 
     protected abstract object? ResolveScopedKnown(Type serviceType);
@@ -94,7 +111,7 @@ public abstract class ZeroAllocInjectScope : IServiceScope, IServiceProvider, IS
                 }
             }
 
-            _fallbackScope.Dispose();
+            _fallbackScope?.Dispose();
         }
     }
 
@@ -130,7 +147,7 @@ public abstract class ZeroAllocInjectScope : IServiceScope, IServiceProvider, IS
             }
             else
             {
-                _fallbackScope.Dispose();
+                _fallbackScope?.Dispose();
             }
         }
 
