@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.6.0...v1.7.0) (2026-05-18)
+
+
+### Features
+
+* **inject:** lazy-build Container MS DI fallback provider + fix benchmark methodology ([#64](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/64)) ([4fba493](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/4fba4934e2b735da40e6911350ec9b8016fa9c55))
+
 ## [1.6.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.5.0...v1.6.0) (2026-05-18)
 
 
