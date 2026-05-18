@@ -1197,7 +1197,12 @@ namespace ZeroAlloc.Inject.Generator
             {
                 sb.AppendLine("        private " + keyedSingletons[i].FullyQualifiedName + "? _keyedSingleton_" + i + ";");
             }
-            if (singletons.Count > 0 || keyedSingletons.Count > 0)
+            // IEnumerable<T> cache fields (one per all-singleton enumerable group)
+            foreach (var (fieldName, fieldServiceType) in enumerableCacheFields)
+            {
+                sb.AppendLine("        private " + fieldServiceType + "[]? " + fieldName + ";");
+            }
+            if (singletons.Count > 0 || keyedSingletons.Count > 0 || enumerableCacheFields.Count > 0)
             {
                 sb.AppendLine();
             }
