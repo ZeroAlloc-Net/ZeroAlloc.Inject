@@ -64,12 +64,14 @@ The generator derives the method name from the assembly name: `MyApp` → `AddMy
 | Decorated transient | 44 ns | **21 ns** | 22 ns | 29 ns² |
 | `IEnumerable<T>` (3 impls) | **68 ns** | 75 ns | 82 ns | 151 ns |
 | Open generic (closed type) | 14 ns | (via MS DI) | **8 ns** | N/A³ |
-| Create scope | 60 ns / 128 B | 123 ns / 216 B | 56 ns / 88 B | **8 ns / 40 B** |
-| Resolve scoped (full lifecycle) | 8,225 ns / 304 B | 4,808 ns / 120 B | 3,393 ns / 120 B | **3,025 ns / 120 B** |
+| Create scope | 82 ns / 128 B | **60 ns / 96 B** | 58 ns / 88 B | **14 ns / 40 B** |
+| Resolve scoped (full lifecycle) | 7,181 ns / 304 B | 5,901 ns / 120 B | 4,851 ns / 120 B | **5,216 ns / 120 B** |
 
 _¹ Jab is constructor-only. ² Jab decorator wired via factory. ³ Jab 0.10.x requires closed types._
 
 **ZA wins** where the generator's domain knowledge matters: property injection (2× MS DI), decorators (2.1× MS DI), open generics (1.8× MS DI). **Jab wins** on scope creation and pure scoped lifecycle. **MS DI wins** on `IEnumerable<T>` (its cached multi-registration enumeration is excellent).
+
+In v1.6 the **ZA Container scope creation** dropped 50% on allocation (216 B → 96 B) and 2× faster — the MS DI fallback scope is no longer eagerly created; it materializes on first fallback resolution. For ZA-owned registrations (the common case), it never materializes at all. The IEnumerable row above shows the all-Transient registration path; **all-Singleton `IEnumerable<T>` resolutions are now cached** (0 B on subsequent calls — verified by tests).
 
 Full methodology, all scenarios, and analysis: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/performance.md).
 

@@ -41,8 +41,8 @@ public class ScopeTests
         private ScopedService? _scopedInstance;
         private readonly ZeroAllocInjectServiceProviderBase _rootRef;
 
-        public TestScope(ZeroAllocInjectServiceProviderBase root, IServiceScope fallbackScope)
-            : base(root, fallbackScope)
+        public TestScope(ZeroAllocInjectServiceProviderBase root, IServiceScopeFactory fallbackScopeFactory)
+            : base(root, fallbackScopeFactory)
         {
             _rootRef = root;
         }
@@ -90,8 +90,8 @@ public class ScopeTests
 
         protected override bool IsKnownKeyedService(Type serviceType, object? serviceKey) => false;
 
-        protected override ZeroAllocInjectScope CreateScopeCore(IServiceScope fallbackScope)
-            => new TestScope(this, fallbackScope);
+        protected override ZeroAllocInjectScope CreateScopeCore(IServiceScopeFactory fallbackScopeFactory)
+            => new TestScope(this, fallbackScopeFactory);
     }
 
     private static TestProvider CreateProvider()
@@ -257,8 +257,8 @@ public class ScopeTests
     {
         var services = new ServiceCollection();
         var fallback = services.BuildServiceProvider();
-        using var scope = fallback.CreateScope();
-        Assert.Throws<ArgumentNullException>(() => new TestScope(null!, scope));
+        var factory = fallback.GetRequiredService<IServiceScopeFactory>();
+        Assert.Throws<ArgumentNullException>(() => new TestScope(null!, factory));
     }
 
     [Fact]

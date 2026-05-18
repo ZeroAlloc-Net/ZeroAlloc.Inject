@@ -40,7 +40,7 @@ Four containers participate in every scenario where applicable:
 ## Registration / Startup Benchmarks
 
 <!-- BENCH:START -->
-_Last refreshed: 2026-05-12_
+_Last refreshed: 2026-05-18_
 
 | Method | Mean | Allocated |
 |---|---:|---:|
@@ -61,14 +61,16 @@ _Last refreshed: 2026-05-12_
 | Decorated transient | 44.5 ns | **21.1 ns** | 22.3 ns | 28.8 ns² | 48 B |
 | `IEnumerable<T>` (3 impls) | **67.8 ns** | 74.8 ns | 81.8 ns | 150.9 ns | 168 B |
 | Open generic (closed type) | 13.5 ns | (delegates to MS DI) | **7.7 ns** | N/A³ | 24 B |
-| Create scope | 60 ns / 128 B | 123 ns / 216 B | 56 ns / 88 B | **8 ns / 40 B** | — |
-| Resolve scoped (full lifecycle) | 8,225 ns / 304 B | 4,808 ns / 120 B | 3,393 ns / 120 B | **3,025 ns / 120 B** | — |
+| Create scope | 82 ns / 128 B | **60 ns / 96 B** | 58 ns / 88 B | **14 ns / 40 B** | — |
+| Resolve scoped (full lifecycle) | 7,181 ns / 304 B | 5,901 ns / 120 B | 4,851 ns / 120 B | **5,216 ns / 120 B** | — |
 
 _¹ Jab is constructor-only — no property injection._
 _² Jab decorator wired via factory (no first-class decorator attribute)._
 _³ Jab 0.10.x requires closed types at the `[ServiceProvider]` attribute level._
 
 ZA.Inject is **competitive across every scenario** and the clear winner where the generator's domain knowledge matters most: property injection (2× MS DI), decorators (2.1× MS DI), open generics (1.8× MS DI). Jab leads on scope creation (its scope is the lightest of the four, by an order of magnitude), with ZA Standalone close behind on the full scoped-resolution lifecycle.
+
+In v1.6 the **ZA.Inject Container** scope creation dropped from 123 ns / 216 B to **60 ns / 96 B** — the MS DI fallback scope is no longer eagerly materialized; it's created on first fallback resolution via `Interlocked.CompareExchange`. For applications whose registrations are fully ZA-owned (the common case), the fallback scope is never created at all. **`IEnumerable<T>` resolutions are also cached** when every entry is `Singleton` (verified by `EnumerableCacheTests`); the benchmark row above shows the all-`Transient` registration path, which remains genuinely allocation-bound — the new cache fires for the singleton-multi-impl scenario.
 
 <!-- BENCH:END -->
 
