@@ -58,7 +58,7 @@ The generator derives the method name from the assembly name: `MyApp` → `AddMy
 
 | Scenario | MS DI | ZA Container | ZA Standalone | Jab |
 |---|---:|---:|---:|---:|
-| Startup / registration | 138 ns / 528 B | 10,998 ns / 11,192 B | **4 ns / 32 B** | 8 ns / 40 B |
+| Startup / registration | 6,413 ns / 6,944 B | **1,034 ns / 2,664 B** | **8 ns / 48 B** | 8 ns / 40 B |
 | Transient (1 dep) | 31 ns | 27 ns | **24 ns** | 47 ns |
 | Transient (1 property dep) | 44 ns | 27 ns | **22 ns** | N/A¹ |
 | Decorated transient | 44 ns | **21 ns** | 22 ns | 29 ns² |
