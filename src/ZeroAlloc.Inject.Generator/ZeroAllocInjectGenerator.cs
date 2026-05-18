@@ -2477,45 +2477,55 @@ namespace ZeroAlloc.Inject.Generator
 
                 sb.AppendLine("                if (serviceType == typeof(System.Collections.Generic.IEnumerable<" + serviceType + ">))");
                 sb.AppendLine("                {");
-                sb.Append("                    return new " + serviceType + "[] { ");
 
-                for (int j = 0; j < entries.Count; j++)
+                if (IsAllSingleton(entries))
                 {
-                    if (j > 0) sb.Append(", ");
-                    var entry = entries[j];
-
-                    if (entry.Lifetime == "Transient")
-                    {
-                        var newExpr = BuildNewExpressionForScope(entry.Svc);
-                        if (entry.Svc.ImplementsDisposable)
-                        {
-                            sb.Append("TrackDisposable(" + newExpr + ")");
-                        }
-                        else
-                        {
-                            sb.Append(newExpr);
-                        }
-                    }
-                    else if (entry.Lifetime == "Singleton")
-                    {
-                        sb.Append("(" + serviceType + ")Root.GetService(typeof(" + entry.Svc.FullyQualifiedName + "))!");
-                    }
-                    else if (entry.Lifetime == "Scoped")
-                    {
-                        var fieldName = "_scoped_" + entry.FieldIndex;
-                        var newExpr = BuildNewExpressionForScope(entry.Svc);
-                        if (entry.Svc.ImplementsDisposable)
-                        {
-                            sb.Append(fieldName + " ?? (" + fieldName + " = TrackDisposable(" + newExpr + "))");
-                        }
-                        else
-                        {
-                            sb.Append(fieldName + " ?? (" + fieldName + " = " + newExpr + ")");
-                        }
-                    }
+                    // All entries are singletons — delegate to root provider's cached IEnumerable<T> path.
+                    // No scope-level disposal tracking needed (singletons are tracked at provider scope).
+                    sb.AppendLine("                    return Root.GetService(typeof(System.Collections.Generic.IEnumerable<" + serviceType + ">));");
                 }
+                else
+                {
+                    sb.Append("                    return new " + serviceType + "[] { ");
 
-                sb.AppendLine(" };");
+                    for (int j = 0; j < entries.Count; j++)
+                    {
+                        if (j > 0) sb.Append(", ");
+                        var entry = entries[j];
+
+                        if (entry.Lifetime == "Transient")
+                        {
+                            var newExpr = BuildNewExpressionForScope(entry.Svc);
+                            if (entry.Svc.ImplementsDisposable)
+                            {
+                                sb.Append("TrackDisposable(" + newExpr + ")");
+                            }
+                            else
+                            {
+                                sb.Append(newExpr);
+                            }
+                        }
+                        else if (entry.Lifetime == "Singleton")
+                        {
+                            sb.Append("(" + serviceType + ")Root.GetService(typeof(" + entry.Svc.FullyQualifiedName + "))!");
+                        }
+                        else if (entry.Lifetime == "Scoped")
+                        {
+                            var fieldName = "_scoped_" + entry.FieldIndex;
+                            var newExpr = BuildNewExpressionForScope(entry.Svc);
+                            if (entry.Svc.ImplementsDisposable)
+                            {
+                                sb.Append(fieldName + " ?? (" + fieldName + " = TrackDisposable(" + newExpr + "))");
+                            }
+                            else
+                            {
+                                sb.Append(fieldName + " ?? (" + fieldName + " = " + newExpr + ")");
+                            }
+                        }
+                    }
+
+                    sb.AppendLine(" };");
+                }
                 sb.AppendLine("                }");
             }
 
