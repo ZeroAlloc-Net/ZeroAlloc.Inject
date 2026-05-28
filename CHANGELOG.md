@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.7.0...v1.7.1) (2026-05-28)
+
+
+### Documentation
+
+* **backlog:** file aot-smoke coverage extension for Scoped/Decorator/closed-generic paths ([#66](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/66)) ([d4b3156](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/d4b3156b9f4cac856ef776f5d26058f33c9cc2fe))
+
 ## [1.7.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.6.0...v1.7.0) (2026-05-18)
 
 
