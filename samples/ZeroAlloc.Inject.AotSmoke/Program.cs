@@ -43,6 +43,14 @@ using (var scope1 = provider.CreateScope())
         return Fail($"IHttpRequestContext Scoped: resolutions in different scopes should be distinct (both got RequestId {c1a.RequestId})");
 }
 
+// Decorator pattern — resolving IFoo returns LoggingFoo wrapping Foo.
+var foo = provider.GetRequiredService<IFoo>();
+if (foo is not LoggingFoo)
+    return Fail($"IFoo Decorator: expected LoggingFoo, got {foo.GetType().Name}");
+var fooResult = foo.DoStuff("x");
+if (!string.Equals(fooResult, "[logged] base:x", StringComparison.Ordinal))
+    return Fail($"IFoo Decorator: expected '[logged] base:x', got '{fooResult}'");
+
 Console.WriteLine("AOT smoke: PASS");
 return 0;
 
