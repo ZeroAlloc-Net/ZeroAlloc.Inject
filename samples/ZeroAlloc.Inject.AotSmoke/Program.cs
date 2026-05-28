@@ -51,6 +51,12 @@ var fooResult = foo.DoStuff("x");
 if (!string.Equals(fooResult, "[logged] base:x", StringComparison.Ordinal))
     return Fail($"IFoo Decorator: expected '[logged] base:x', got '{fooResult}'");
 
+// Open-generic closed-usage — IInventory<Product> resolves to the closed form.
+var inv = provider.GetRequiredService<IInventory<Product>>();
+var invDesc = inv.Describe();
+if (!string.Equals(invDesc, "InMemoryInventory<Product>", StringComparison.Ordinal))
+    return Fail($"IInventory<Product> closed-generic: expected 'InMemoryInventory<Product>', got '{invDesc}'");
+
 Console.WriteLine("AOT smoke: PASS");
 return 0;
 
