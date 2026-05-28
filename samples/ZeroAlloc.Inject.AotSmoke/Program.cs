@@ -29,6 +29,20 @@ var w2 = provider.GetRequiredService<IWelcomeService>();
 if (ReferenceEquals(w1, w2))
     return Fail("IWelcomeService Transient: two resolutions should be distinct");
 
+// Scoped lifetime — same instance within a scope, distinct across scopes.
+using (var scope1 = provider.CreateScope())
+{
+    var c1a = scope1.ServiceProvider.GetRequiredService<IHttpRequestContext>();
+    var c1b = scope1.ServiceProvider.GetRequiredService<IHttpRequestContext>();
+    if (!ReferenceEquals(c1a, c1b))
+        return Fail($"IHttpRequestContext Scoped: two resolutions in same scope should share instance (got RequestId {c1a.RequestId} vs {c1b.RequestId})");
+
+    using var scope2 = provider.CreateScope();
+    var c2 = scope2.ServiceProvider.GetRequiredService<IHttpRequestContext>();
+    if (ReferenceEquals(c1a, c2))
+        return Fail($"IHttpRequestContext Scoped: resolutions in different scopes should be distinct (both got RequestId {c1a.RequestId})");
+}
+
 Console.WriteLine("AOT smoke: PASS");
 return 0;
 
