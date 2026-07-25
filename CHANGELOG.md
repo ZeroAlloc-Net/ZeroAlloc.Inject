@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.7.1...v1.7.2) (2026-07-25)
+
+
+### Bug Fixes
+
+* emit #pragma warning disable 1591 in generated files ([#70](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/70)) ([dd71adc](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/dd71adc721f19b456879406093271e55449102a5))
+
 ## [1.7.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.7.0...v1.7.1) (2026-05-28)
 
 
