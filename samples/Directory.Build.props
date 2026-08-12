@@ -1,0 +1,16 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove($(MSBuildThisFile), $(MSBuildThisFileDirectory)..))" />
+  <PropertyGroup>
+    <!-- MA0048 wants one type per file named after it. These are AOT-smoke fixtures:
+         Services.cs and InventoryFixture.cs deliberately group the few small types that
+         make up one scenario, because a sample is read top to bottom. Splitting each into
+         one-type files would make the sample harder to follow, which is the opposite of
+         what a sample is for. Scoped to samples/ so src/ still gets the rule. -->
+    <NoWarn>$(NoWarn);MA0048</NoWarn>
+    <!-- ZAI007 and ZAI018 are this library's own advisory diagnostics: "registered only as
+         its concrete type" and "open generic with no closed usages". The AOT smoke sample
+         exists precisely to exercise those registration shapes, so the advice fires by
+         design here. Scoped to samples/ so consumers still receive it. -->
+    <NoWarn>$(NoWarn);ZAI007;ZAI018</NoWarn>
+  </PropertyGroup>
+</Project>
