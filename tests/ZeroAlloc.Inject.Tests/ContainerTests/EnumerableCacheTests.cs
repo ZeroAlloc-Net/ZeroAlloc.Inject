@@ -165,8 +165,8 @@ public class EnumerableCacheTests
         }
 
         Assert.Equal(2, names.Count);
-        Assert.Contains("A", names);
-        Assert.Contains("B", names);
+        Assert.Contains("A", names, StringComparer.Ordinal);
+        Assert.Contains("B", names, StringComparer.Ordinal);
     }
 
     // ---------------------------------------------------------------

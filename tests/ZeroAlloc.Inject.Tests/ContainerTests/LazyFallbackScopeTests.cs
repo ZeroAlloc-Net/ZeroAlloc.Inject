@@ -141,7 +141,7 @@ public class LazyFallbackScopeTests
         var (provider, fallback) = CreateProviderWithCountingFallback();
         var scope = (IAsyncDisposable)provider.CreateScope();
 
-        var exception = await Record.ExceptionAsync(async () => await scope.DisposeAsync());
+        var exception = await Record.ExceptionAsync(async () => await scope.DisposeAsync().ConfigureAwait(false));
 
         Assert.Null(exception);
         Assert.Equal(0, fallback.CreateScopeCount);

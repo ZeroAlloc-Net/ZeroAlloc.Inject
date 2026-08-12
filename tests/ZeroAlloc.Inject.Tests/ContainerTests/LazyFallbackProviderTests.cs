@@ -34,7 +34,7 @@ internal sealed class TestProvider : ZeroAllocInjectServiceProviderBase
     protected override bool IsKnownKeyedService(Type serviceType, object? serviceKey) => false;
 
     protected override ZeroAllocInjectScope CreateScopeCore(IServiceScopeFactory fallbackScopeFactory)
-        => throw new NotImplementedException("CreateScope is not exercised by these tests.");
+        => throw new NotSupportedException("CreateScope is not exercised by these tests.");
 }
 
 #pragma warning restore MA0048
@@ -141,7 +141,7 @@ public class LazyFallbackProviderTests
         var services = BuildFallbackOnlyCollection();
         var provider = new TestProvider(services);
 
-        var exception = await Record.ExceptionAsync(async () => await provider.DisposeAsync());
+        var exception = await Record.ExceptionAsync(async () => await provider.DisposeAsync().ConfigureAwait(false));
 
         Assert.Null(exception);
         Assert.Null(provider.FallbackOrNull);

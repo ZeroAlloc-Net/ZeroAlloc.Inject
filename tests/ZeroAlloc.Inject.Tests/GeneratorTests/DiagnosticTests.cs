@@ -373,7 +373,7 @@ public class DiagnosticTests
         var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
         Assert.Contains(diagnostics, static d => string.Equals(d.Id, "ZAI018", StringComparison.Ordinal));
         Assert.All(
-            diagnostics.Where(static d => string.Equals(d.Id, "ZAI018", StringComparison.Ordinal)).ToList(),
+            diagnostics.AsEnumerable().Where(static d => string.Equals(d.Id, "ZAI018", StringComparison.Ordinal)).ToList(),
             static d => Assert.Equal(DiagnosticSeverity.Warning, d.Severity));
     }
 
