@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.7.2...v1.7.3) (2026-08-12)
+
+
+### Bug Fixes
+
+* turn warnings into errors, fixing everything reachable in code ([#86](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/86)) ([c02699f](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/c02699f4b9e29c701faf02dcc2b58331b061b612))
+
 ## [1.7.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.7.1...v1.7.2) (2026-07-25)
 
 
