@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.7.3...v1.7.4) (2026-09-19)
+
+
+### Bug Fixes
+
+* **ci:** stamp the assembly version when publishing from a manifest ([#141](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/141)) ([6d9e69b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/6d9e69b62f373884d439900d75ec72bf32f5ea8b))
+
 ## [1.7.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.7.2...v1.7.3) (2026-08-12)
 
 
