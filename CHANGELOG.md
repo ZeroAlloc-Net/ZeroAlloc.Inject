@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.7.4...v1.7.5) (2026-09-20)
+
+
+### Bug Fixes
+
+* declare current sibling package versions ([#145](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/145)) ([a93d389](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/a93d389b67e7ea372ff474aa13a594877267bf25))
+
 ## [1.7.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.7.3...v1.7.4) (2026-09-19)
 
 
