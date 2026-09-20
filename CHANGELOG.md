@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.7.5...v1.7.6) (2026-09-20)
+
+
+### Bug Fixes
+
+* **ci:** pin the SDK floor at the .NET 10 GA band, not the newest patch ([#147](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/147)) ([1a4616d](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/1a4616d37d762b563f1810a3bc482b2d837406b9))
+
 ## [1.7.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.7.4...v1.7.5) (2026-09-20)
 
 
