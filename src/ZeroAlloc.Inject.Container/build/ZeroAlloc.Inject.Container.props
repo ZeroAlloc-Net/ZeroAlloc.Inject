@@ -1,0 +1,13 @@
+<Project>
+  <!--
+    ZeroAlloc.Inject.Container bundles its own copy of the ZeroAlloc.Inject.Generator analyzer DLL
+    (see ZeroAlloc.Inject.Container.csproj) rather than depending on the ZeroAlloc.Inject.Generator
+    NuGet package. A consumer who references only this package therefore would never see the
+    build/ZeroAlloc.Inject.Generator.props from that package, so the same CompilerVisibleProperty
+    declaration is shipped here too, making the org-wide ZeroAllocGeneratedAccessibility MSBuild
+    property visible to the bundled generator as build_property.ZeroAllocGeneratedAccessibility.
+  -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="ZeroAllocGeneratedAccessibility" />
+  </ItemGroup>
+</Project>

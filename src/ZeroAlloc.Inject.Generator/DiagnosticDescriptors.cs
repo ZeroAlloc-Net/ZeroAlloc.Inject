@@ -156,5 +156,13 @@ namespace ZeroAlloc.Inject.Generator
             "ZeroAlloc.Inject",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor InvalidGeneratedAccessibility = new DiagnosticDescriptor(
+            "ZAI020",
+            "Invalid ZeroAllocGeneratedAccessibility value",
+            "MSBuild property 'ZeroAllocGeneratedAccessibility' has invalid value '{0}'; allowed values are 'Public' and 'Internal'",
+            "ZeroAlloc.Inject",
+            DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
     }
 }

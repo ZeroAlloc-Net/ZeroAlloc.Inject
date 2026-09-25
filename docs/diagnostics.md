@@ -2,7 +2,7 @@
 id: diagnostics
 title: Compiler Diagnostics
 slug: /docs/diagnostics
-description: ZAI001–ZAI019 Roslyn analyzer rules with triggers, severities, and fix guidance.
+description: ZAI001–ZAI020 Roslyn analyzer rules with triggers, severities, and fix guidance.
 sidebar_position: 7
 ---
 
@@ -33,6 +33,7 @@ All diagnostics are emitted at compile time by the Roslyn source generator. Erro
 | ZAI017 | ❌ Error | Two decorators share the same `Order` for the same interface | Ambiguous decorator ordering: two `[DecoratorOf]` attributes target the same interface with identical `Order` values | Assign unique `Order` values to each decorator for the same interface |
 | ZAI018 | ⚠️ Warning | Open generic has no detected closed usages | An open generic class is registered but no constructor in the assembly takes a closed form of its interface as a parameter; it will not be resolvable from the standalone or hybrid generated container | Ensure at least one constructor parameter of the closed generic type exists in the assembly, or switch to the MS DI extension method mode |
 | ZAI019 | ❌ Error | `[Inject]` on a non-settable property | The property has no public setter (or uses `init`); the generator cannot emit a property assignment | Add a `public` setter, or remove `[Inject]` |
+| ZAI020 | ❌ Error | Invalid `ZeroAllocGeneratedAccessibility` value | The MSBuild property `ZeroAllocGeneratedAccessibility` is set to a value other than `Public` or `Internal` (case-insensitive) | Set the property to `Public` or `Internal`, or remove it to use the default (`Public`) |
 
 ## Per-Diagnostic Details
 
@@ -743,4 +744,33 @@ public class MyService : IMyService
 
     public MyService(IDep dep) => _dep = dep;
 }
+```
+
+---
+
+### Generated Accessibility Errors (ZAI020)
+
+#### ZAI020 — Invalid `ZeroAllocGeneratedAccessibility` value
+
+**Title:** Invalid ZeroAllocGeneratedAccessibility value
+
+**Message:** `MSBuild property 'ZeroAllocGeneratedAccessibility' has invalid value '{0}'; allowed values are 'Public' and 'Internal'`
+
+`ZeroAllocGeneratedAccessibility` is an MSBuild property (see [Making the Generated Registration Internal](service-registration.md#making-the-generated-registration-internal)) that controls the accessibility of every generated entry point. Only `Public` and `Internal` are accepted (compared case-insensitively); an unset or empty value is treated as `Public`. Any other value is rejected — the generator never silently ignores it — and falls back to `Public` so the build still produces valid, working code while the diagnostic flags the mistake.
+
+**Triggers ZAI020:**
+
+```xml
+<PropertyGroup>
+  <ZeroAllocGeneratedAccessibility>Protected</ZeroAllocGeneratedAccessibility>
+  <!-- ZAI020: 'Protected' is not 'Public' or 'Internal' -->
+</PropertyGroup>
+```
+
+**Fix:**
+
+```xml
+<PropertyGroup>
+  <ZeroAllocGeneratedAccessibility>Internal</ZeroAllocGeneratedAccessibility>
+</PropertyGroup>
 ```
