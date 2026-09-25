@@ -332,6 +332,35 @@ This attribute is useful when:
 
 > There must be at most one `[assembly: ZeroAllocInject(...)]` attribute per assembly. Applying it multiple times produces a compile error.
 
+## Making the Generated Registration Internal
+
+By default every entry point the generator emits — the MS DI extension class and method (`AddMyAppServices()`), and, when `ZeroAlloc.Inject.Container` is referenced, the hybrid container's `BuildZeroAllocInjectServiceProvider()` extension and `ZeroAllocInjectServiceProviderFactory` — is `public`. That is the right default for an application, but it is usually wrong for a **library**: it adds an unintended public entry point that registers the library's internal services, which `PublicApiAnalyzers`-style tooling flags and which consumers should never call directly.
+
+Set the `ZeroAllocGeneratedAccessibility` MSBuild property to make the generator emit `internal` instead:
+
+```xml
+<PropertyGroup>
+  <ZeroAllocGeneratedAccessibility>Internal</ZeroAllocGeneratedAccessibility>
+</PropertyGroup>
+```
+
+```csharp
+// Library: only AddJevClient() is public. The generated registration method
+// becomes an internal implementation detail called from inside the library.
+public static IServiceCollection AddJevClient(this IServiceCollection services)
+{
+    services.AddJevNetExtensionsDependencyInjectionServices(); // internal — not part of your public API
+    return services;
+}
+```
+
+- Allowed values are `Public` (the default when the property is unset or empty) and `Internal`, compared case-insensitively. Any other value is rejected with a **ZAI020** diagnostic naming the property, the offending value, and the allowed values — see [Diagnostics](diagnostics.md#zai020--invalid-zeroallocgeneratedaccessibility-value).
+- It applies to **every** generated entry point in the project, across all three [container modes](container-modes.md): the MS DI extension method, and the hybrid container's `BuildZeroAllocInjectServiceProvider()` extension and `ZeroAllocInjectServiceProviderFactory`. (The standalone and hybrid resolver classes generated in the `ZeroAlloc.Inject.Generated` namespace are already `internal` regardless of this setting.)
+- It is the **same property name** across every ZeroAlloc source-generator package — setting it once in a project's `.csproj` (or in a shared `Directory.Build.props`) covers all of them.
+- With the property unset or `Public`, generated output is unchanged from previous versions.
+
+> **Note:** `ZeroAllocInjectServiceProviderFactory`'s `CreateBuilder` and `CreateServiceProvider` members implement `IServiceProviderFactory<IServiceCollection>` and stay `public` even when the factory class itself is `internal` — implicit interface implementation requires it. This does not make them callable from outside the assembly; the containing type's accessibility still governs who can reach them.
+
 ## Real-World Patterns
 
 ### Repository Pattern

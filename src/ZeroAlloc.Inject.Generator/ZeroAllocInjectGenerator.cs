@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace ZeroAlloc.Inject.Generator
 {
@@ -77,6 +78,9 @@ namespace ZeroAlloc.Inject.Generator
             var assemblyName = context.CompilationProvider.Select(
                 static (compilation, _) => compilation.AssemblyName ?? "Assembly");
 
+            var accessibilityOption = context.AnalyzerConfigOptionsProvider.Select(
+                static (provider, _) => ResolveGeneratedAccessibility(provider));
+
             var hasContainer = context.CompilationProvider.Select(
                 static (compilation, _) =>
                 {
@@ -126,18 +130,28 @@ namespace ZeroAlloc.Inject.Generator
                 .Combine(assemblyName)
                 .Combine(hasContainer)
                 .Combine(allDecorators)
-                .Combine(closedGenericUsages);
+                .Combine(closedGenericUsages)
+                .Combine(accessibilityOption);
 
             context.RegisterSourceOutput(combined, static (spc, data) =>
             {
-                var closedGenericFactories = data.Right;  // NEW
-                var transientInfos = data.Left.Left.Left.Left.Left.Left.Left;
-                var scopedInfos    = data.Left.Left.Left.Left.Left.Left.Right;
-                var singletonInfos = data.Left.Left.Left.Left.Left.Right;
-                var methodNameOverrides = data.Left.Left.Left.Left.Right;
-                var asmName        = data.Left.Left.Left.Right;
-                var containerReferenced = data.Left.Left.Right;
-                var decoratorInfos = data.Left.Right;
+                var accessibility = data.Right;
+                var closedGenericFactories = data.Left.Right;  // NEW
+                var transientInfos = data.Left.Left.Left.Left.Left.Left.Left.Left;
+                var scopedInfos    = data.Left.Left.Left.Left.Left.Left.Left.Right;
+                var singletonInfos = data.Left.Left.Left.Left.Left.Left.Right;
+                var methodNameOverrides = data.Left.Left.Left.Left.Left.Right;
+                var asmName        = data.Left.Left.Left.Left.Right;
+                var containerReferenced = data.Left.Left.Left.Right;
+                var decoratorInfos = data.Left.Left.Right;
+
+                if (accessibility.InvalidValue != null)
+                {
+                    spc.ReportDiagnostic(Diagnostic.Create(
+                        DiagnosticDescriptors.InvalidGeneratedAccessibility,
+                        Location.None,
+                        accessibility.InvalidValue));
+                }
 
                 var allServices = new List<ServiceRegistrationInfo>();
                 AddNonNull(allServices, transientInfos);
@@ -342,18 +356,42 @@ namespace ZeroAlloc.Inject.Generator
                     methodNameOverride = methodNameOverrides[0];
                 }
 
-                var source = GenerateExtensionClass(allServices, asmName, methodNameOverride, decoratorsByInterface);
+                var source = GenerateExtensionClass(allServices, asmName, methodNameOverride, decoratorsByInterface, accessibility.Keyword);
                 spc.AddSource("ZeroAlloc.Inject.ServiceCollectionExtensions.g.cs", source);
 
                 if (containerReferenced)
                 {
-                    var providerSource = GenerateServiceProviderClass(allServices, asmName, decoratorsByInterface);
+                    var providerSource = GenerateServiceProviderClass(allServices, asmName, decoratorsByInterface, accessibility.Keyword);
                     spc.AddSource("ZeroAlloc.Inject.ServiceProvider.g.cs", providerSource);
 
                     var standaloneCode = GenerateStandaloneServiceProviderClass(allServices, asmName, decoratorsByInterface, closedGenericFactories);
                     spc.AddSource(asmName + ".StandaloneServiceProvider.g.cs", standaloneCode);
                 }
             });
+        }
+
+        /// <summary>
+        /// Resolves the org-wide "ZeroAllocGeneratedAccessibility" MSBuild property into the C#
+        /// accessibility keyword the generator should emit for every public entry point it produces
+        /// (the MS DI extension method, and the hybrid container's extension method/factory).
+        /// </summary>
+        private static GeneratedAccessibilityOption ResolveGeneratedAccessibility(AnalyzerConfigOptionsProvider provider)
+        {
+            var hasValue = provider.GlobalOptions.TryGetValue(
+                "build_property.ZeroAllocGeneratedAccessibility", out var raw);
+
+            if (!hasValue || string.IsNullOrEmpty(raw) || string.Equals(raw, "Public", StringComparison.OrdinalIgnoreCase))
+            {
+                return new GeneratedAccessibilityOption("public", null);
+            }
+
+            if (string.Equals(raw, "Internal", StringComparison.OrdinalIgnoreCase))
+            {
+                return new GeneratedAccessibilityOption("internal", null);
+            }
+
+            // Invalid value: fall back to the safe default (Public) and let the caller report ZAI020.
+            return new GeneratedAccessibilityOption("public", raw);
         }
 
         private static void AddNonNull(List<ServiceRegistrationInfo> list, ImmutableArray<ServiceRegistrationInfo?> items)
@@ -693,7 +731,8 @@ namespace ZeroAlloc.Inject.Generator
             List<ServiceRegistrationInfo> services,
             string assemblyName,
             string? methodNameOverride,
-            System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<DecoratorRegistrationInfo>> decoratorsByInterface)
+            System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<DecoratorRegistrationInfo>> decoratorsByInterface,
+            string accessibilityKeyword)
         {
             string methodName;
             if (methodNameOverride != null)
@@ -753,9 +792,9 @@ namespace ZeroAlloc.Inject.Generator
             sb.AppendLine();
             sb.AppendLine("namespace Microsoft.Extensions.DependencyInjection");
             sb.AppendLine("{");
-            sb.AppendLine("    public static class " + className);
+            sb.AppendLine("    " + accessibilityKeyword + " static class " + className);
             sb.AppendLine("    {");
-            sb.AppendLine("        public static IServiceCollection " + methodName + "(this IServiceCollection services)");
+            sb.AppendLine("        " + accessibilityKeyword + " static IServiceCollection " + methodName + "(this IServiceCollection services)");
             sb.AppendLine("        {");
 
             foreach (var svc in services)
@@ -1068,7 +1107,8 @@ namespace ZeroAlloc.Inject.Generator
         private static string GenerateServiceProviderClass(
             List<ServiceRegistrationInfo> services,
             string assemblyName,
-            System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<DecoratorRegistrationInfo>> decoratorsByInterface)
+            System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<DecoratorRegistrationInfo>> decoratorsByInterface,
+            string accessibilityKeyword)
         {
             // Clean assembly name for class naming
             var cleanName = new StringBuilder();
@@ -1772,9 +1812,9 @@ namespace ZeroAlloc.Inject.Generator
             sb.AppendLine("{");
 
             // BuildZeroAllocInjectServiceProvider extension method
-            sb.AppendLine("    public static class ZeroAllocInjectServiceCollectionExtensions");
+            sb.AppendLine("    " + accessibilityKeyword + " static class ZeroAllocInjectServiceCollectionExtensions");
             sb.AppendLine("    {");
-            sb.AppendLine("        public static IServiceProvider BuildZeroAllocInjectServiceProvider(this IServiceCollection services)");
+            sb.AppendLine("        " + accessibilityKeyword + " static IServiceProvider BuildZeroAllocInjectServiceProvider(this IServiceCollection services)");
             sb.AppendLine("        {");
             sb.AppendLine("            // Snapshot the collection so subsequent mutations don't leak into the lazily-built fallback.");
             sb.AppendLine("            IServiceCollection snapshot = new ServiceCollection();");
@@ -1785,7 +1825,9 @@ namespace ZeroAlloc.Inject.Generator
             sb.AppendLine();
 
             // ZeroAllocInjectServiceProviderFactory
-            sb.AppendLine("    public sealed class ZeroAllocInjectServiceProviderFactory : IServiceProviderFactory<IServiceCollection>");
+            // Note: the interface members below stay `public` regardless of accessibilityKeyword — implicit
+            // interface implementation requires a public member even when the containing type is internal.
+            sb.AppendLine("    " + accessibilityKeyword + " sealed class ZeroAllocInjectServiceProviderFactory : IServiceProviderFactory<IServiceCollection>");
             sb.AppendLine("    {");
             sb.AppendLine("        public IServiceCollection CreateBuilder(IServiceCollection services) => services;");
             sb.AppendLine();
