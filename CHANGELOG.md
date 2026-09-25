@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.7.6...v1.8.0) (2026-09-25)
+
+
+### Features
+
+* let library authors make generated DI registration internal ([#158](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/158)) ([7fd5912](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/7fd5912adcf17e7c9afa8002da9a92f2df0fe724)), closes [#156](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/156)
+
 ## [1.7.6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.7.5...v1.7.6) (2026-09-20)
 
 
