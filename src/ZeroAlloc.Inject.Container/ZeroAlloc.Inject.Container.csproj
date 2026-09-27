@@ -17,13 +17,30 @@
     <PackageReference Include="ZeroAlloc.Collections" Version="1.1.5" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="$(MSBuildThisFileDirectory)..\ZeroAlloc.Inject.Generator\bin\$(Configuration)\netstandard2.0\ZeroAlloc.Inject.Generator.dll"
-          Pack="true"
-          PackagePath="analyzers/dotnet/cs"
-          Visible="false" />
     <None Include="build/ZeroAlloc.Inject.Container.props"
           Pack="true"
           PackagePath="build/ZeroAlloc.Inject.Container.props"
           Visible="false" />
   </ItemGroup>
+
+  <!--
+    Bundle the generator DLL the build actually produced. Asking the generator project for its
+    target path, instead of hardcoding bin\$(Configuration)\netstandard2.0, follows any output
+    redirection such as artifacts-path. The hardcoded path silently bundled whatever stale DLL
+    sat in the repository's bin folder, at whatever version that DLL had been built with.
+    See ZeroAlloc-Net/.github#36.
+  -->
+  <Target Name="IncludeGeneratorInPackage" BeforeTargets="_GetPackageFiles">
+    <MSBuild Projects="..\ZeroAlloc.Inject.Generator\ZeroAlloc.Inject.Generator.csproj"
+             Targets="GetTargetPath"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained">
+      <Output TaskParameter="TargetOutputs" ItemName="_ZeroAllocInjectGeneratorAssembly" />
+    </MSBuild>
+    <ItemGroup>
+      <None Include="@(_ZeroAllocInjectGeneratorAssembly)"
+            Pack="true"
+            PackagePath="analyzers/dotnet/cs"
+            Visible="false" />
+    </ItemGroup>
+  </Target>
 </Project>
