@@ -17,6 +17,11 @@ namespace ZeroAlloc.Inject.Generator
         public string? WhenRegisteredFqn { get; } // null = unconditional
         public bool IsDecoratorOf { get; } // true = [DecoratorOf], false = [Decorator]
 
+        // Where diagnostics about this decorator are reported: the class identifier, and the
+        // [Decorator] or [DecoratorOf] attribute.
+        public LocationInfo? Location { get; }
+        public LocationInfo? AttributeLocation { get; }
+
         public DecoratorRegistrationInfo(
             string typeName,
             string decoratorFqn,
@@ -27,7 +32,9 @@ namespace ZeroAlloc.Inject.Generator
             bool isAbstractOrStatic,
             int order,
             string? whenRegisteredFqn,
-            bool isDecoratorOf)
+            bool isDecoratorOf,
+            LocationInfo? location = null,
+            LocationInfo? attributeLocation = null)
         {
             TypeName = typeName;
             DecoratorFqn = decoratorFqn;
@@ -39,19 +46,40 @@ namespace ZeroAlloc.Inject.Generator
             Order = order;
             WhenRegisteredFqn = whenRegisteredFqn;
             IsDecoratorOf = isDecoratorOf;
+            Location = location;
+            AttributeLocation = attributeLocation;
         }
 
         public bool Equals(DecoratorRegistrationInfo? other)
         {
             if (other is null) return false;
-            return DecoratorFqn == other.DecoratorFqn
-                && DecoratedInterfaceFqn == other.DecoratedInterfaceFqn
-                && IsOpenGeneric == other.IsOpenGeneric
-                && IsAbstractOrStatic == other.IsAbstractOrStatic
-                && ConstructorParameters.Count == other.ConstructorParameters.Count
-                && Order == other.Order
-                && WhenRegisteredFqn == other.WhenRegisteredFqn
-                && IsDecoratorOf == other.IsDecoratorOf;
+            if (TypeName != other.TypeName
+                || DecoratorFqn != other.DecoratorFqn
+                || DecoratedInterfaceFqn != other.DecoratedInterfaceFqn
+                || IsOpenGeneric != other.IsOpenGeneric
+                || ImplementsDisposable != other.ImplementsDisposable
+                || IsAbstractOrStatic != other.IsAbstractOrStatic
+                || Order != other.Order
+                || WhenRegisteredFqn != other.WhenRegisteredFqn
+                || IsDecoratorOf != other.IsDecoratorOf
+                || !Equals(Location, other.Location)
+                || !Equals(AttributeLocation, other.AttributeLocation)
+                || ConstructorParameters.Count != other.ConstructorParameters.Count)
+            {
+                return false;
+            }
+
+            // Each parameter is emitted into the decorator's factory, so a changed parameter type
+            // must change the model.
+            for (int i = 0; i < ConstructorParameters.Count; i++)
+            {
+                if (!ConstructorParameters[i].Equals(other.ConstructorParameters[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         public override bool Equals(object? obj) => Equals(obj as DecoratorRegistrationInfo);
