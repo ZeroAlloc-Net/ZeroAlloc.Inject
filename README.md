@@ -84,7 +84,7 @@ Full methodology, all scenarios, and analysis: [docs/performance.md](https://git
 - **Decorators** — `[Decorator]` / `[DecoratorOf]` with ordering, conditional application (`WhenRegistered`), and optional dependencies
 - **Keyed services** — `Key = "redis"` on any lifetime attribute (.NET 8+)
 - **Open generics** — single attribute covers all closed forms; standalone mode enumerates closed usages at compile time
-- **Compile-time diagnostics** — ZAI001–ZAI018 reported as build errors/warnings, including circular dependency detection
+- **Compile-time diagnostics** — ZAI001–ZAI020 reported as build errors/warnings, including circular dependency detection
 - **`TryAdd` by default** — prevents duplicate registrations; opt in to `AllowMultiple = true` for `IHostedService` scenarios
 - **Multi-assembly** — each assembly generates its own extension method; call them in sequence at the composition root
 
@@ -98,7 +98,7 @@ Full methodology, all scenarios, and analysis: [docs/performance.md](https://git
 | [Decorators](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/decorators.md) | `[Decorator]`, `[DecoratorOf]`, ordering, conditional decorators |
 | [Native AOT](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/native-aot.md) | Trimmer safety, publishing, ASP.NET Core AOT setup |
 | [Advanced Patterns](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/advanced.md) | Multi-assembly, constructor disambiguation, collection injection |
-| [Compiler Diagnostics](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/diagnostics.md) | ZAI001–ZAI018 reference with triggers and fixes |
+| [Compiler Diagnostics](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/diagnostics.md) | ZAI001–ZAI020 reference with triggers and fixes |
 | [Performance](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/performance.md) | Full benchmark tables and analysis |
 | [Testing](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/testing.md) | Unit testing without the container, integration test setup per mode |
 

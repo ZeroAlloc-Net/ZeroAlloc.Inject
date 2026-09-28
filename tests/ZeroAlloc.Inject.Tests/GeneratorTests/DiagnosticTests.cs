@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Immutable;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 
 namespace ZeroAlloc.Inject.Tests.GeneratorTests;
@@ -430,5 +432,262 @@ public class DiagnosticTests
 
         var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
         Assert.DoesNotContain(diagnostics, static d => string.Equals(d.Id, "ZAI018", StringComparison.Ordinal));
+    }
+
+    // Asserts that exactly one diagnostic with the given ID was reported and returns it.
+    private static Diagnostic ExactlyOne(ImmutableArray<Diagnostic> diagnostics, string id)
+    {
+        Assert.Equal(1, diagnostics.AsEnumerable().Count(d => string.Equals(d.Id, id, StringComparison.Ordinal)));
+        return diagnostics.First(d => string.Equals(d.Id, id, StringComparison.Ordinal));
+    }
+
+    // ZAI001: multiple lifetime attributes
+
+    [Fact]
+    public void ZAI001_TwoLifetimeAttributes_ReportsErrorOnceAndSkipsRegistration()
+    {
+        var source = """
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            public interface IOrderService { }
+            [Transient]
+            [Singleton]
+            public class OrderService : IOrderService { }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        var zai001 = ExactlyOne(diagnostics, "ZAI001");
+        Assert.Equal(DiagnosticSeverity.Error, zai001.Severity);
+        Assert.Contains("OrderService", zai001.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("global::TestApp.OrderService", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ZAI001_ThreeLifetimeAttributes_ReportsErrorOnce()
+    {
+        var source = """
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            public interface IOrderService { }
+            [Transient, Scoped, Singleton]
+            public class OrderService : IOrderService { }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        ExactlyOne(diagnostics, "ZAI001");
+    }
+
+    [Fact]
+    public void ZAI001_SingleLifetimeAttributePerClass_NoDiagnostic()
+    {
+        var source = """
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            public interface IOrderService { }
+            [Transient]
+            public class OrderService : IOrderService { }
+            [Singleton]
+            public class OtherOrderService : IOrderService { }
+            [Scoped]
+            public partial class PartialService : IOrderService { }
+            public partial class PartialService { }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.DoesNotContain(diagnostics, static d => string.Equals(d.Id, "ZAI001", StringComparison.Ordinal));
+    }
+
+    // ZAI003: lifetime attribute on an abstract or static class
+
+    [Fact]
+    public void ZAI003_AbstractClass_ReportsError()
+    {
+        var source = """
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            public interface INotificationService { }
+            [Singleton]
+            public abstract class NotificationBase : INotificationService { }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        var zai003 = ExactlyOne(diagnostics, "ZAI003");
+        Assert.Equal(DiagnosticSeverity.Error, zai003.Severity);
+        Assert.Contains("NotificationBase", zai003.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("NotificationBase", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ZAI003_StaticClass_ReportsErrorAndNoOtherServiceDiagnostics()
+    {
+        var source = """
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            [Transient]
+            public static class Helpers { }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        ExactlyOne(diagnostics, "ZAI003");
+        // A static class has no constructor and no interfaces; ZAI003 is the only thing to fix.
+        Assert.DoesNotContain(diagnostics, static d => string.Equals(d.Id, "ZAI006", StringComparison.Ordinal));
+        Assert.DoesNotContain(diagnostics, static d => string.Equals(d.Id, "ZAI007", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ZAI003_ConcreteClassDerivedFromAbstractBase_NoDiagnostic()
+    {
+        var source = """
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            public interface INotificationService { }
+            public abstract class NotificationBase : INotificationService { }
+            [Singleton]
+            public sealed class EmailNotificationService : NotificationBase { }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.DoesNotContain(diagnostics, static d => string.Equals(d.Id, "ZAI003", StringComparison.Ordinal));
+        Assert.Contains("EmailNotificationService", output, StringComparison.Ordinal);
+    }
+
+    // ZAI004: As type not implemented
+
+    [Fact]
+    public void ZAI004_AsInterfaceNotImplemented_ReportsError()
+    {
+        var source = """
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            public interface IPaymentGateway { }
+            public interface IEmailSender { }
+            [Transient(As = typeof(IPaymentGateway))]
+            public class StripeClient : IEmailSender { }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        var zai004 = ExactlyOne(diagnostics, "ZAI004");
+        Assert.Equal(DiagnosticSeverity.Error, zai004.Severity);
+        Assert.Contains("StripeClient", zai004.GetMessage(), StringComparison.Ordinal);
+        Assert.Contains("IPaymentGateway", zai004.GetMessage(), StringComparison.Ordinal);
+        Assert.DoesNotContain("StripeClient", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ZAI004_OpenGenericAsNotImplemented_ReportsError()
+    {
+        var source = """
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            public interface IReadRepo<T> { }
+            public interface IWriteRepo<T> { }
+            [Scoped(As = typeof(IReadRepo<>))]
+            public class Repo<T> : IWriteRepo<T> { }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        ExactlyOne(diagnostics, "ZAI004");
+    }
+
+    [Fact]
+    public void ZAI004_AsTypeImplementedOrInherited_NoDiagnostic()
+    {
+        var source = """
+            using System;
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            public interface IFoo { }
+            public interface IBar : IFoo { }
+            public interface IReadRepo<T> { }
+            public interface IHandler<T> { }
+            public abstract class ServiceBase { }
+
+            [Transient(As = typeof(IFoo))]
+            public class Direct : IFoo, IDisposable { public void Dispose() { } }
+
+            [Transient(As = typeof(IFoo))]
+            public class ViaDerivedInterface : IBar { }
+
+            [Transient(As = typeof(IFoo))]
+            public class ViaBaseClass : Direct { }
+
+            [Transient(As = typeof(ServiceBase))]
+            public class DerivedFromBase : ServiceBase { }
+
+            [Transient(As = typeof(SelfRegistered))]
+            public class SelfRegistered { }
+
+            [Transient(As = typeof(IDisposable))]
+            public class FilteredSystemInterface : IDisposable { public void Dispose() { } }
+
+            [Scoped(As = typeof(IReadRepo<>))]
+            public class Repo<T> : IReadRepo<T> { }
+
+            [Transient(As = typeof(IHandler<string>))]
+            public class StringHandler : IHandler<string> { }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.DoesNotContain(diagnostics, static d => string.Equals(d.Id, "ZAI004", StringComparison.Ordinal));
+    }
+
+    // ZAI008: Microsoft.Extensions.DependencyInjection.Abstractions not referenced
+
+    [Fact]
+    public void ZAI008_NoDependencyInjectionAbstractions_ReportsWarningOnce()
+    {
+        var source = """
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            public interface IMyService { }
+            public interface IOtherService { }
+            [Transient]
+            public class MyService : IMyService { }
+            [Singleton]
+            public class OtherService : IOtherService { }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGeneratorWithoutDependencyInjection(source);
+
+        var zai008 = ExactlyOne(diagnostics, "ZAI008");
+        Assert.Equal(DiagnosticSeverity.Warning, zai008.Severity);
+    }
+
+    [Fact]
+    public void ZAI008_NoServices_NoDiagnostic()
+    {
+        var source = """
+            namespace TestApp;
+            public class NotAService { }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGeneratorWithoutDependencyInjection(source);
+
+        Assert.DoesNotContain(diagnostics, static d => string.Equals(d.Id, "ZAI008", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ZAI008_DependencyInjectionAbstractionsReferenced_NoDiagnostic()
+    {
+        var source = """
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            public interface IMyService { }
+            [Transient]
+            public class MyService : IMyService { }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.DoesNotContain(diagnostics, static d => string.Equals(d.Id, "ZAI008", StringComparison.Ordinal));
     }
 }

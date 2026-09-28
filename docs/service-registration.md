@@ -177,7 +177,7 @@ public class ProductRepository : IReadRepository<Product>, IWriteRepository<Prod
 }
 ```
 
-The generator validates that the `As` type is actually implemented by the class. If not, you get a **ZAI004** compile error, so mistakes are caught before runtime.
+The generator validates that the `As` type is the class itself, one of its base classes, or one of its interfaces. If not, you get a **ZAI004** compile error, so mistakes are caught before runtime.
 
 > **Important:** When `As` is set, the generator registers **only** the named type. The concrete type is **not** additionally registered. In the example above, only `IReadRepository<Product>` is registered — `ProductRepository` itself is not:
 >
@@ -237,11 +237,7 @@ public class ReportService
 }
 ```
 
-> **Requirement:** `Key` requires .NET 8 or later. If you use `Key` on a project targeting .NET 7 or earlier, the generator emits a **ZAI005** compile error:
->
-> ```
-> ZAI005  error  'Key' is not supported on .NET 7 targets. Keyed services require .NET 8+.
-> ```
+> **Requirement:** `Key` uses the keyed-service APIs of `Microsoft.Extensions.DependencyInjection.Abstractions` 8.0 or later. `ZeroAlloc.Inject` itself targets .NET 8 and later, so this only matters if a project pins an older version of that package; the generated `AddKeyed*` calls then fail to compile.
 
 ## Allowing Multiple Registrations
 
