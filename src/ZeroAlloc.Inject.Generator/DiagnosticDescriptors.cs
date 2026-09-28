@@ -2,20 +2,14 @@ using Microsoft.CodeAnalysis;
 
 namespace ZeroAlloc.Inject.Generator
 {
+    // ZAI002 and ZAI005 are retired, see AnalyzerReleases.Unshipped.md and docs/diagnostics.md.
+    // Their IDs must not be reused.
     internal static class DiagnosticDescriptors
     {
         public static readonly DiagnosticDescriptor MultipleLifetimeAttributes = new DiagnosticDescriptor(
             "ZAI001",
             "Multiple lifetime attributes",
             "Class '{0}' has multiple lifetime attributes; only one of [Transient], [Scoped], or [Singleton] is allowed",
-            "ZeroAlloc.Inject",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-        public static readonly DiagnosticDescriptor AttributeOnNonClass = new DiagnosticDescriptor(
-            "ZAI002",
-            "Attribute on non-class type",
-            "'{0}' is not a class; service attributes can only be applied to classes",
             "ZeroAlloc.Inject",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
@@ -32,14 +26,6 @@ namespace ZeroAlloc.Inject.Generator
             "ZAI004",
             "As type not implemented",
             "Class '{0}' does not implement '{1}' specified in the As property",
-            "ZeroAlloc.Inject",
-            DiagnosticSeverity.Error,
-            isEnabledByDefault: true);
-
-        public static readonly DiagnosticDescriptor KeyedServiceNotSupported = new DiagnosticDescriptor(
-            "ZAI005",
-            "Keyed services require .NET 8+",
-            "Class '{0}' uses Key property but the target framework does not support keyed services (requires .NET 8+)",
             "ZeroAlloc.Inject",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);

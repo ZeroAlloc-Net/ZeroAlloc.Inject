@@ -2,7 +2,7 @@
 id: diagnostics
 title: Compiler Diagnostics
 slug: /docs/diagnostics
-description: ZAI001–ZAI020 Roslyn analyzer rules with triggers, severities, and fix guidance.
+description: ZAI001–ZAI020 Roslyn analyzer rules with triggers, severities, and fix guidance; ZAI002 and ZAI005 are retired.
 sidebar_position: 7
 ---
 
@@ -10,18 +10,18 @@ sidebar_position: 7
 
 All diagnostics are emitted at compile time by the Roslyn source generator. Errors (❌) prevent the registration code from being generated. Warnings (⚠️) allow generation to continue but flag potential issues.
 
+ZAI002 and ZAI005 are retired and their IDs will not be reused; see [Retired Rules](#retired-rules).
+
 ## All Diagnostics
 
 | ID | Severity | Description | Cause | Fix |
 |----|----------|-------------|-------|-----|
 | ZAI001 | ❌ Error | Multiple lifetime attributes on same class | `[Transient]` and `[Singleton]` (or any two lifetime attributes) on the same class | Remove all but one lifetime attribute |
-| ZAI002 | ❌ Error | Attribute on non-class type | Applied to a `struct`, `interface`, or `record struct` | Only apply lifetime attributes to non-abstract, non-static classes |
 | ZAI003 | ❌ Error | Attribute on abstract or static class | Abstract or static classes cannot be instantiated | Use lifetime attributes on concrete classes only |
-| ZAI004 | ❌ Error | `As` type not implemented by the class | `As = typeof(IFoo)` but the class does not implement `IFoo` | Implement the interface or change the `As` type to one the class does implement |
-| ZAI005 | ❌ Error | `Key` requires .NET 8+ | The `Key` property is used but the target framework is below .NET 8 | Upgrade to .NET 8+ or remove the `Key` property |
+| ZAI004 | ❌ Error | `As` type not implemented by the class | `As = typeof(IFoo)` but `IFoo` is not the class, one of its base classes, or one of its interfaces | Implement the interface or change the `As` type to one the class does implement |
 | ZAI006 | ⚠️ Warning | No public constructor | The class has no public constructor; the generator cannot wire dependencies | Add a `public` constructor |
 | ZAI007 | ⚠️ Warning | No interfaces (concrete-only registration) | The class implements no non-system interfaces | Either implement an interface or accept concrete-only registration |
-| ZAI008 | ⚠️ Warning | Missing `Microsoft.Extensions.DependencyInjection.Abstractions` | The required package is not referenced | Add `<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />` |
+| ZAI008 | ⚠️ Warning | Missing `Microsoft.Extensions.DependencyInjection.Abstractions` | The project registers services but does not reference the package, so `IServiceCollection` is unavailable | Add `<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />` |
 | ZAI009 | ❌ Error | Multiple public constructors without `[ActivatorUtilitiesConstructor]` | Ambiguous constructor: the generator does not know which constructor to use | Mark the intended constructor with `[ActivatorUtilitiesConstructor]` |
 | ZAI010 | ❌ Error | Constructor parameter is a primitive or value type | `int`, `bool`, `string` (and other value types) cannot be injected via DI | Remove the primitive from the constructor and use the Options pattern instead |
 | ZAI011 | ❌ Error | Decorator has no matching interface parameter | A `[Decorator]`-annotated class constructor has no parameter of an interface type that the class also implements | Add a constructor parameter of the decorated interface type |
@@ -37,7 +37,7 @@ All diagnostics are emitted at compile time by the Roslyn source generator. Erro
 
 ## Per-Diagnostic Details
 
-### Registration Errors (ZAI001–ZAI005)
+### Registration Errors (ZAI001, ZAI003, ZAI004)
 
 #### ZAI001 — Multiple lifetime attributes
 
@@ -45,7 +45,7 @@ All diagnostics are emitted at compile time by the Roslyn source generator. Erro
 
 **Message:** `Class '{0}' has multiple lifetime attributes; only one of [Transient], [Scoped], or [Singleton] is allowed`
 
-A class must carry exactly one lifetime attribute. Combining two or more lifetime attributes is ambiguous and the generator refuses to produce registration code.
+A class must carry exactly one lifetime attribute. Combining two or more lifetime attributes is ambiguous, so the generator reports ZAI001 once for the class and generates no registration for it.
 
 **Triggers ZAI001:**
 
@@ -70,45 +70,13 @@ public class OrderService : IOrderService
 
 ---
 
-#### ZAI002 — Attribute on non-class type
-
-**Title:** Attribute on non-class type
-
-**Message:** `'{0}' is not a class; service attributes can only be applied to classes`
-
-Lifetime attributes (`[Transient]`, `[Scoped]`, `[Singleton]`) are only valid on reference-type classes. Applying them to a `struct`, `record struct`, or `interface` raises this error.
-
-**Triggers ZAI002:**
-
-```csharp
-[Transient]
-public struct PaymentRequest
-{
-    // ZAI002: struct cannot be registered
-}
-```
-
-**Fix:**
-
-```csharp
-// Either use a class:
-[Transient]
-public class PaymentRequest
-{
-}
-
-// Or, if a struct is required, remove the attribute and register manually.
-```
-
----
-
 #### ZAI003 — Attribute on abstract or static class
 
 **Title:** Attribute on abstract or static class
 
 **Message:** `Class '{0}' is abstract or static and cannot be registered as a service`
 
-The DI container must instantiate the registered type. Abstract and static classes cannot be instantiated, so the generator rejects them.
+The DI container must instantiate the registered type. Abstract and static classes cannot be instantiated, so the generator reports ZAI003 and generates no registration for the class. A concrete class that derives from an abstract base is fine: put the lifetime attribute on the concrete class.
 
 **Triggers ZAI003:**
 
@@ -138,7 +106,7 @@ public class EmailNotificationService : INotificationService
 
 **Message:** `Class '{0}' does not implement '{1}' specified in the As property`
 
-The `As` property on a lifetime attribute tells the generator to register the service under a specific interface. If the class does not actually implement that interface, the registration would be invalid.
+The `As` property on a lifetime attribute tells the generator to register the service under a specific type. That type must be the class itself, one of its base classes, or one of its interfaces; otherwise the registration would be invalid and the generator reports ZAI004 and generates no registration for the class. A generic `As` such as `typeof(IRepository<>)` is matched by its generic definition, so `Repository<T> : IRepository<T>` satisfies it.
 
 **Triggers ZAI004:**
 
@@ -157,39 +125,6 @@ public class StripeClient : IEmailSender
 public class StripeClient : IPaymentGateway
 {
     // Correct: StripeClient implements IPaymentGateway
-}
-```
-
----
-
-#### ZAI005 — `Key` requires .NET 8+
-
-**Title:** Keyed services require .NET 8+
-
-**Message:** `Class '{0}' uses Key property but the target framework does not support keyed services (requires .NET 8+)`
-
-Keyed service registration (`Key = "myKey"`) relies on `IKeyedServiceCollection<,>` which was introduced in `Microsoft.Extensions.DependencyInjection` 8.0. Using it on a project targeting an earlier framework raises this error.
-
-**Triggers ZAI005 (on a net7.0 target):**
-
-```csharp
-[Singleton(Key = "primary")]
-public class PrimaryCache : ICache
-{
-    // ZAI005: Key not supported below .NET 8
-}
-```
-
-**Fix:**
-
-```csharp
-// Option 1: upgrade to net8.0 or later in the .csproj
-// <TargetFramework>net8.0</TargetFramework>
-
-// Option 2: remove the Key property
-[Singleton]
-public class PrimaryCache : ICache
-{
 }
 ```
 
@@ -273,7 +208,7 @@ public class AuditLogger { }
 
 **Message:** `Microsoft.Extensions.DependencyInjection.Abstractions is not referenced and generated code will not compile`
 
-The generated registration code emits calls to `IServiceCollection` which lives in `Microsoft.Extensions.DependencyInjection.Abstractions`. Without a reference to this package the generated file will produce compilation errors.
+The generated registration code emits calls to `IServiceCollection` which lives in `Microsoft.Extensions.DependencyInjection.Abstractions`. The `ZeroAlloc.Inject` package does not depend on it, so a project that registers services must reference it, directly or through a package such as `Microsoft.Extensions.DependencyInjection` or `ZeroAlloc.Inject.Container`. Without it the generated file produces compilation errors; ZAI008 is reported once for the project to name the missing package.
 
 **Triggers ZAI008** — a service class annotated with `[Transient]` in a project that does not reference the abstractions package:
 
@@ -774,6 +709,15 @@ public class MyService : IMyService
   <ZeroAllocGeneratedAccessibility>Internal</ZeroAllocGeneratedAccessibility>
 </PropertyGroup>
 ```
+
+## Retired Rules
+
+These IDs were declared and documented but never reported. They are retired rather than implemented, and will not be reused for a different rule. An `.editorconfig` entry or `#pragma` that still names one is harmless.
+
+| ID | Title | Why it was retired |
+|----|-------|--------------------|
+| ZAI002 | Attribute on non-class type | Redundant. The lifetime attributes are declared with `[AttributeUsage(AttributeTargets.Class)]`, so the compiler already rejects them on a `struct`, `record struct`, `interface`, `enum` or delegate with error CS0592. |
+| ZAI005 | Keyed services require .NET 8+ | Unreachable as specified. `ZeroAlloc.Inject` targets `net8.0` and later only, so NuGet will not install it into a project below .NET 8. Keyed registrations need `Microsoft.Extensions.DependencyInjection.Abstractions` 8.0 or later, which is a package version, not a target framework; if an older version is referenced, the compiler reports the missing `AddKeyed*` methods. |
 
 ## Release tracking
 

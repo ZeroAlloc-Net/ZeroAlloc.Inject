@@ -28,6 +28,17 @@ namespace ZeroAlloc.Inject.Generator
         public bool ImplementsDisposable { get; }
         public string? ImplementationMetadataName { get; }
 
+        // ZAI003: the class is abstract or static; it is reported and never registered.
+        public bool IsAbstractOrStatic { get; }
+
+        // ZAI001: the class carries more than one of [Transient], [Scoped] and [Singleton].
+        public bool HasMultipleLifetimes { get; }
+
+        // ZAI004: display name of the As type when the class does not implement it, otherwise null.
+        public string? AsTypeNotImplemented { get; }
+
+        public bool IsRegistrable => !IsAbstractOrStatic && !HasMultipleLifetimes && AsTypeNotImplemented == null;
+
         public ServiceRegistrationInfo(
             string ns,
             string typeName,
@@ -49,7 +60,10 @@ namespace ZeroAlloc.Inject.Generator
             bool implementsDisposable,
             string? implementationMetadataName = null,
             List<PropertyInjectionInfo>? propertyInjections = null,
-            List<string>? nonSettableInjectProperties = null)
+            List<string>? nonSettableInjectProperties = null,
+            bool isAbstractOrStatic = false,
+            bool hasMultipleLifetimes = false,
+            string? asTypeNotImplemented = null)
         {
             Namespace = ns;
             TypeName = typeName;
@@ -72,6 +86,9 @@ namespace ZeroAlloc.Inject.Generator
             ImplementationMetadataName = implementationMetadataName;
             PropertyInjections = propertyInjections ?? new List<PropertyInjectionInfo>();
             NonSettableInjectProperties = nonSettableInjectProperties ?? new List<string>();
+            IsAbstractOrStatic = isAbstractOrStatic;
+            HasMultipleLifetimes = hasMultipleLifetimes;
+            AsTypeNotImplemented = asTypeNotImplemented;
         }
 
         public bool Equals(ServiceRegistrationInfo? other)
@@ -91,6 +108,9 @@ namespace ZeroAlloc.Inject.Generator
                 || OptionalNonNullableParamType != other.OptionalNonNullableParamType
                 || ImplementsDisposable != other.ImplementsDisposable
                 || ImplementationMetadataName != other.ImplementationMetadataName
+                || IsAbstractOrStatic != other.IsAbstractOrStatic
+                || HasMultipleLifetimes != other.HasMultipleLifetimes
+                || AsTypeNotImplemented != other.AsTypeNotImplemented
                 || ConstructorParameters.Count != other.ConstructorParameters.Count
                 || PropertyInjections.Count != other.PropertyInjections.Count
                 || NonSettableInjectProperties.Count != other.NonSettableInjectProperties.Count
@@ -118,6 +138,12 @@ namespace ZeroAlloc.Inject.Generator
             for (int i = 0; i < PropertyInjections.Count; i++)
             {
                 if (!PropertyInjections[i].Equals(other.PropertyInjections[i]))
+                    return false;
+            }
+
+            for (int i = 0; i < NonSettableInjectProperties.Count; i++)
+            {
+                if (NonSettableInjectProperties[i] != other.NonSettableInjectProperties[i])
                     return false;
             }
 

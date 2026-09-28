@@ -94,6 +94,13 @@ namespace ZeroAlloc.Inject.Generator
                     return false;
                 });
 
+            // ZAI008: every generated file uses IServiceCollection, so without the DI abstractions
+            // assembly the generated code cannot compile. GetTypesByMetadataName, unlike
+            // GetTypeByMetadataName, still finds the type when two references both define it.
+            var hasDependencyInjectionAbstractions = context.CompilationProvider.Select(
+                static (compilation, _) => !compilation.GetTypesByMetadataName(
+                    "Microsoft.Extensions.DependencyInjection.IServiceCollection").IsEmpty);
+
             var decorators = context.SyntaxProvider.ForAttributeWithMetadataName(
                 "ZeroAlloc.Inject.DecoratorAttribute",
                 predicate: static (node, _) => true,
@@ -131,10 +138,13 @@ namespace ZeroAlloc.Inject.Generator
                 .Combine(hasContainer)
                 .Combine(allDecorators)
                 .Combine(closedGenericUsages)
-                .Combine(accessibilityOption);
+                .Combine(accessibilityOption)
+                .Combine(hasDependencyInjectionAbstractions);
 
-            context.RegisterSourceOutput(combined, static (spc, data) =>
+            context.RegisterSourceOutput(combined, static (spc, all) =>
             {
+                var dependencyInjectionReferenced = all.Right;
+                var data = all.Left;
                 var accessibility = data.Right;
                 var closedGenericFactories = data.Left.Right;  // NEW
                 var transientInfos = data.Left.Left.Left.Left.Left.Left.Left.Left;
@@ -153,10 +163,13 @@ namespace ZeroAlloc.Inject.Generator
                         accessibility.InvalidValue));
                 }
 
+                // ZAI001, ZAI003 and ZAI004 are reported here, once per class, and the class is left
+                // out of every generated registration.
                 var allServices = new List<ServiceRegistrationInfo>();
-                AddNonNull(allServices, transientInfos);
-                AddNonNull(allServices, scopedInfos);
-                AddNonNull(allServices, singletonInfos);
+                var reportedClasses = new HashSet<string>(StringComparer.Ordinal);
+                AddRegistrable(spc, allServices, transientInfos, reportedClasses);
+                AddRegistrable(spc, allServices, scopedInfos, reportedClasses);
+                AddRegistrable(spc, allServices, singletonInfos, reportedClasses);
 
                 // Report diagnostics
                 foreach (var svc in allServices)
@@ -350,6 +363,13 @@ namespace ZeroAlloc.Inject.Generator
                     return;
                 }
 
+                if (!dependencyInjectionReferenced)
+                {
+                    spc.ReportDiagnostic(Diagnostic.Create(
+                        DiagnosticDescriptors.MissingDIAbstractions,
+                        Location.None));
+                }
+
                 string? methodNameOverride = null;
                 if (methodNameOverrides.Length > 0)
                 {
@@ -394,15 +414,113 @@ namespace ZeroAlloc.Inject.Generator
             return new GeneratedAccessibilityOption("public", raw);
         }
 
-        private static void AddNonNull(List<ServiceRegistrationInfo> list, ImmutableArray<ServiceRegistrationInfo?> items)
+        private static void AddRegistrable(
+            SourceProductionContext spc,
+            List<ServiceRegistrationInfo> list,
+            ImmutableArray<ServiceRegistrationInfo?> items,
+            HashSet<string> reportedClasses)
         {
             foreach (var item in items)
             {
-                if (item != null)
+                if (item == null)
+                {
+                    continue;
+                }
+
+                if (item.IsRegistrable)
                 {
                     list.Add(item);
+                    continue;
+                }
+
+                // A class with several lifetime attributes arrives once per attribute: report it once.
+                if (!reportedClasses.Add(item.FullyQualifiedName))
+                {
+                    continue;
+                }
+
+                if (item.IsAbstractOrStatic)
+                {
+                    spc.ReportDiagnostic(Diagnostic.Create(
+                        DiagnosticDescriptors.AttributeOnAbstractOrStatic,
+                        Location.None,
+                        item.TypeName));
+                }
+                else if (item.HasMultipleLifetimes)
+                {
+                    spc.ReportDiagnostic(Diagnostic.Create(
+                        DiagnosticDescriptors.MultipleLifetimeAttributes,
+                        Location.None,
+                        item.TypeName));
+                }
+                else
+                {
+                    spc.ReportDiagnostic(Diagnostic.Create(
+                        DiagnosticDescriptors.AsTypeNotImplemented,
+                        Location.None,
+                        item.TypeName,
+                        item.AsTypeNotImplemented));
                 }
             }
+        }
+
+        private static readonly HashSet<string> LifetimeAttributeNames = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "ZeroAlloc.Inject.TransientAttribute",
+            "ZeroAlloc.Inject.ScopedAttribute",
+            "ZeroAlloc.Inject.SingletonAttribute",
+        };
+
+        private static bool HasMultipleLifetimeAttributes(INamedTypeSymbol typeSymbol)
+        {
+            int count = 0;
+            foreach (var attr in typeSymbol.GetAttributes())
+            {
+                var name = attr.AttributeClass?.ToDisplayString();
+                if (name != null && LifetimeAttributeNames.Contains(name) && ++count > 1)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// ZAI004: whether the class can be registered as the As type: As is the class itself, one of
+        /// its base classes, or one of its interfaces. A generic As, such as typeof(IRepo&lt;&gt;), is
+        /// compared by its generic definition, the same way the generator emits it.
+        /// </summary>
+        private static bool ImplementsAsType(INamedTypeSymbol typeSymbol, INamedTypeSymbol asSymbol)
+        {
+            if (asSymbol.TypeKind == TypeKind.Error)
+            {
+                // The compiler already reports the unresolved type.
+                return true;
+            }
+
+            bool byDefinition = asSymbol.IsGenericType;
+            var target = byDefinition ? asSymbol.OriginalDefinition : asSymbol;
+
+            for (var current = typeSymbol; current != null; current = current.BaseType)
+            {
+                if (Matches(current, target, byDefinition))
+                {
+                    return true;
+                }
+            }
+
+            foreach (var iface in typeSymbol.AllInterfaces)
+            {
+                if (Matches(iface, target, byDefinition))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+
+            static bool Matches(INamedTypeSymbol candidate, INamedTypeSymbol target, bool byDefinition) =>
+                SymbolEqualityComparer.Default.Equals(byDefinition ? candidate.OriginalDefinition : candidate, target);
         }
 
         /// <summary>
@@ -435,11 +553,6 @@ namespace ZeroAlloc.Inject.Generator
                 return null;
             }
 
-            if (typeSymbol.IsAbstract || typeSymbol.IsStatic)
-            {
-                return null;
-            }
-
             var ns = typeSymbol.ContainingNamespace.IsGlobalNamespace
                 ? ""
                 : typeSymbol.ContainingNamespace.ToDisplayString();
@@ -451,8 +564,20 @@ namespace ZeroAlloc.Inject.Generator
             }
             var typeName = typeSymbol.Name;
 
+            if (typeSymbol.IsAbstract || typeSymbol.IsStatic)
+            {
+                // ZAI003: nothing else about the class matters, it can never be instantiated.
+                return new ServiceRegistrationInfo(
+                    ns, typeName, fullyQualifiedName, lifetime, new List<string>(), null, null, false,
+                    false, null, false, new List<ConstructorParameterInfo>(), false, null, null, null, null,
+                    false, isAbstractOrStatic: true);
+            }
+
+            bool hasMultipleLifetimes = HasMultipleLifetimeAttributes(typeSymbol);
+
             // Extract attribute properties
             string? asType = null;
+            string? asTypeNotImplemented = null;
             string? key = null;
             bool allowMultiple = false;
 
@@ -464,6 +589,10 @@ namespace ZeroAlloc.Inject.Generator
                     if (named.Key == "As" && named.Value.Value is INamedTypeSymbol asSymbol)
                     {
                         asType = asSymbol.ToDisplayString(FullyQualifiedFormat);
+                        if (!ImplementsAsType(typeSymbol, asSymbol))
+                        {
+                            asTypeNotImplemented = asSymbol.ToDisplayString();
+                        }
                         if (asSymbol.IsGenericType)
                         {
                             asType = ToUnboundGenericString(asType, asSymbol.TypeParameters.Length);
@@ -724,7 +853,9 @@ namespace ZeroAlloc.Inject.Generator
                 implementsDisposable,
                 implementationMetadataName,
                 propertyInjections: propertyInjections,
-                nonSettableInjectProperties: nonSettableInjectPropNames);
+                nonSettableInjectProperties: nonSettableInjectPropNames,
+                hasMultipleLifetimes: hasMultipleLifetimes,
+                asTypeNotImplemented: asTypeNotImplemented);
         }
 
         private static string GenerateExtensionClass(
@@ -3341,7 +3472,7 @@ namespace ZeroAlloc.Inject.Generator
             var openGenericMap = new Dictionary<string, ServiceRegistrationInfo>(StringComparer.Ordinal);
             foreach (var svc in transients.Concat(scopeds).Concat(singletons))
             {
-                if (svc == null || !svc.IsOpenGeneric || svc.ImplementationMetadataName == null) continue;
+                if (svc == null || !svc.IsRegistrable || !svc.IsOpenGeneric || svc.ImplementationMetadataName == null) continue;
                 var ifaces = svc.AsType != null ? new List<string> { svc.AsType } : svc.Interfaces;
                 foreach (var iface in ifaces)
                     if (!openGenericMap.ContainsKey(iface))
@@ -3357,7 +3488,7 @@ namespace ZeroAlloc.Inject.Generator
 
             foreach (var svc in transients.Concat(scopeds).Concat(singletons))
             {
-                if (svc == null) continue;
+                if (svc == null || !svc.IsRegistrable) continue;
                 foreach (var param in svc.ConstructorParameters)
                     if (param.UnboundGenericInterfaceFqn != null)
                         workQueue.Enqueue(param);

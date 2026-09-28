@@ -13,6 +13,15 @@ internal static class GeneratorTestHelper
         return RunGeneratorCore(source, includeContainer: false, globalOptions: null, assemblyName: "TestAssembly");
     }
 
+    /// <summary>
+    /// Runs the generator against a compilation that references no Microsoft.Extensions.DependencyInjection
+    /// assembly, as in a consumer project that references ZeroAlloc.Inject but not the DI abstractions package.
+    /// </summary>
+    public static (string output, ImmutableArray<Diagnostic> diagnostics) RunGeneratorWithoutDependencyInjection(string source)
+    {
+        return RunGeneratorCore(source, includeContainer: false, globalOptions: null, assemblyName: "TestAssembly", includeDependencyInjection: false);
+    }
+
     public static (string output, ImmutableArray<Diagnostic> diagnostics) RunGeneratorWithContainer(string source)
     {
         return RunGeneratorCore(source, includeContainer: true, globalOptions: null, assemblyName: "TestAssembly");
@@ -34,7 +43,8 @@ internal static class GeneratorTestHelper
     }
 
     private static (string output, ImmutableArray<Diagnostic> diagnostics) RunGeneratorCore(
-        string source, bool includeContainer, IReadOnlyDictionary<string, string>? globalOptions, string assemblyName)
+        string source, bool includeContainer, IReadOnlyDictionary<string, string>? globalOptions, string assemblyName,
+        bool includeDependencyInjection = true)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
 
@@ -43,6 +53,8 @@ internal static class GeneratorTestHelper
         var references = AppDomain.CurrentDomain.GetAssemblies()
             .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
             .Where(a => includeContainer || !string.Equals(a.GetName().Name, containerAssemblyName, StringComparison.Ordinal))
+            .Where(a => includeDependencyInjection
+                || !a.GetName().Name!.StartsWith("Microsoft.Extensions.DependencyInjection", StringComparison.Ordinal))
             .Select(a => MetadataReference.CreateFromFile(a.Location))
             .Cast<MetadataReference>()
             .ToList();
