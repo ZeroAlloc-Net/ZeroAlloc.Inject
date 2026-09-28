@@ -19,7 +19,7 @@ namespace ZeroAlloc.Inject.Generator
         public bool HasPublicConstructor { get; }
         public List<ConstructorParameterInfo> ConstructorParameters { get; }
         public List<PropertyInjectionInfo> PropertyInjections { get; }
-        public List<string> NonSettableInjectProperties { get; }
+        public List<NamedLocationInfo> NonSettableInjectProperties { get; }
         public bool HasMultipleConstructors { get; }
         public string? PrimitiveParameterName { get; }
         public string? PrimitiveParameterType { get; }
@@ -36,6 +36,14 @@ namespace ZeroAlloc.Inject.Generator
 
         // ZAI004: display name of the As type when the class does not implement it, otherwise null.
         public string? AsTypeNotImplemented { get; }
+
+        // Where each diagnostic about this class is reported. The class identifier; the lifetime
+        // attribute for ZAI001 and ZAI004, set only when one of them applies; and the offending
+        // constructor parameter for ZAI010 and ZAI015.
+        public LocationInfo? Location { get; }
+        public LocationInfo? AttributeLocation { get; }
+        public LocationInfo? PrimitiveParameterLocation { get; }
+        public LocationInfo? OptionalNonNullableParamLocation { get; }
 
         public bool IsRegistrable => !IsAbstractOrStatic && !HasMultipleLifetimes && AsTypeNotImplemented == null;
 
@@ -60,10 +68,14 @@ namespace ZeroAlloc.Inject.Generator
             bool implementsDisposable,
             string? implementationMetadataName = null,
             List<PropertyInjectionInfo>? propertyInjections = null,
-            List<string>? nonSettableInjectProperties = null,
+            List<NamedLocationInfo>? nonSettableInjectProperties = null,
             bool isAbstractOrStatic = false,
             bool hasMultipleLifetimes = false,
-            string? asTypeNotImplemented = null)
+            string? asTypeNotImplemented = null,
+            LocationInfo? location = null,
+            LocationInfo? attributeLocation = null,
+            LocationInfo? primitiveParameterLocation = null,
+            LocationInfo? optionalNonNullableParamLocation = null)
         {
             Namespace = ns;
             TypeName = typeName;
@@ -85,10 +97,14 @@ namespace ZeroAlloc.Inject.Generator
             ImplementsDisposable = implementsDisposable;
             ImplementationMetadataName = implementationMetadataName;
             PropertyInjections = propertyInjections ?? new List<PropertyInjectionInfo>();
-            NonSettableInjectProperties = nonSettableInjectProperties ?? new List<string>();
+            NonSettableInjectProperties = nonSettableInjectProperties ?? new List<NamedLocationInfo>();
             IsAbstractOrStatic = isAbstractOrStatic;
             HasMultipleLifetimes = hasMultipleLifetimes;
             AsTypeNotImplemented = asTypeNotImplemented;
+            Location = location;
+            AttributeLocation = attributeLocation;
+            PrimitiveParameterLocation = primitiveParameterLocation;
+            OptionalNonNullableParamLocation = optionalNonNullableParamLocation;
         }
 
         public bool Equals(ServiceRegistrationInfo? other)
@@ -111,6 +127,10 @@ namespace ZeroAlloc.Inject.Generator
                 || IsAbstractOrStatic != other.IsAbstractOrStatic
                 || HasMultipleLifetimes != other.HasMultipleLifetimes
                 || AsTypeNotImplemented != other.AsTypeNotImplemented
+                || !Equals(Location, other.Location)
+                || !Equals(AttributeLocation, other.AttributeLocation)
+                || !Equals(PrimitiveParameterLocation, other.PrimitiveParameterLocation)
+                || !Equals(OptionalNonNullableParamLocation, other.OptionalNonNullableParamLocation)
                 || ConstructorParameters.Count != other.ConstructorParameters.Count
                 || PropertyInjections.Count != other.PropertyInjections.Count
                 || NonSettableInjectProperties.Count != other.NonSettableInjectProperties.Count
@@ -143,7 +163,7 @@ namespace ZeroAlloc.Inject.Generator
 
             for (int i = 0; i < NonSettableInjectProperties.Count; i++)
             {
-                if (NonSettableInjectProperties[i] != other.NonSettableInjectProperties[i])
+                if (!NonSettableInjectProperties[i].Equals(other.NonSettableInjectProperties[i]))
                     return false;
             }
 

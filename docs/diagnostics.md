@@ -35,6 +35,18 @@ ZAI002 and ZAI005 are retired and their IDs will not be reused; see [Retired Rul
 | ZAI019 | ❌ Error | `[Inject]` on a non-settable property | The property has no public setter (or uses `init`); the generator cannot emit a property assignment | Add a `public` setter, or remove `[Inject]` |
 | ZAI020 | ❌ Error | Invalid `ZeroAllocGeneratedAccessibility` value | The MSBuild property `ZeroAllocGeneratedAccessibility` is set to a value other than `Public` or `Internal` (case-insensitive) | Set the property to `Public` or `Internal`, or remove it to use the default (`Public`) |
 
+## Where Diagnostics Are Reported
+
+Each diagnostic points at the source element it is about, so the IDE underlines it and a `#pragma warning disable ZAIxxx` around that class suppresses it for that class only.
+
+| Location | Rules |
+|----------|-------|
+| The lifetime or decorator attribute | ZAI001 (the second lifetime attribute), ZAI004, ZAI012, ZAI016, ZAI017 (the later of the two attributes; the other is an additional location) |
+| The class name | ZAI003, ZAI006, ZAI007, ZAI009, ZAI011, ZAI013, ZAI018, ZAI014 (the first class of the cycle; the others are additional locations) |
+| The constructor parameter | ZAI010, ZAI015 |
+| The property | ZAI019 |
+| No source location | ZAI008 is about the project's package references and ZAI020 about an MSBuild property. Suppress them with `NoWarn` or `.editorconfig`. |
+
 ## Per-Diagnostic Details
 
 ### Registration Errors (ZAI001, ZAI003, ZAI004)

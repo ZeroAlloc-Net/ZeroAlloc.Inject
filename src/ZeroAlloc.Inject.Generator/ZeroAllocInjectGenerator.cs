@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace ZeroAlloc.Inject.Generator
@@ -40,21 +41,24 @@ namespace ZeroAlloc.Inject.Generator
                 predicate: static (node, _) => true,
                 transform: static (ctx, ct) => GetServiceInfo(ctx, "Transient", ct))
                 .Where(static x => x != null)
-                .Collect();
+                .Collect()
+                .WithTrackingName(TrackingNames.Transients);
 
             var scopeds = context.SyntaxProvider.ForAttributeWithMetadataName(
                 "ZeroAlloc.Inject.ScopedAttribute",
                 predicate: static (node, _) => true,
                 transform: static (ctx, ct) => GetServiceInfo(ctx, "Scoped", ct))
                 .Where(static x => x != null)
-                .Collect();
+                .Collect()
+                .WithTrackingName(TrackingNames.Scopeds);
 
             var singletons = context.SyntaxProvider.ForAttributeWithMetadataName(
                 "ZeroAlloc.Inject.SingletonAttribute",
                 predicate: static (node, _) => true,
                 transform: static (ctx, ct) => GetServiceInfo(ctx, "Singleton", ct))
                 .Where(static x => x != null)
-                .Collect();
+                .Collect()
+                .WithTrackingName(TrackingNames.Singletons);
 
             var assemblyAttr = context.SyntaxProvider.ForAttributeWithMetadataName(
                 "ZeroAlloc.Inject.ZeroAllocInjectAttribute",
@@ -106,14 +110,16 @@ namespace ZeroAlloc.Inject.Generator
                 predicate: static (node, _) => true,
                 transform: static (ctx, ct) => GetDecoratorInfo(ctx, ct))
                 .Where(static x => x != null)
-                .Collect();
+                .Collect()
+                .WithTrackingName(TrackingNames.Decorators);
 
             var decoratorOfs = context.SyntaxProvider.ForAttributeWithMetadataName(
                 "ZeroAlloc.Inject.DecoratorOfAttribute",
                 predicate: static (node, _) => true,
                 transform: static (ctx, ct) => GetDecoratorOfInfo(ctx, ct))
                 .Where(static x => x != null)
-                .Collect();
+                .Collect()
+                .WithTrackingName(TrackingNames.DecoratorOfs);
 
             var allDecorators = decorators.Combine(decoratorOfs)
                 .Select(static (pair, _) =>
@@ -122,15 +128,21 @@ namespace ZeroAlloc.Inject.Generator
                     builder.AddRange(pair.Left);
                     builder.AddRange(pair.Right);
                     return builder.ToImmutable();
-                });
+                })
+                .WithComparer(SequenceComparer<DecoratorRegistrationInfo?>.Instance)
+                .WithTrackingName(TrackingNames.AllDecorators);
 
             var closedGenericUsages = transients
                 .Combine(scopeds)
                 .Combine(singletons)
                 .Combine(context.CompilationProvider)
-                .Select(static (data, ct) => FindClosedGenericUsages(data, ct));
+                .Select(static (data, ct) => FindClosedGenericUsages(data, ct))
+                // The step reruns on every compilation. Comparing the result by content, not by array
+                // reference, keeps everything downstream cached when the usages did not change.
+                .WithComparer(SequenceComparer<ClosedGenericFactoryInfo>.Instance)
+                .WithTrackingName(TrackingNames.ClosedGenericUsages);
 
-            var combined = transients
+            var inputs = transients
                 .Combine(scopeds)
                 .Combine(singletons)
                 .Combine(assemblyAttr)
@@ -139,255 +151,348 @@ namespace ZeroAlloc.Inject.Generator
                 .Combine(allDecorators)
                 .Combine(closedGenericUsages)
                 .Combine(accessibilityOption)
-                .Combine(hasDependencyInjectionAbstractions);
+                .Combine(hasDependencyInjectionAbstractions)
+                .Select(static (all, _) => new GeneratorInputs(
+                    transients: all.Left.Left.Left.Left.Left.Left.Left.Left.Left,
+                    scopeds: all.Left.Left.Left.Left.Left.Left.Left.Left.Right,
+                    singletons: all.Left.Left.Left.Left.Left.Left.Left.Right,
+                    methodNameOverrides: all.Left.Left.Left.Left.Left.Left.Right,
+                    assemblyName: all.Left.Left.Left.Left.Left.Right,
+                    containerReferenced: all.Left.Left.Left.Left.Right,
+                    decorators: all.Left.Left.Left.Right,
+                    closedGenericFactories: all.Left.Left.Right,
+                    accessibility: all.Left.Right,
+                    dependencyInjectionReferenced: all.Right))
+                .WithTrackingName(TrackingNames.Inputs);
 
-            context.RegisterSourceOutput(combined, static (spc, all) =>
+            context.RegisterSourceOutput(inputs, static (spc, input) => GenerateSources(spc, input));
+
+            // Diagnostics are computed from the cached models into value-equal DiagnosticInfo records.
+            // Only the last step touches the compilation: it binds each LocationInfo to its syntax tree,
+            // so the reported location is a source location that #pragma warning disable can suppress.
+            // On an edit that changes no diagnostic, both steps compare equal and the output stays cached.
+            var diagnostics = inputs
+                .Select(static (input, _) => CollectDiagnostics(input))
+                .WithComparer(SequenceComparer<DiagnosticInfo>.Instance)
+                .WithTrackingName(TrackingNames.Diagnostics);
+
+            var reportedDiagnostics = diagnostics
+                .Combine(context.CompilationProvider)
+                .Select(static (pair, _) => ToDiagnostics(pair.Left, pair.Right))
+                .WithComparer(new SequenceComparer<Diagnostic>(ReportedDiagnosticComparer.Instance))
+                .WithTrackingName(TrackingNames.ReportedDiagnostics);
+
+            context.RegisterSourceOutput(reportedDiagnostics, static (spc, reported) =>
             {
-                var dependencyInjectionReferenced = all.Right;
-                var data = all.Left;
-                var accessibility = data.Right;
-                var closedGenericFactories = data.Left.Right;  // NEW
-                var transientInfos = data.Left.Left.Left.Left.Left.Left.Left.Left;
-                var scopedInfos    = data.Left.Left.Left.Left.Left.Left.Left.Right;
-                var singletonInfos = data.Left.Left.Left.Left.Left.Left.Right;
-                var methodNameOverrides = data.Left.Left.Left.Left.Left.Right;
-                var asmName        = data.Left.Left.Left.Left.Right;
-                var containerReferenced = data.Left.Left.Left.Right;
-                var decoratorInfos = data.Left.Left.Right;
-
-                if (accessibility.InvalidValue != null)
+                foreach (var diagnostic in reported)
                 {
-                    spc.ReportDiagnostic(Diagnostic.Create(
-                        DiagnosticDescriptors.InvalidGeneratedAccessibility,
-                        Location.None,
-                        accessibility.InvalidValue));
-                }
-
-                // ZAI001, ZAI003 and ZAI004 are reported here, once per class, and the class is left
-                // out of every generated registration.
-                var allServices = new List<ServiceRegistrationInfo>();
-                var reportedClasses = new HashSet<string>(StringComparer.Ordinal);
-                AddRegistrable(spc, allServices, transientInfos, reportedClasses);
-                AddRegistrable(spc, allServices, scopedInfos, reportedClasses);
-                AddRegistrable(spc, allServices, singletonInfos, reportedClasses);
-
-                // Report diagnostics
-                foreach (var svc in allServices)
-                {
-                    if (!svc.HasPublicConstructor)
-                    {
-                        spc.ReportDiagnostic(Diagnostic.Create(
-                            DiagnosticDescriptors.NoPublicConstructor,
-                            Location.None,
-                            svc.TypeName));
-                    }
-
-                    if (svc.Interfaces.Count == 0 && svc.AsType == null)
-                    {
-                        spc.ReportDiagnostic(Diagnostic.Create(
-                            DiagnosticDescriptors.NoInterfaces,
-                            Location.None,
-                            svc.TypeName));
-                    }
-
-                    if (svc.HasMultipleConstructors)
-                    {
-                        spc.ReportDiagnostic(Diagnostic.Create(
-                            DiagnosticDescriptors.MultipleConstructorsNoAttribute,
-                            Location.None,
-                            svc.TypeName));
-                    }
-
-                    if (svc.PrimitiveParameterName != null)
-                    {
-                        spc.ReportDiagnostic(Diagnostic.Create(
-                            DiagnosticDescriptors.PrimitiveConstructorParameter,
-                            Location.None,
-                            svc.PrimitiveParameterName,
-                            svc.TypeName,
-                            svc.PrimitiveParameterType));
-                    }
-
-                    if (svc.OptionalNonNullableParamName != null)
-                    {
-                        spc.ReportDiagnostic(Diagnostic.Create(
-                            DiagnosticDescriptors.OptionalDependencyOnNonNullable,
-                            Location.None,
-                            svc.OptionalNonNullableParamName,
-                            svc.TypeName,
-                            svc.OptionalNonNullableParamType));
-                    }
-
-                    foreach (var propName in svc.NonSettableInjectProperties)
-                    {
-                        spc.ReportDiagnostic(Diagnostic.Create(
-                            DiagnosticDescriptors.InjectOnNonSettableProperty,
-                            Location.None,
-                            propName,
-                            svc.TypeName));
-                    }
-                }
-
-                if (allServices.Count == 0 && decoratorInfos.Length == 0)
-                {
-                    return;
-                }
-
-                // Build lookup of registered interface FQNs for ZI012 check
-                var registeredInterfaces = new System.Collections.Generic.HashSet<string>();
-                foreach (var svc in allServices)
-                {
-                    foreach (var iface in svc.Interfaces)
-                        registeredInterfaces.Add(iface);
-                    if (svc.AsType != null)
-                        registeredInterfaces.Add(svc.AsType);
-                }
-
-                var validDecorators = new System.Collections.Generic.List<DecoratorRegistrationInfo>();
-                foreach (var dec in decoratorInfos)
-                {
-                    if (dec == null) continue;
-                    if (dec.IsAbstractOrStatic)
-                    {
-                        spc.ReportDiagnostic(Diagnostic.Create(
-                            DiagnosticDescriptors.DecoratorOnAbstractOrStatic,
-                            Location.None, dec.TypeName));
-                        continue;
-                    }
-                    if (dec.DecoratedInterfaceFqn == null)
-                    {
-                        if (dec.IsDecoratorOf)
-                        {
-                            spc.ReportDiagnostic(Diagnostic.Create(
-                                DiagnosticDescriptors.DecoratorOfInterfaceNotImplemented,
-                                Location.None, dec.TypeName, dec.DecoratorFqn));
-                        }
-                        else
-                        {
-                            spc.ReportDiagnostic(Diagnostic.Create(
-                                DiagnosticDescriptors.DecoratorNoMatchingInterface,
-                                Location.None, dec.TypeName));
-                        }
-                        continue;
-                    }
-                    if (!registeredInterfaces.Contains(dec.DecoratedInterfaceFqn))
-                    {
-                        spc.ReportDiagnostic(Diagnostic.Create(
-                            DiagnosticDescriptors.DecoratorNoRegisteredInner,
-                            Location.None, dec.TypeName, dec.DecoratedInterfaceFqn));
-                        continue;
-                    }
-                    validDecorators.Add(dec);
-                }
-
-                // Build dictionary: decorated interface FQN → list of decorator infos
-                var decoratorsByInterface = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<DecoratorRegistrationInfo>>();
-                foreach (var dec in validDecorators)
-                {
-                    if (!decoratorsByInterface.TryGetValue(dec.DecoratedInterfaceFqn!, out var list))
-                    {
-                        list = new System.Collections.Generic.List<DecoratorRegistrationInfo>();
-                        decoratorsByInterface[dec.DecoratedInterfaceFqn!] = list;
-                    }
-                    list.Add(dec);
-                }
-
-                // Sort each decorator list by Order ascending, and check for ZI017 (duplicate Order)
-                foreach (var kvp in decoratorsByInterface)
-                {
-                    var list = kvp.Value;
-                    list.Sort(static (a, b) => a.Order.CompareTo(b.Order));
-
-                    for (int i = 0; i < list.Count - 1; i++)
-                    {
-                        if (list[i].IsDecoratorOf && list[i + 1].IsDecoratorOf && list[i].Order == list[i + 1].Order)
-                        {
-                            spc.ReportDiagnostic(Diagnostic.Create(
-                                DiagnosticDescriptors.DecoratorOfDuplicateOrder,
-                                Location.None,
-                                kvp.Key,
-                                list[i].Order.ToString(),
-                                list[i].TypeName,
-                                list[i + 1].TypeName));
-                        }
-                    }
-                }
-
-                DetectCircularDependencies(spc, allServices, decoratorsByInterface);
-
-                // ZI018: warn when an open generic has no detected closed usages
-                {
-                    var closedFqnSet = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
-                    foreach (var cgf in closedGenericFactories)
-                        closedFqnSet.Add(cgf.InterfaceFqn);
-
-                    foreach (var svc in allServices)
-                    {
-                        if (!svc.IsOpenGeneric) continue;
-
-                        var ifaces = svc.AsType != null
-                            ? new System.Collections.Generic.List<string> { svc.AsType }
-                            : svc.Interfaces;
-
-                        bool anyUsage = false;
-                        foreach (var iface in ifaces)
-                        {
-                            var prefix = iface.IndexOf('<') >= 0
-                                ? iface.Substring(0, iface.IndexOf('<'))
-                                : iface;
-                            foreach (var fqn in closedFqnSet)
-                            {
-                                if (fqn.Length > prefix.Length
-                                    && fqn.StartsWith(prefix, StringComparison.Ordinal)
-                                    && fqn[prefix.Length] == '<')
-                                {
-                                    anyUsage = true;
-                                    break;
-                                }
-                            }
-                            if (anyUsage) break;
-                        }
-
-                        if (!anyUsage)
-                        {
-                            spc.ReportDiagnostic(Diagnostic.Create(
-                                DiagnosticDescriptors.NoDetectedClosedUsages,
-                                Location.None,
-                                svc.TypeName));
-                        }
-                    }
-                }
-
-                if (allServices.Count == 0)
-                {
-                    return;
-                }
-
-                if (!dependencyInjectionReferenced)
-                {
-                    spc.ReportDiagnostic(Diagnostic.Create(
-                        DiagnosticDescriptors.MissingDIAbstractions,
-                        Location.None));
-                }
-
-                string? methodNameOverride = null;
-                if (methodNameOverrides.Length > 0)
-                {
-                    methodNameOverride = methodNameOverrides[0];
-                }
-
-                var source = GenerateExtensionClass(allServices, asmName, methodNameOverride, decoratorsByInterface, accessibility.Keyword);
-                spc.AddSource("ZeroAlloc.Inject.ServiceCollectionExtensions.g.cs", source);
-
-                if (containerReferenced)
-                {
-                    var providerSource = GenerateServiceProviderClass(allServices, asmName, decoratorsByInterface, accessibility.Keyword);
-                    spc.AddSource("ZeroAlloc.Inject.ServiceProvider.g.cs", providerSource);
-
-                    var standaloneCode = GenerateStandaloneServiceProviderClass(allServices, asmName, decoratorsByInterface, closedGenericFactories);
-                    spc.AddSource(asmName + ".StandaloneServiceProvider.g.cs", standaloneCode);
+                    spc.ReportDiagnostic(diagnostic);
                 }
             });
+        }
+
+        private static void GenerateSources(SourceProductionContext spc, GeneratorInputs input)
+        {
+            var allServices = new List<ServiceRegistrationInfo>();
+            AddRegistrable(allServices, input.Transients, null, null);
+            AddRegistrable(allServices, input.Scopeds, null, null);
+            AddRegistrable(allServices, input.Singletons, null, null);
+
+            if (allServices.Count == 0)
+            {
+                return;
+            }
+
+            var decoratorsByInterface = GroupDecorators(ValidDecorators(allServices, input.Decorators, null));
+
+            string? methodNameOverride = null;
+            if (input.MethodNameOverrides.Length > 0)
+            {
+                methodNameOverride = input.MethodNameOverrides[0];
+            }
+
+            var asmName = input.AssemblyName;
+            var accessibility = input.Accessibility;
+
+            var source = GenerateExtensionClass(allServices, asmName, methodNameOverride, decoratorsByInterface, accessibility.Keyword);
+            spc.AddSource("ZeroAlloc.Inject.ServiceCollectionExtensions.g.cs", source);
+
+            if (input.ContainerReferenced)
+            {
+                var providerSource = GenerateServiceProviderClass(allServices, asmName, decoratorsByInterface, accessibility.Keyword);
+                spc.AddSource("ZeroAlloc.Inject.ServiceProvider.g.cs", providerSource);
+
+                var standaloneCode = GenerateStandaloneServiceProviderClass(allServices, asmName, decoratorsByInterface, input.ClosedGenericFactories);
+                spc.AddSource(asmName + ".StandaloneServiceProvider.g.cs", standaloneCode);
+            }
+        }
+
+        /// <summary>
+        /// Every ZAI diagnostic for this run. Each carries the most precise source location its models
+        /// hold. Only ZAI008 and ZAI020 have none: they are about the project's references and an
+        /// MSBuild property, not about any class.
+        /// </summary>
+        private static ImmutableArray<DiagnosticInfo> CollectDiagnostics(GeneratorInputs input)
+        {
+            var diagnostics = new List<DiagnosticInfo>();
+
+            if (input.Accessibility.InvalidValue != null)
+            {
+                diagnostics.Add(new DiagnosticInfo(
+                    DiagnosticDescriptors.InvalidGeneratedAccessibility,
+                    null,
+                    input.Accessibility.InvalidValue));
+            }
+
+            // ZAI001, ZAI003 and ZAI004 are reported here, once per class, and the class is left
+            // out of every generated registration.
+            var allServices = new List<ServiceRegistrationInfo>();
+            var reportedClasses = new HashSet<string>(StringComparer.Ordinal);
+            AddRegistrable(allServices, input.Transients, reportedClasses, diagnostics);
+            AddRegistrable(allServices, input.Scopeds, reportedClasses, diagnostics);
+            AddRegistrable(allServices, input.Singletons, reportedClasses, diagnostics);
+
+            foreach (var svc in allServices)
+            {
+                if (!svc.HasPublicConstructor)
+                {
+                    diagnostics.Add(new DiagnosticInfo(
+                        DiagnosticDescriptors.NoPublicConstructor, svc.Location, svc.TypeName));
+                }
+
+                if (svc.Interfaces.Count == 0 && svc.AsType == null)
+                {
+                    diagnostics.Add(new DiagnosticInfo(
+                        DiagnosticDescriptors.NoInterfaces, svc.Location, svc.TypeName));
+                }
+
+                if (svc.HasMultipleConstructors)
+                {
+                    diagnostics.Add(new DiagnosticInfo(
+                        DiagnosticDescriptors.MultipleConstructorsNoAttribute, svc.Location, svc.TypeName));
+                }
+
+                if (svc.PrimitiveParameterName != null)
+                {
+                    diagnostics.Add(new DiagnosticInfo(
+                        DiagnosticDescriptors.PrimitiveConstructorParameter,
+                        svc.PrimitiveParameterLocation ?? svc.Location,
+                        svc.PrimitiveParameterName,
+                        svc.TypeName,
+                        svc.PrimitiveParameterType));
+                }
+
+                if (svc.OptionalNonNullableParamName != null)
+                {
+                    diagnostics.Add(new DiagnosticInfo(
+                        DiagnosticDescriptors.OptionalDependencyOnNonNullable,
+                        svc.OptionalNonNullableParamLocation ?? svc.Location,
+                        svc.OptionalNonNullableParamName,
+                        svc.TypeName,
+                        svc.OptionalNonNullableParamType));
+                }
+
+                foreach (var prop in svc.NonSettableInjectProperties)
+                {
+                    diagnostics.Add(new DiagnosticInfo(
+                        DiagnosticDescriptors.InjectOnNonSettableProperty,
+                        prop.Location ?? svc.Location,
+                        prop.Name,
+                        svc.TypeName));
+                }
+            }
+
+            if (allServices.Count == 0 && input.Decorators.Length == 0)
+            {
+                return diagnostics.ToImmutableArray();
+            }
+
+            var decoratorsByInterface = GroupDecorators(ValidDecorators(allServices, input.Decorators, diagnostics));
+
+            // ZAI017: decorators of one interface are sorted by Order, so a duplicate is adjacent.
+            // It is reported at the later attribute in source, with the earlier one as additional.
+            foreach (var kvp in decoratorsByInterface)
+            {
+                var list = kvp.Value;
+                for (int i = 0; i < list.Count - 1; i++)
+                {
+                    if (list[i].IsDecoratorOf && list[i + 1].IsDecoratorOf && list[i].Order == list[i + 1].Order)
+                    {
+                        var earlier = list[i].AttributeLocation;
+                        var later = list[i + 1].AttributeLocation;
+                        if (IsBefore(later, earlier))
+                        {
+                            (earlier, later) = (later, earlier);
+                        }
+
+                        diagnostics.Add(new DiagnosticInfo(
+                            DiagnosticDescriptors.DecoratorOfDuplicateOrder,
+                            later,
+                            earlier == null ? ImmutableArray<LocationInfo>.Empty : ImmutableArray.Create(earlier),
+                            kvp.Key,
+                            list[i].Order.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                            list[i].TypeName,
+                            list[i + 1].TypeName));
+                    }
+                }
+            }
+
+            DetectCircularDependencies(diagnostics, allServices, decoratorsByInterface);
+
+            // ZAI018: warn when an open generic has no detected closed usages
+            {
+                var closedFqnSet = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+                foreach (var cgf in input.ClosedGenericFactories)
+                    closedFqnSet.Add(cgf.InterfaceFqn);
+
+                foreach (var svc in allServices)
+                {
+                    if (!svc.IsOpenGeneric) continue;
+
+                    var ifaces = svc.AsType != null
+                        ? new System.Collections.Generic.List<string> { svc.AsType }
+                        : svc.Interfaces;
+
+                    bool anyUsage = false;
+                    foreach (var iface in ifaces)
+                    {
+                        var prefix = iface.IndexOf('<') >= 0
+                            ? iface.Substring(0, iface.IndexOf('<'))
+                            : iface;
+                        foreach (var fqn in closedFqnSet)
+                        {
+                            if (fqn.Length > prefix.Length
+                                && fqn.StartsWith(prefix, StringComparison.Ordinal)
+                                && fqn[prefix.Length] == '<')
+                            {
+                                anyUsage = true;
+                                break;
+                            }
+                        }
+                        if (anyUsage) break;
+                    }
+
+                    if (!anyUsage)
+                    {
+                        diagnostics.Add(new DiagnosticInfo(
+                            DiagnosticDescriptors.NoDetectedClosedUsages, svc.Location, svc.TypeName));
+                    }
+                }
+            }
+
+            if (allServices.Count > 0 && !input.DependencyInjectionReferenced)
+            {
+                diagnostics.Add(new DiagnosticInfo(DiagnosticDescriptors.MissingDIAbstractions, null));
+            }
+
+            return diagnostics.ToImmutableArray();
+        }
+
+        private static ImmutableArray<Diagnostic> ToDiagnostics(ImmutableArray<DiagnosticInfo> infos, Compilation compilation)
+        {
+            if (infos.IsEmpty)
+            {
+                return ImmutableArray<Diagnostic>.Empty;
+            }
+
+            var trees = new SyntaxTreeLookup(compilation);
+            var builder = ImmutableArray.CreateBuilder<Diagnostic>(infos.Length);
+            foreach (var info in infos)
+            {
+                builder.Add(info.ToDiagnostic(trees));
+            }
+            return builder.MoveToImmutable();
+        }
+
+        private static bool IsBefore(LocationInfo? a, LocationInfo? b)
+        {
+            if (a == null || b == null)
+            {
+                return false;
+            }
+
+            int byFile = string.CompareOrdinal(a.FilePath, b.FilePath);
+            return byFile != 0 ? byFile < 0 : a.Span.Start < b.Span.Start;
+        }
+
+        /// <summary>
+        /// The decorators that can be applied. With a diagnostics list, each rejected decorator is
+        /// reported: ZAI013 and ZAI011 at the class, ZAI016 and ZAI012 at the attribute.
+        /// </summary>
+        private static List<DecoratorRegistrationInfo> ValidDecorators(
+            List<ServiceRegistrationInfo> allServices,
+            ImmutableArray<DecoratorRegistrationInfo?> decoratorInfos,
+            List<DiagnosticInfo>? diagnostics)
+        {
+            // Build lookup of registered interface FQNs for ZI012 check
+            var registeredInterfaces = new System.Collections.Generic.HashSet<string>();
+            foreach (var svc in allServices)
+            {
+                foreach (var iface in svc.Interfaces)
+                    registeredInterfaces.Add(iface);
+                if (svc.AsType != null)
+                    registeredInterfaces.Add(svc.AsType);
+            }
+
+            var validDecorators = new System.Collections.Generic.List<DecoratorRegistrationInfo>();
+            foreach (var dec in decoratorInfos)
+            {
+                if (dec == null) continue;
+                if (dec.IsAbstractOrStatic)
+                {
+                    diagnostics?.Add(new DiagnosticInfo(
+                        DiagnosticDescriptors.DecoratorOnAbstractOrStatic, dec.Location, dec.TypeName));
+                    continue;
+                }
+                if (dec.DecoratedInterfaceFqn == null)
+                {
+                    if (dec.IsDecoratorOf)
+                    {
+                        diagnostics?.Add(new DiagnosticInfo(
+                            DiagnosticDescriptors.DecoratorOfInterfaceNotImplemented,
+                            dec.AttributeLocation ?? dec.Location, dec.TypeName, dec.DecoratorFqn));
+                    }
+                    else
+                    {
+                        diagnostics?.Add(new DiagnosticInfo(
+                            DiagnosticDescriptors.DecoratorNoMatchingInterface, dec.Location, dec.TypeName));
+                    }
+                    continue;
+                }
+                if (!registeredInterfaces.Contains(dec.DecoratedInterfaceFqn))
+                {
+                    diagnostics?.Add(new DiagnosticInfo(
+                        DiagnosticDescriptors.DecoratorNoRegisteredInner,
+                        dec.AttributeLocation ?? dec.Location, dec.TypeName, dec.DecoratedInterfaceFqn));
+                    continue;
+                }
+                validDecorators.Add(dec);
+            }
+
+            return validDecorators;
+        }
+
+        /// <summary>Decorators by decorated interface FQN, each list sorted by Order ascending.</summary>
+        private static Dictionary<string, List<DecoratorRegistrationInfo>> GroupDecorators(
+            List<DecoratorRegistrationInfo> validDecorators)
+        {
+            var decoratorsByInterface = new Dictionary<string, List<DecoratorRegistrationInfo>>();
+            foreach (var dec in validDecorators)
+            {
+                if (!decoratorsByInterface.TryGetValue(dec.DecoratedInterfaceFqn!, out var list))
+                {
+                    list = new List<DecoratorRegistrationInfo>();
+                    decoratorsByInterface[dec.DecoratedInterfaceFqn!] = list;
+                }
+                list.Add(dec);
+            }
+
+            foreach (var list in decoratorsByInterface.Values)
+            {
+                list.Sort(static (a, b) => a.Order.CompareTo(b.Order));
+            }
+
+            return decoratorsByInterface;
         }
 
         /// <summary>
@@ -414,11 +519,15 @@ namespace ZeroAlloc.Inject.Generator
             return new GeneratedAccessibilityOption("public", raw);
         }
 
+        /// <summary>
+        /// Adds the registrable services to the list. With a diagnostics list, each class that cannot
+        /// be registered is reported once: ZAI003 at the class, ZAI001 and ZAI004 at the attribute.
+        /// </summary>
         private static void AddRegistrable(
-            SourceProductionContext spc,
             List<ServiceRegistrationInfo> list,
             ImmutableArray<ServiceRegistrationInfo?> items,
-            HashSet<string> reportedClasses)
+            HashSet<string>? reportedClasses,
+            List<DiagnosticInfo>? diagnostics)
         {
             foreach (var item in items)
             {
@@ -434,30 +543,28 @@ namespace ZeroAlloc.Inject.Generator
                 }
 
                 // A class with several lifetime attributes arrives once per attribute: report it once.
-                if (!reportedClasses.Add(item.FullyQualifiedName))
+                if (diagnostics == null || reportedClasses == null || !reportedClasses.Add(item.FullyQualifiedName))
                 {
                     continue;
                 }
 
                 if (item.IsAbstractOrStatic)
                 {
-                    spc.ReportDiagnostic(Diagnostic.Create(
-                        DiagnosticDescriptors.AttributeOnAbstractOrStatic,
-                        Location.None,
-                        item.TypeName));
+                    diagnostics.Add(new DiagnosticInfo(
+                        DiagnosticDescriptors.AttributeOnAbstractOrStatic, item.Location, item.TypeName));
                 }
                 else if (item.HasMultipleLifetimes)
                 {
-                    spc.ReportDiagnostic(Diagnostic.Create(
+                    diagnostics.Add(new DiagnosticInfo(
                         DiagnosticDescriptors.MultipleLifetimeAttributes,
-                        Location.None,
+                        item.AttributeLocation ?? item.Location,
                         item.TypeName));
                 }
                 else
                 {
-                    spc.ReportDiagnostic(Diagnostic.Create(
+                    diagnostics.Add(new DiagnosticInfo(
                         DiagnosticDescriptors.AsTypeNotImplemented,
-                        Location.None,
+                        item.AttributeLocation ?? item.Location,
                         item.TypeName,
                         item.AsTypeNotImplemented));
                 }
@@ -471,7 +578,12 @@ namespace ZeroAlloc.Inject.Generator
             "ZeroAlloc.Inject.SingletonAttribute",
         };
 
-        private static bool HasMultipleLifetimeAttributes(INamedTypeSymbol typeSymbol)
+        /// <summary>
+        /// ZAI001: the second lifetime attribute of the class, or null when it has at most one of
+        /// [Transient], [Scoped] and [Singleton]. Every lifetime pipeline finds the same attribute, so
+        /// the class is reported at one place whichever pipeline reports it.
+        /// </summary>
+        private static AttributeData? FindSecondLifetimeAttribute(INamedTypeSymbol typeSymbol)
         {
             int count = 0;
             foreach (var attr in typeSymbol.GetAttributes())
@@ -479,10 +591,10 @@ namespace ZeroAlloc.Inject.Generator
                 var name = attr.AttributeClass?.ToDisplayString();
                 if (name != null && LifetimeAttributeNames.Contains(name) && ++count > 1)
                 {
-                    return true;
+                    return attr;
                 }
             }
-            return false;
+            return null;
         }
 
         /// <summary>
@@ -563,6 +675,7 @@ namespace ZeroAlloc.Inject.Generator
                 fullyQualifiedName = ToUnboundGenericString(fullyQualifiedName, typeSymbol.TypeParameters.Length);
             }
             var typeName = typeSymbol.Name;
+            var location = GetClassLocation(ctx, typeSymbol);
 
             if (typeSymbol.IsAbstract || typeSymbol.IsStatic)
             {
@@ -570,10 +683,15 @@ namespace ZeroAlloc.Inject.Generator
                 return new ServiceRegistrationInfo(
                     ns, typeName, fullyQualifiedName, lifetime, new List<string>(), null, null, false,
                     false, null, false, new List<ConstructorParameterInfo>(), false, null, null, null, null,
-                    false, isAbstractOrStatic: true);
+                    false, isAbstractOrStatic: true, location: location);
             }
 
-            bool hasMultipleLifetimes = HasMultipleLifetimeAttributes(typeSymbol);
+            // ZAI001 points at the second lifetime attribute, the one that makes the set invalid.
+            var secondLifetimeAttribute = FindSecondLifetimeAttribute(typeSymbol);
+            bool hasMultipleLifetimes = secondLifetimeAttribute != null;
+            LocationInfo? attributeLocation = hasMultipleLifetimes
+                ? LocationInfo.From(secondLifetimeAttribute!.ApplicationSyntaxReference)
+                : null;
 
             // Extract attribute properties
             string? asType = null;
@@ -592,6 +710,9 @@ namespace ZeroAlloc.Inject.Generator
                         if (!ImplementsAsType(typeSymbol, asSymbol))
                         {
                             asTypeNotImplemented = asSymbol.ToDisplayString();
+                            // ZAI004 points at the attribute that carries As. ZAI001 wins when both
+                            // apply, as the class is reported once.
+                            attributeLocation ??= LocationInfo.From(attr.ApplicationSyntaxReference);
                         }
                         if (asSymbol.IsGenericType)
                         {
@@ -688,6 +809,8 @@ namespace ZeroAlloc.Inject.Generator
             string? primitiveParameterType = null;
             string? optionalNonNullableParamName = null;
             string? optionalNonNullableParamType = null;
+            LocationInfo? primitiveParameterLocation = null;
+            LocationInfo? optionalNonNullableParamLocation = null;
 
             if (publicCtors.Count == 1)
             {
@@ -739,6 +862,7 @@ namespace ZeroAlloc.Inject.Generator
                     {
                         optionalNonNullableParamName = param.Name;
                         optionalNonNullableParamType = paramTypeFqn;
+                        optionalNonNullableParamLocation = LocationInfo.From(param.Locations.FirstOrDefault());
                     }
 
                     string? unboundFqn = null;
@@ -782,6 +906,7 @@ namespace ZeroAlloc.Inject.Generator
                         {
                             primitiveParameterName = param.Name;
                             primitiveParameterType = paramTypeFqn;
+                            primitiveParameterLocation = LocationInfo.From(param.Locations.FirstOrDefault());
                         }
                     }
                 }
@@ -789,7 +914,7 @@ namespace ZeroAlloc.Inject.Generator
 
             // Property injection scanning
             var propertyInjections = new List<PropertyInjectionInfo>();
-            var nonSettableInjectPropNames = new List<string>();
+            var nonSettableInjectPropNames = new List<NamedLocationInfo>();
             foreach (var member in typeSymbol.GetMembers())
             {
                 if (member is not IPropertySymbol propSymbol) continue;
@@ -803,7 +928,8 @@ namespace ZeroAlloc.Inject.Generator
                     && !propSymbol.SetMethod.IsInitOnly;
                 if (!hasPublicSetter)
                 {
-                    nonSettableInjectPropNames.Add(propSymbol.Name);
+                    nonSettableInjectPropNames.Add(new NamedLocationInfo(
+                        propSymbol.Name, LocationInfo.From(propSymbol.Locations.FirstOrDefault())));
                     continue;
                 }
 
@@ -855,7 +981,25 @@ namespace ZeroAlloc.Inject.Generator
                 propertyInjections: propertyInjections,
                 nonSettableInjectProperties: nonSettableInjectPropNames,
                 hasMultipleLifetimes: hasMultipleLifetimes,
-                asTypeNotImplemented: asTypeNotImplemented);
+                asTypeNotImplemented: asTypeNotImplemented,
+                location: location,
+                attributeLocation: attributeLocation,
+                primitiveParameterLocation: primitiveParameterLocation,
+                optionalNonNullableParamLocation: optionalNonNullableParamLocation);
+        }
+
+        /// <summary>
+        /// The identifier of the class declaration that carries the attribute. For a partial class
+        /// this is the part the attribute is on.
+        /// </summary>
+        private static LocationInfo? GetClassLocation(GeneratorAttributeSyntaxContext ctx, INamedTypeSymbol typeSymbol)
+        {
+            if (ctx.TargetNode is BaseTypeDeclarationSyntax declaration)
+            {
+                return LocationInfo.From(declaration.Identifier.GetLocation());
+            }
+
+            return LocationInfo.From(typeSymbol.Locations.FirstOrDefault());
         }
 
         private static string GenerateExtensionClass(
@@ -2915,7 +3059,7 @@ namespace ZeroAlloc.Inject.Generator
         }
 
         private static void DetectCircularDependencies(
-            SourceProductionContext spc,
+            List<DiagnosticInfo> diagnostics,
             List<ServiceRegistrationInfo> allServices,
             Dictionary<string, System.Collections.Generic.List<DecoratorRegistrationInfo>> decoratorsByInterface)
         {
@@ -2984,7 +3128,7 @@ namespace ZeroAlloc.Inject.Generator
             {
                 if (color.TryGetValue(node, out var c) && c == 0)
                 {
-                    DfsCycleDetect(node, adjacency, color, parent, spc, reportedCycles);
+                    DfsCycleDetect(node, adjacency, color, parent, serviceByType, diagnostics, reportedCycles);
                 }
             }
         }
@@ -2994,7 +3138,8 @@ namespace ZeroAlloc.Inject.Generator
             Dictionary<string, List<string>> adjacency,
             Dictionary<string, int> color,
             Dictionary<string, string?> parent,
-            SourceProductionContext spc,
+            Dictionary<string, ServiceRegistrationInfo> serviceByType,
+            List<DiagnosticInfo> diagnostics,
             System.Collections.Generic.HashSet<string> reportedCycles)
         {
             color[node] = 1; // gray
@@ -3011,7 +3156,7 @@ namespace ZeroAlloc.Inject.Generator
                     if (color[dep] == 0)
                     {
                         parent[dep] = node;
-                        DfsCycleDetect(dep, adjacency, color, parent, spc, reportedCycles);
+                        DfsCycleDetect(dep, adjacency, color, parent, serviceByType, diagnostics, reportedCycles);
                     }
                     else if (color[dep] == 1)
                     {
@@ -3029,9 +3174,25 @@ namespace ZeroAlloc.Inject.Generator
 
                         if (reportedCycles.Add(cyclePath))
                         {
-                            spc.ReportDiagnostic(Diagnostic.Create(
+                            // ZAI014 is reported at the class of the first service in the path, with
+                            // the other classes of the cycle as additional locations.
+                            var locations = new List<LocationInfo>();
+                            for (int i = 0; i < cycle.Count - 1; i++)
+                            {
+                                if (serviceByType.TryGetValue(cycle[i], out var member)
+                                    && member.Location != null
+                                    && !locations.Contains(member.Location))
+                                {
+                                    locations.Add(member.Location);
+                                }
+                            }
+
+                            diagnostics.Add(new DiagnosticInfo(
                                 DiagnosticDescriptors.CircularDependency,
-                                Location.None,
+                                locations.Count > 0 ? locations[0] : null,
+                                locations.Count > 1
+                                    ? ImmutableArray.CreateRange(locations.Skip(1))
+                                    : ImmutableArray<LocationInfo>.Empty,
                                 cyclePath));
                         }
                     }
@@ -3364,7 +3525,9 @@ namespace ZeroAlloc.Inject.Generator
             return new DecoratorRegistrationInfo(
                 typeName, fqn, decoratedInterface,
                 isOpenGeneric, ctorParams, implementsDisposable, isAbstractOrStatic,
-                order: 0, whenRegisteredFqn: null, isDecoratorOf: false);
+                order: 0, whenRegisteredFqn: null, isDecoratorOf: false,
+                location: GetClassLocation(ctx, typeSymbol),
+                attributeLocation: LocationInfo.From(ctx.Attributes.FirstOrDefault()?.ApplicationSyntaxReference));
         }
 
         private static DecoratorRegistrationInfo? GetDecoratorOfInfo(
@@ -3453,7 +3616,9 @@ namespace ZeroAlloc.Inject.Generator
             return new DecoratorRegistrationInfo(
                 typeName, fqn, decoratedInterfaceFqn, isOpenGeneric, ctorParams,
                 implementsDisposable, isAbstractOrStatic,
-                order: order, whenRegisteredFqn: whenRegisteredFqn, isDecoratorOf: true);
+                order: order, whenRegisteredFqn: whenRegisteredFqn, isDecoratorOf: true,
+                location: GetClassLocation(ctx, typeSymbol),
+                attributeLocation: LocationInfo.From(attr.ApplicationSyntaxReference));
         }
 
         private static ImmutableArray<ClosedGenericFactoryInfo> FindClosedGenericUsages(

@@ -42,12 +42,33 @@ internal static class GeneratorTestHelper
         return RunGeneratorCore(source, includeContainer, globalOptions, assemblyName);
     }
 
-    private static (string output, ImmutableArray<Diagnostic> diagnostics) RunGeneratorCore(
-        string source, bool includeContainer, IReadOnlyDictionary<string, string>? globalOptions, string assemblyName,
-        bool includeDependencyInjection = true)
-    {
-        var syntaxTree = CSharpSyntaxTree.ParseText(source);
+    /// <summary>The file path given to the source tree by <see cref="RunGeneratorOnFile"/>.</summary>
+    public const string TestFilePath = "/src/Services.cs";
 
+    /// <summary>
+    /// Runs the generator on a source tree that has the file path <see cref="TestFilePath"/>, so a test
+    /// can assert the file of a reported diagnostic.
+    /// </summary>
+    public static (string output, ImmutableArray<Diagnostic> diagnostics) RunGeneratorOnFile(
+        string source, bool includeDependencyInjection = true, string? accessibilityValue = null)
+    {
+        var globalOptions = accessibilityValue == null
+            ? null
+            : new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["build_property.ZeroAllocGeneratedAccessibility"] = accessibilityValue,
+            };
+        return RunGeneratorCore(
+            source, includeContainer: false, globalOptions, "TestAssembly", includeDependencyInjection, TestFilePath);
+    }
+
+    /// <summary>
+    /// Creates a compilation of the given source files with the same references the other helpers use.
+    /// </summary>
+    public static CSharpCompilation CreateCompilation(
+        IEnumerable<SyntaxTree> syntaxTrees, bool includeContainer = false, bool includeDependencyInjection = true,
+        string assemblyName = "TestAssembly")
+    {
         var containerAssemblyName = typeof(ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase).Assembly.GetName().Name;
 
         var references = AppDomain.CurrentDomain.GetAssemblies()
@@ -71,11 +92,19 @@ internal static class GeneratorTestHelper
             }
         }
 
-        var compilation = CSharpCompilation.Create(
+        return CSharpCompilation.Create(
             assemblyName,
-            [syntaxTree],
+            syntaxTrees,
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+    }
+
+    private static (string output, ImmutableArray<Diagnostic> diagnostics) RunGeneratorCore(
+        string source, bool includeContainer, IReadOnlyDictionary<string, string>? globalOptions, string assemblyName,
+        bool includeDependencyInjection = true, string path = "")
+    {
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, path: path);
+        var compilation = CreateCompilation([syntaxTree], includeContainer, includeDependencyInjection, assemblyName);
 
         var generator = new Generator.ZeroAllocInjectGenerator();
         GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
