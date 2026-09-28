@@ -41,3 +41,12 @@ ZAI019  | ZeroAlloc.Inject | Error    | [Inject] on non-settable property
 Rule ID | Category         | Severity | Notes
 --------|------------------|----------|---------------------------------------------
 ZAI020  | ZeroAlloc.Inject | Error    | Invalid ZeroAllocGeneratedAccessibility value
+
+## Release 1.9.0
+
+### Removed Rules
+
+Rule ID | Category         | Severity | Notes
+--------|------------------|----------|--------------------------------------------------------------------
+ZAI002  | ZeroAlloc.Inject | Error    | Attribute on non-class type, redundant with compiler error CS0592
+ZAI005  | ZeroAlloc.Inject | Error    | Keyed services require .NET 8+, unreachable: the package needs net8.0
