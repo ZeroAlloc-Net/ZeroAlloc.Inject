@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.9.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.8.0...v1.9.0) (2026-09-28)
+
+
+### Features
+
+* report ZAI001, ZAI003, ZAI004 and ZAI008, retire ZAI002 and ZAI005 ([#170](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/170)) ([32359eb](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/32359eb4666ef8f1990b3220ae0229e412bf8891)), closes [#168](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/168)
+
+
+### Bug Fixes
+
+* close open generics over nullable, nested and array type arguments ([00a609e](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/00a609ea4f6b2d57747fc6ddf7b80e754a76d54d))
+* dispose the singletons the hybrid container creates ([ed54f57](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/ed54f57a62eba00a49ca8e77d8025836864e6bd1))
+* mark released analyzer rules and public api as shipped and automate the move ([#167](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/167)) ([f2b9740](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/f2b974032d6a3b0e82f6173e272e75f484bfd437))
+* report closed generic forms from IsService in the generated containers ([ed54f57](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/ed54f57a62eba00a49ca8e77d8025836864e6bd1))
+* report ZAI diagnostics at the class, attribute or member they are about ([#172](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/172)) ([376a6a6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/376a6a6393b7a9534bc663ba9e9480fc81bd3ed3)), closes [#171](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/171)
+* resolve open generics over value types under NativeAOT in Microsoft DI and the hybrid container ([ed54f57](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/ed54f57a62eba00a49ca8e77d8025836864e6bd1))
+* resolve the last AllowMultiple open generic registration in the standalone container ([ed54f57](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/ed54f57a62eba00a49ca8e77d8025836864e6bd1))
+
+
+### Tests
+
+* cover value-type closed generics in the AOT smoke ([00a609e](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/00a609ea4f6b2d57747fc6ddf7b80e754a76d54d))
+
 ## [1.8.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.7.6...v1.8.0) (2026-09-25)
 
 
