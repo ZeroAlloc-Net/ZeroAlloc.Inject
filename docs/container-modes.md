@@ -129,7 +129,7 @@ var app = builder.Build();
 
 ### Open Generics
 
-Open generic types (e.g., `IRepository<>`) are delegated to the MS DI fallback in hybrid mode. The fallback handles open-generic registration natively.
+The generated type switch has a branch for every closed form of an open generic that a constructor in the assembly asks for, such as `IRepository<Order>` or `IRepository<int>`, and for `IEnumerable<T>` of it. It resolves each one the way the MS DI fallback would: the same implementation, lifetime and registration order, so a singleton is one instance across `GetService`, `GetServices` and every scope. Any other closed form, for example one resolved with a `Type` built at runtime, falls through to the MS DI fallback, which handles open-generic registration natively.
 
 ### Startup Cost
 
@@ -263,7 +263,7 @@ A scope obtained from a standalone provider tracks all disposables in a `List<ob
 | Framework services           | ✅                      | ✅                         | ❌ (returns null)             |
 | Native AOT (known services)  | ✅                      | ✅                         | ✅                            |
 | Native AOT (unknown services)| N/A                     | ⚠️ reflection via MS DI   | N/A                           |
-| Open generics                | ✅ MS DI handles        | delegated to MS DI         | compile-time closed           |
+| Open generics                | ✅ MS DI handles        | compile-time closed, rest via MS DI | compile-time closed  |
 | Best for                     | Gradual adoption        | ASP.NET Core apps          | Owned-service apps, AOT       |
 
 Benchmark numbers are from .NET 9.0, BenchmarkDotNet v0.15.8, Windows 11 (Intel Core i9-12900HK), x64 RyuJIT AVX2. See the [performance page](performance.md) for full resolution tables.
