@@ -11,6 +11,7 @@ abstract ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider.ResolveKno
 abstract ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope.ResolveScopedKnown(System.Type! serviceType) -> object?
 virtual ZeroAlloc.Inject.Container.ZeroAllocInjectScope.Dispose(bool disposing) -> void
 virtual ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.Dispose(bool disposing) -> void
+virtual ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.DisposeAsync() -> System.Threading.Tasks.ValueTask
 virtual ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider.Dispose(bool disposing) -> void
 virtual ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
 virtual ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope.Dispose(bool disposing) -> void
@@ -27,7 +28,6 @@ ZeroAlloc.Inject.Container.ZeroAllocInjectScope.ZeroAllocInjectScope(ZeroAlloc.I
 ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase
 ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.CreateScope() -> Microsoft.Extensions.DependencyInjection.IServiceScope!
 ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.Dispose() -> void
-ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.DisposeAsync() -> System.Threading.Tasks.ValueTask
 ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.Fallback.get -> System.IServiceProvider!
 ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.GetService(System.Type! serviceType) -> object?
 ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.IsKeyedService(System.Type! serviceType, object? serviceKey) -> bool
