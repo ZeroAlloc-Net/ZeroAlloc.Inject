@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using ZeroAlloc.Inject.AotSmoke;
 
@@ -57,10 +58,18 @@ var invDesc = inv.Describe();
 if (!string.Equals(invDesc, "InMemoryInventory<Product>", StringComparison.Ordinal))
     return Fail($"IInventory<Product> closed-generic: expected 'InMemoryInventory<Product>', got '{invDesc}'");
 
-// Open generics closed over value types, through the standalone generated container, whose type
-// switch has a branch per closed form. Plain Microsoft DI with the generated registrations and the
-// hybrid container are left out: both leave closing an open generic to Microsoft DI, which refuses
-// to close one over a value type under NativeAOT, see ZeroAlloc-Net/ZeroAlloc.Inject#173.
+// Open generics closed over value types, in all three modes. Each closed form is its own native
+// instantiation, and Microsoft DI refuses to close an open generic over a value type under
+// NativeAOT, so the generated registrations and the hybrid type switch have to supply them.
+if (CheckValueTypeGenerics(provider, "Microsoft DI") is { } microsoftDiError) return Fail(microsoftDiError);
+
+var hybrid = (ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase)services.BuildZeroAllocInjectServiceProvider();
+using (hybrid)
+{
+    if (CheckValueTypeGenerics(hybrid, "hybrid container") is { } hybridError) return Fail(hybridError);
+    if (CheckValueTypeEnumerables(hybrid, "hybrid container") is { } hybridEnumerableError) return Fail(hybridEnumerableError);
+}
+
 using (var standalone = new ZeroAlloc.Inject.Generated.ZeroAllocInjectAotSmokeStandaloneServiceProvider())
 {
     if (CheckValueTypeGenerics(standalone, "standalone container") is { } standaloneError) return Fail(standaloneError);
@@ -151,6 +160,20 @@ static string? CheckValueTypeSingletons(IServiceProvider provider, ValueTypeCons
     keys.Add(new SmokeKey(7, 8));
     if (keys.Count != 1 || !second.Keys.Contains(new SmokeKey(7, 8)) || keys.Contains(new SmokeKey(8, 7)))
         return $"{mode}: ValueRegistry<SmokeKey> expected to hold (7, 8), got {keys.Count} values";
+
+    return null;
+}
+
+// IEnumerable<T> of a value-type closed form: one registration each, and the singleton is the
+// instance every other resolution returns.
+static string? CheckValueTypeEnumerables(IServiceProvider provider, string mode)
+{
+    var slots = provider.GetServices<IValueSlot<int>>().ToList();
+    if (slots.Count != 1 || slots[0] is not ValueSlot<int>)
+        return $"{mode}: IEnumerable<IValueSlot<int>> expected one ValueSlot<int>, got {slots.Count}";
+    var registries = provider.GetServices<IValueRegistry<SmokeKey>>().ToList();
+    if (registries.Count != 1 || !ReferenceEquals(registries[0], provider.GetRequiredService<IValueRegistry<SmokeKey>>()))
+        return $"{mode}: IEnumerable<IValueRegistry<SmokeKey>> expected the singleton, got {registries.Count}";
 
     return null;
 }

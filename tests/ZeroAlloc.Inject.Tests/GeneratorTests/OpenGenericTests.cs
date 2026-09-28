@@ -181,4 +181,49 @@ public class OpenGenericTests
         Assert.Contains("typeof(global::TestApp.IContext<global::TestApp.Order>)", output);
         Assert.DoesNotContain("MakeGenericType", output);
     }
+
+    [Fact]
+    public void OpenGeneric_ValueTypeClosedUsage_RegisteredClosedOnlyWithoutDynamicCode()
+    {
+        var source = """
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            public interface IRepo<T> { }
+            [Scoped]
+            public class Repo<T> : IRepo<T> { }
+            [Transient]
+            public class Consumer
+            {
+                public Consumer(IRepo<int> numbers, IRepo<int?> limits, IRepo<string> names) { }
+            }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.DoesNotContain(diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        var check = output.IndexOf("if (!global::System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)", StringComparison.Ordinal);
+        Assert.True(check > output.IndexOf("typeof(global::TestApp.IRepo<>)", StringComparison.Ordinal));
+        var closed = output.Substring(check);
+        Assert.Contains("services.TryAdd(ServiceDescriptor.Scoped(typeof(global::TestApp.IRepo<int>), typeof(global::TestApp.Repo<int>)));", closed);
+        Assert.Contains("services.TryAdd(ServiceDescriptor.Scoped(typeof(global::TestApp.IRepo<int?>), typeof(global::TestApp.Repo<int?>)));", closed);
+        Assert.DoesNotContain("IRepo<string>", closed);
+    }
+
+    [Fact]
+    public void OpenGeneric_ReferenceTypeClosedUsage_NoDynamicCodeCheck()
+    {
+        var source = """
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            public interface IRepo<T> { }
+            [Transient]
+            public class Repo<T> : IRepo<T> { }
+            [Transient]
+            public class Consumer { public Consumer(IRepo<string> names) { } }
+            """;
+
+        var (output, _) = GeneratorTestHelper.RunGenerator(source);
+
+        Assert.DoesNotContain("IsDynamicCodeSupported", output);
+    }
 }

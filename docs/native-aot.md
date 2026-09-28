@@ -90,7 +90,7 @@ flowchart LR
 
 | Mode | AOT Compatible | Notes |
 |------|---------------|-------|
-| `AddXxxServices()` extension method | ✅ | Generated registration code is AOT-safe. Runtime resolution depends on your MS DI configuration. |
+| `AddXxxServices()` extension method | ✅ | Generated registration code is AOT-safe. Runtime resolution depends on your MS DI configuration. For open generics closed over a value type, see [Open Generics over Value Types](#open-generics-over-value-types). |
 | Standalone container (closed generics) | ✅ | Direct `new` calls, `typeof(T)` type switches, `Interlocked.CompareExchange`. Zero reflection. |
 | Standalone container (open generics) | ✅ | Closed types enumerated at compile time via constructor parameter analysis. Fully AOT-safe, provided at least one constructor parameter referencing the closed type exists in the assembly; otherwise ZAI018 is emitted and the type is not resolvable (see Limitations). |
 | Hybrid container (known services) | ✅ | AOT-safe for services registered with ZeroAlloc.Inject. |
@@ -270,6 +270,24 @@ public class InvoiceService : IInvoiceService
     public InvoiceService(IRepository<Invoice> repo) { }
 }
 ```
+
+### Open Generics over Value Types
+
+Under Native AOT, MS DI refuses to close an open generic registration over a value type, because the native code for that instantiation might not exist:
+
+```
+System.InvalidOperationException: Unable to create a generic service for type 'IRepository`1[System.Int32]'
+because 'System.Int32' is a ValueType. Native code to support creating generic services might not be
+available with native AOT.
+```
+
+The same happens under the JIT in a project with `PublishAot=true`, which turns dynamic code off at runtime too.
+
+The generated `AddXxxServices()` method therefore also registers every closed form over a value type that a constructor in the assembly asks for, such as `IRepository<int>`, as a closed registration next to the open one. It does so only when `RuntimeFeature.IsDynamicCodeSupported` is false, the condition MS DI checks. With dynamic code, MS DI would count a closed registration as a second one, so `GetServices<IRepository<int>>()` would return two instances; without dynamic code nothing changes from the plain open registration. Each closed registration is the one MS DI resolves from the open registrations, and it is added with `TryAdd`, so a closed registration the application made earlier still wins. The check has to happen at runtime, not at build time: the services usually live in a class library, which is compiled without `PublishAot`.
+
+The hybrid and standalone containers resolve these closed forms from their generated type switch and never ask MS DI to close them.
+
+One limitation remains with plain MS DI: `GetServices<IRepository<int>>()`, or a constructor parameter of type `IEnumerable<IRepository<int>>`, still throws under Native AOT. To build the list, MS DI goes through every registration, and it refuses the open one even when a closed registration for the same type exists. Use the hybrid or standalone container, which answer `IEnumerable<T>` of these closed forms themselves, or register the closed forms yourself instead of the open generic.
 
 ### AOT-Incompatible Frameworks
 

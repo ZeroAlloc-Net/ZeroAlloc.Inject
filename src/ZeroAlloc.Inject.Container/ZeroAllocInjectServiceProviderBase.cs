@@ -108,7 +108,7 @@ public abstract class ZeroAllocInjectServiceProviderBase : IServiceProvider, ISe
         }
     }
 
-    public async ValueTask DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 0)
         {

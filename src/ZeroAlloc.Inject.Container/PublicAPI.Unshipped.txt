@@ -1,1 +1,3 @@
 #nullable enable
+*REMOVED*ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.DisposeAsync() -> System.Threading.Tasks.ValueTask
+virtual ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.DisposeAsync() -> System.Threading.Tasks.ValueTask

@@ -271,7 +271,7 @@ public class InventorySeeder
 
 ### Alternative: switch to hybrid mode
 
-If adding stub consumers is undesirable or the closed forms are determined at runtime (e.g., resolved via `provider.GetRequiredService(type)` with a `Type` variable), switch to the **hybrid container**. The hybrid mode's generated type-switch covers compile-time-detected closed forms for performance, but anything not matched falls through to the MS DI inner provider, which handles open generic registration natively:
+If adding stub consumers is undesirable or the closed forms are determined at runtime (e.g., resolved via `provider.GetRequiredService(type)` with a `Type` variable), switch to the **hybrid container**. The hybrid mode's generated type-switch covers compile-time-detected closed forms for performance, but anything not matched falls through to the MS DI inner provider, which handles open generic registration natively. Under Native AOT the inner provider cannot close an open generic over a value type, see [Open Generics over Value Types](native-aot.md#open-generics-over-value-types):
 
 ```csharp
 // In hybrid mode, IInventory<T> open generic is handled by MS DI fallback

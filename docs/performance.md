@@ -62,13 +62,14 @@ The Container row dropped from 10,998 ns / 11,192 B (v1.6 and earlier) to 1,034 
 | Singleton | 6.3 ns | 6.9 ns | **5.4 ns** | 5.5 ns | 0 B |
 | Decorated transient | 44.5 ns | **21.1 ns** | 22.3 ns | 28.8 ns² | 48 B |
 | `IEnumerable<T>` (3 impls) | **67.8 ns** | 74.8 ns | 81.8 ns | 150.9 ns | 168 B |
-| Open generic (closed type) | 13.5 ns | (delegates to MS DI) | **7.7 ns** | N/A³ | 24 B |
+| Open generic (closed type) | 13.5 ns | not yet measured⁴ | **7.7 ns** | N/A³ | 24 B |
 | Create scope | 82 ns / 128 B | **60 ns / 96 B** | 58 ns / 88 B | **14 ns / 40 B** | — |
 | Resolve scoped (full lifecycle) | 7,181 ns / 304 B | 5,901 ns / 120 B | 4,851 ns / 120 B | **5,216 ns / 120 B** | — |
 
 _¹ Jab is constructor-only — no property injection._
 _² Jab decorator wired via factory (no first-class decorator attribute)._
 _³ Jab 0.10.x requires closed types at the `[ServiceProvider]` attribute level._
+_⁴ The container used to delegate open generics to MS DI; it now resolves the closed forms constructors ask for from its type switch, and the benchmark was added with that change._
 
 ZA.Inject is **competitive across every scenario** and the clear winner where the generator's domain knowledge matters most: property injection (2× MS DI), decorators (2.1× MS DI), open generics (1.8× MS DI). Jab leads on scope creation (its scope is the lightest of the four, by an order of magnitude), with ZA Standalone close behind on the full scoped-resolution lifecycle.
 

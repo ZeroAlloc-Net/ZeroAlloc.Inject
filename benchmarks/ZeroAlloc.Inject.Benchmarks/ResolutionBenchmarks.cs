@@ -259,6 +259,11 @@ public class ResolutionBenchmarks
     public object? MsDi_ResolveOpenGeneric()
         => _msDiProvider.GetService(typeof(IGenericRepo<string>));
 
+    [Benchmark(Description = "ZeroAlloc.Inject Container: Resolve open generic (string) - compile-time closed type")]
+    [BenchmarkCategory("OpenGeneric")]
+    public object? Container_ResolveOpenGeneric()
+        => _containerProvider.GetService(typeof(IGenericRepo<string>));
+
     [Benchmark(Description = "Standalone: Resolve open generic (string) - compile-time closed type")]
     [BenchmarkCategory("OpenGeneric")]
     public object? Standalone_ResolveOpenGeneric()
