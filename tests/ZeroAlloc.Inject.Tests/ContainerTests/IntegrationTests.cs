@@ -1289,6 +1289,83 @@ public class IntegrationTests
     }
 
     // ---------------------------------------------------------------
+    // Open generic closed over a type argument that is not a plain
+    // named type: a nullable value type, a constructed generic, a
+    // nested type or an array. Each must close the implementation
+    // over that exact argument.
+    // ---------------------------------------------------------------
+    [Theory]
+    [InlineData("int?", "System.Nullable`1[System.Int32]")]
+    [InlineData("Point?", "System.Nullable`1[TestApp.Point]")]
+    [InlineData("System.Collections.Generic.List<string>", "System.Collections.Generic.List`1[System.String]")]
+    [InlineData("System.Collections.Generic.KeyValuePair<int, Point?>", "System.Collections.Generic.KeyValuePair`2[System.Int32,System.Nullable`1[TestApp.Point]]")]
+    [InlineData("Outer.Inner", "TestApp.Outer+Inner")]
+    [InlineData("int[]", "System.Int32[]")]
+    public void Standalone_OpenGeneric_ClosedOverStructuredTypeArgument_Resolves(string typeArgument, string expected)
+    {
+        var source = $$"""
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            public struct Point { public int X; }
+            public class Outer { public class Inner { } }
+            public interface IRepo<T> { }
+            [Transient]
+            public class Repo<T> : IRepo<T> { }
+            [Transient]
+            public class Consumer
+            {
+                public IRepo<{{typeArgument}}> Repo { get; }
+                public Consumer(IRepo<{{typeArgument}}> repo) { Repo = repo; }
+            }
+            """;
+
+        var (assembly, provider) = BuildAndCreateStandaloneProvider(source);
+        var consumerType = assembly.GetType("TestApp.Consumer")!;
+        var consumer = provider.GetService(consumerType)!;
+        var repo = consumerType.GetProperty("Repo")!.GetValue(consumer);
+
+        Assert.NotNull(repo);
+        Assert.Equal("TestApp.Repo`1", repo!.GetType().GetGenericTypeDefinition().FullName);
+        Assert.Equal(expected, repo.GetType().GetGenericArguments()[0].ToString());
+    }
+
+    [Fact]
+    public void OpenGeneric_ChainedDependency_NullableTypeArgument_Standalone_ResolvesCorrectly()
+    {
+        const string source = """
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            public interface IRepository<T> { string Name { get; } }
+            public interface IContext<T> { string Tag { get; } }
+            [Transient]
+            public class Repository<T> : IRepository<T>
+            {
+                private readonly IContext<T> _ctx;
+                public Repository(IContext<T> ctx) { _ctx = ctx; }
+                public string Name => "repo:" + _ctx.Tag;
+            }
+            [Transient]
+            public class Context<T> : IContext<T>
+            {
+                public string Tag => typeof(T).ToString();
+            }
+            [Transient]
+            public class LimitService
+            {
+                public IRepository<int?> Repo { get; }
+                public LimitService(IRepository<int?> repo) { Repo = repo; }
+            }
+            """;
+
+        var (assembly, provider) = BuildAndCreateStandaloneProvider(source);
+        var svcType = assembly.GetType("TestApp.LimitService")!;
+        var svc = provider.GetService(svcType)!;
+        var repo = svcType.GetProperty("Repo")!.GetValue(svc)!;
+        var nameProp = repo.GetType().GetProperty("Name")!;
+        Assert.Equal("repo:System.Nullable`1[System.Int32]", (string)nameProp.GetValue(repo)!);
+    }
+
+    // ---------------------------------------------------------------
     // Open generic narrowing (As = typeof(IReadRepo<>))
     // ---------------------------------------------------------------
     [Fact]
