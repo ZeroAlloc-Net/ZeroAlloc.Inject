@@ -639,6 +639,31 @@ namespace ZeroAlloc.Inject.Generator
         /// Converts a fully qualified generic type string like "global::Ns.Foo&lt;T, U&gt;" to
         /// the unbound generic form "global::Ns.Foo&lt;,&gt;" suitable for use in typeof() expressions.
         /// </summary>
+        private static bool ContainsTypeParameter(ITypeSymbol type) => type switch
+        {
+            ITypeParameterSymbol => true,
+            IArrayTypeSymbol array => ContainsTypeParameter(array.ElementType),
+            IPointerTypeSymbol pointer => ContainsTypeParameter(pointer.PointedAtType),
+            INamedTypeSymbol named => named.TypeArguments.Any(ContainsTypeParameter)
+                || (named.ContainingType is { } outer && ContainsTypeParameter(outer)),
+            _ => false,
+        };
+
+        /// <summary>
+        /// Encodes the type arguments of <paramref name="closedType"/> as documentation-comment
+        /// reference IDs, resolved again by <c>FindClosedGenericUsages</c>. A metadata name cannot
+        /// do this: <c>int?</c> has the metadata name <c>System.Nullable`1</c>, which resolves to the
+        /// open <c>Nullable&lt;T&gt;</c> and emitted <c>Repo&lt;T?&gt;</c>, and a nested type or an array
+        /// did not resolve at all, so its closed form was silently left out of the container.
+        /// </summary>
+        private static ImmutableArray<string> ToTypeArgumentReferenceIds(INamedTypeSymbol closedType)
+        {
+            var builder = ImmutableArray.CreateBuilder<string>(closedType.TypeArguments.Length);
+            foreach (var typeArgument in closedType.TypeArguments)
+                builder.Add(DocumentationCommentId.CreateReferenceId(typeArgument));
+            return builder.MoveToImmutable();
+        }
+
         private static string ToUnboundGenericString(string fullyQualifiedName, int arity)
         {
             var idx = fullyQualifiedName.IndexOf('<');
@@ -866,7 +891,7 @@ namespace ZeroAlloc.Inject.Generator
                     }
 
                     string? unboundFqn = null;
-                    ImmutableArray<string> typeArgMetadataNames = ImmutableArray<string>.Empty;
+                    ImmutableArray<string> typeArgReferenceIds = ImmutableArray<string>.Empty;
                     if (param.Type is INamedTypeSymbol namedParam
                         && namedParam.IsGenericType
                         && !namedParam.IsUnboundGenericType)
@@ -877,15 +902,7 @@ namespace ZeroAlloc.Inject.Generator
                         // that FindClosedGenericUsages can look up svc.Interfaces by UnboundGenericInterfaceFqn.
                         var rawFqn = namedParam.ConstructedFrom.ToDisplayString(FullyQualifiedFormat);
                         unboundFqn = ToUnboundGenericString(rawFqn, namedParam.TypeArguments.Length);
-                        var taBuilder = ImmutableArray.CreateBuilder<string>(namedParam.TypeArguments.Length);
-                        foreach (var typeArg in namedParam.TypeArguments)
-                        {
-                            var typeArgNs = typeArg.ContainingNamespace is { IsGlobalNamespace: false } nns
-                                ? nns.ToDisplayString()
-                                : null;
-                            taBuilder.Add(typeArgNs != null ? typeArgNs + "." + typeArg.MetadataName : typeArg.MetadataName);
-                        }
-                        typeArgMetadataNames = taBuilder.ToImmutable();
+                        typeArgReferenceIds = ToTypeArgumentReferenceIds(namedParam);
                     }
 
                     constructorParameters.Add(new ConstructorParameterInfo(
@@ -893,7 +910,7 @@ namespace ZeroAlloc.Inject.Generator
                         param.Name,
                         isOptional,
                         unboundFqn,
-                        typeArgMetadataNames));
+                        typeArgReferenceIds));
 
                     // Check for primitive/value types
                     if (primitiveParameterName == null)
@@ -3673,12 +3690,15 @@ namespace ZeroAlloc.Inject.Generator
                 var implSymbol = compilation.GetTypeByMetadataName(og.ImplementationMetadataName!);
                 if (implSymbol == null) continue;
 
-                var typeArgSymbols = new ITypeSymbol[param.TypeArgumentMetadataNames.Length];
+                var typeArgSymbols = new ITypeSymbol[param.TypeArgumentReferenceIds.Length];
                 bool allResolved = true;
-                for (int i = 0; i < param.TypeArgumentMetadataNames.Length; i++)
+                for (int i = 0; i < param.TypeArgumentReferenceIds.Length; i++)
                 {
-                    var sym = compilation.GetTypeByMetadataName(param.TypeArgumentMetadataNames[i]);
-                    if (sym == null) { allResolved = false; break; }
+                    var sym = DocumentationCommentId.GetFirstSymbolForReferenceId(
+                        param.TypeArgumentReferenceIds[i], compilation) as ITypeSymbol;
+                    // A parameter of an open generic service, such as IContext<T> on Repository<T>,
+                    // is not a closed usage; its closed forms are found through the closed services.
+                    if (sym == null || ContainsTypeParameter(sym)) { allResolved = false; break; }
                     typeArgSymbols[i] = sym;
                 }
                 if (!allResolved) continue;
@@ -3701,27 +3721,18 @@ namespace ZeroAlloc.Inject.Generator
                 {
                     var ctorParamFqn = ctorParam.Type.ToDisplayString(FullyQualifiedFormat);
                     string? ctorUnboundFqn = null;
-                    ImmutableArray<string> ctorTypeArgMeta = ImmutableArray<string>.Empty;
+                    ImmutableArray<string> ctorTypeArgReferenceIds = ImmutableArray<string>.Empty;
 
                     if (ctorParam.Type is INamedTypeSymbol namedCtorParam
                         && namedCtorParam.IsGenericType && !namedCtorParam.IsUnboundGenericType)
                     {
                         var rawUnbound = namedCtorParam.ConstructedFrom.ToDisplayString(FullyQualifiedFormat);
                         ctorUnboundFqn = ToUnboundGenericString(rawUnbound, namedCtorParam.TypeArguments.Length);
-                        var metaBuilder = ImmutableArray.CreateBuilder<string>(namedCtorParam.TypeArguments.Length);
-                        foreach (var ta in namedCtorParam.TypeArguments)
-                        {
-                            var taNamespace = ta.ContainingNamespace is { IsGlobalNamespace: false } taNs
-                                ? taNs.ToDisplayString() : null;
-                            metaBuilder.Add(taNamespace != null
-                                ? taNamespace + "." + ta.MetadataName
-                                : ta.MetadataName);
-                        }
-                        ctorTypeArgMeta = metaBuilder.ToImmutable();
+                        ctorTypeArgReferenceIds = ToTypeArgumentReferenceIds(namedCtorParam);
                     }
 
                     var ctorParamInfo = new ConstructorParameterInfo(
-                        ctorParamFqn, ctorParam.Name, false, ctorUnboundFqn, ctorTypeArgMeta);
+                        ctorParamFqn, ctorParam.Name, false, ctorUnboundFqn, ctorTypeArgReferenceIds);
                     // Add to work queue for fixed-point iteration if it is a closed generic
                     if (ctorUnboundFqn != null)
                         workQueue.Enqueue(ctorParamInfo);

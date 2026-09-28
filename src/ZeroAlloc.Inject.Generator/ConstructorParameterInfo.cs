@@ -11,22 +11,29 @@ namespace ZeroAlloc.Inject.Generator
         public string ParameterName { get; }
         public bool IsOptional { get; }
         public string? UnboundGenericInterfaceFqn { get; }
-        public ImmutableArray<string> TypeArgumentMetadataNames { get; }
+        /// <summary>
+        /// The type arguments of a closed generic parameter type, as documentation-comment reference
+        /// IDs. A reference ID round-trips every type argument through
+        /// <c>DocumentationCommentId.GetFirstSymbolForReferenceId</c>, including a constructed generic
+        /// such as <c>int?</c>, a nested type and an array, while staying a plain string the
+        /// incremental pipeline can compare.
+        /// </summary>
+        public ImmutableArray<string> TypeArgumentReferenceIds { get; }
 
         public ConstructorParameterInfo(
             string fullyQualifiedTypeName,
             string parameterName,
             bool isOptional,
             string? unboundGenericInterfaceFqn = null,
-            ImmutableArray<string> typeArgumentMetadataNames = default)
+            ImmutableArray<string> typeArgumentReferenceIds = default)
         {
             FullyQualifiedTypeName = fullyQualifiedTypeName;
             ParameterName = parameterName;
             IsOptional = isOptional;
             UnboundGenericInterfaceFqn = unboundGenericInterfaceFqn;
-            TypeArgumentMetadataNames = typeArgumentMetadataNames.IsDefault
+            TypeArgumentReferenceIds = typeArgumentReferenceIds.IsDefault
                 ? ImmutableArray<string>.Empty
-                : typeArgumentMetadataNames;
+                : typeArgumentReferenceIds;
         }
 
         public bool Equals(ConstructorParameterInfo? other)
@@ -36,7 +43,7 @@ namespace ZeroAlloc.Inject.Generator
                 && ParameterName == other.ParameterName
                 && IsOptional == other.IsOptional
                 && UnboundGenericInterfaceFqn == other.UnboundGenericInterfaceFqn
-                && TypeArgumentMetadataNames.SequenceEqual(other.TypeArgumentMetadataNames);
+                && TypeArgumentReferenceIds.SequenceEqual(other.TypeArgumentReferenceIds);
         }
 
         public override bool Equals(object? obj) => Equals(obj as ConstructorParameterInfo);
@@ -50,7 +57,7 @@ namespace ZeroAlloc.Inject.Generator
                 hash = hash * 31 + ParameterName.GetHashCode();
                 hash = hash * 31 + IsOptional.GetHashCode();
                 hash = hash * 31 + (UnboundGenericInterfaceFqn?.GetHashCode() ?? 0);
-                foreach (var name in TypeArgumentMetadataNames)
+                foreach (var name in TypeArgumentReferenceIds)
                     hash = hash * 31 + name.GetHashCode();
                 return hash;
             }
