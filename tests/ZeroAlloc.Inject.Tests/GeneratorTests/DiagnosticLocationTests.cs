@@ -212,6 +212,25 @@ public class DiagnosticLocationTests
     }
 
     [Fact]
+    public void ZAI021_IsReportedAtTheLaterClass_WithTheEarlierAsAdditionalLocation()
+    {
+        var (source, spans) = Unmark("""
+            using ZeroAlloc.Inject;
+            public interface IFoo { }
+            [Transient]
+            public class [|First|] : IFoo { }
+            [Transient]
+            public class [|Second|] : IFoo { }
+            """);
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGeneratorOnFile(source);
+
+        var diagnostic = AssertEx.One(diagnostics, d => string.Equals(d.Id, "ZAI021", StringComparison.Ordinal));
+        AssertAt(diagnostic.Location, source, spans[1]);
+        AssertAt(AssertEx.One(diagnostic.AdditionalLocations), source, spans[0]);
+    }
+
+    [Fact]
     public void ZAI001_OnAClassWithThreeLifetimes_IsReportedOnceAtTheSecondAttribute()
     {
         var (source, spans) = Unmark("""

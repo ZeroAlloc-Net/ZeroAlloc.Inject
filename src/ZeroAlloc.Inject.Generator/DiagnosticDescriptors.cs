@@ -150,5 +150,15 @@ namespace ZeroAlloc.Inject.Generator
             "ZeroAlloc.Inject",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true);
+
+        public static readonly DiagnosticDescriptor DuplicateRegistrationWithoutAllowMultiple = new DiagnosticDescriptor(
+            "ZAI021",
+            "Service type registered more than once without AllowMultiple",
+            "Class '{0}' is registered as '{1}', which '{2}' already registers, without AllowMultiple = true. " +
+            "The Add...Services extension keeps only the first registration, while the generated containers " +
+            "resolve the last one. Set AllowMultiple = true, or register '{1}' once.",
+            "ZeroAlloc.Inject",
+            DiagnosticSeverity.Warning,
+            isEnabledByDefault: true);
     }
 }

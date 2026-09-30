@@ -2,7 +2,7 @@
 id: diagnostics
 title: Compiler Diagnostics
 slug: /docs/diagnostics
-description: ZAI001–ZAI020 Roslyn analyzer rules with triggers, severities, and fix guidance; ZAI002 and ZAI005 are retired.
+description: ZAI001–ZAI021 Roslyn analyzer rules with triggers, severities, and fix guidance; ZAI002 and ZAI005 are retired.
 sidebar_position: 7
 ---
 
@@ -34,6 +34,7 @@ ZAI002 and ZAI005 are retired and their IDs will not be reused; see [Retired Rul
 | ZAI018 | ⚠️ Warning | Open generic has no detected closed usages | An open generic class is registered but no constructor in the assembly takes a closed form of its interface, or of the class itself when `As` is not set, as a parameter; it will not be resolvable from the standalone or hybrid generated container | Ensure at least one constructor parameter of the closed generic type exists in the assembly, or switch to the MS DI extension method mode |
 | ZAI019 | ❌ Error | `[Inject]` on a non-settable property | The property has no public setter (or uses `init`); the generator cannot emit a property assignment | Add a `public` setter, or remove `[Inject]` |
 | ZAI020 | ❌ Error | Invalid `ZeroAllocGeneratedAccessibility` value | The MSBuild property `ZeroAllocGeneratedAccessibility` is set to a value other than `Public` or `Internal` (case-insensitive) | Set the property to `Public` or `Internal`, or remove it to use the default (`Public`) |
+| ZAI021 | ⚠️ Warning | Service type registered more than once without `AllowMultiple` | A second class registers a service type, under the same key, that an earlier class already registers, and does not set `AllowMultiple = true`; the modes then resolve different registrations | Set `AllowMultiple = true` on the later registration, or register the service type once |
 
 ## Where Diagnostics Are Reported
 
@@ -42,7 +43,7 @@ Each diagnostic points at the source element it is about, so the IDE underlines 
 | Location | Rules |
 |----------|-------|
 | The lifetime or decorator attribute | ZAI001 (the second lifetime attribute), ZAI004, ZAI012, ZAI016, ZAI017 (the later of the two attributes; the other is an additional location) |
-| The class name | ZAI003, ZAI006, ZAI007, ZAI009, ZAI011, ZAI013, ZAI018, ZAI014 (the first class of the cycle; the others are additional locations) |
+| The class name | ZAI003, ZAI006, ZAI007, ZAI009, ZAI011, ZAI013, ZAI018, ZAI014 (the first class of the cycle; the others are additional locations), ZAI021 (the later registration; the earlier one is an additional location) |
 | The constructor parameter | ZAI010, ZAI015 |
 | The property | ZAI019 |
 | No source location | ZAI008 is about the project's package references and ZAI020 about an MSBuild property. Suppress them with `NoWarn` or `.editorconfig`. |
@@ -720,6 +721,49 @@ public class MyService : IMyService
 <PropertyGroup>
   <ZeroAllocGeneratedAccessibility>Internal</ZeroAllocGeneratedAccessibility>
 </PropertyGroup>
+```
+
+---
+
+### Duplicate Registration Warnings (ZAI021)
+
+#### ZAI021 — Service type registered more than once without `AllowMultiple` {#zai021}
+
+**Title:** Service type registered more than once without AllowMultiple
+
+**Message:** `Class '{0}' is registered as '{1}', which '{2}' already registers, without AllowMultiple = true. The Add...Services extension keeps only the first registration, while the generated containers resolve the last one. Set AllowMultiple = true, or register '{1}' once.`
+
+Without `AllowMultiple`, the generated `AddXxxServices()` extension registers a service type with `TryAdd`, so on Microsoft DI the first registration wins and `IEnumerable<T>` holds only that one. The hybrid and standalone containers resolve the last registration and list every one in `IEnumerable<T>`. The same source then resolves a different implementation per mode. ZAI021 flags it; it does not change what any mode resolves.
+
+Registrations count in the order the extension emits them: transient services first, then scoped, then singletons. A registration is reported when an earlier one has the same service type and key and the later one does not set `AllowMultiple = true`. With `AllowMultiple = true` on the later registration, every mode resolves it and lists both. A decorated interface is not reported: the extension registers its decorator chains with `Add`, so every mode already resolves the last.
+
+**Triggers ZAI021:**
+
+```csharp
+public interface INotifier { }
+
+[Transient]
+public class EmailNotifier : INotifier { }
+
+[Transient]
+public class SmsNotifier : INotifier { }   // ZAI021: INotifier is already registered by EmailNotifier
+```
+
+**Fix — register every implementation:**
+
+```csharp
+[Transient(AllowMultiple = true)]
+public class EmailNotifier : INotifier { }
+
+[Transient(AllowMultiple = true)]
+public class SmsNotifier : INotifier { }
+```
+
+**Fix — or keep one registration of the interface**, for example with `As` or a `Key` on the other:
+
+```csharp
+[Transient(Key = "sms")]
+public class SmsNotifier : INotifier { }
 ```
 
 ## Retired Rules

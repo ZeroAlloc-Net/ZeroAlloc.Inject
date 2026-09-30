@@ -730,4 +730,141 @@ public class DiagnosticTests
 
         Assert.DoesNotContain(diagnostics, static d => string.Equals(d.Id, "ZAI008", StringComparison.Ordinal));
     }
+
+    // --- ZAI021: a service type registered more than once without AllowMultiple ---
+
+    private static List<Diagnostic> Zai021(string source)
+    {
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+        return diagnostics.AsEnumerable().Where(static d => string.Equals(d.Id, "ZAI021", StringComparison.Ordinal)).ToList();
+    }
+
+    [Fact]
+    public void ZAI021_TwoServicesOfOneInterface_WithoutAllowMultiple_WarnsAtTheLaterOne()
+    {
+        var found = Zai021("""
+            using ZeroAlloc.Inject;
+            public interface IFoo { }
+            [Transient]
+            public class First : IFoo { }
+            [Transient]
+            public class Second : IFoo { }
+            """);
+
+        var diagnostic = AssertEx.One(found);
+        Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity);
+        Assert.Contains("'Second'", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains("'IFoo'", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains("'First'", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ZAI021_AcrossLifetimes_WarnsOncePerLaterRegistration()
+    {
+        // The extension registers transients, then scoped services, then singletons.
+        var found = Zai021("""
+            using ZeroAlloc.Inject;
+            public interface IFoo { }
+            [Singleton]
+            public class C : IFoo { }
+            [Scoped]
+            public class B : IFoo { }
+            [Transient]
+            public class A : IFoo { }
+            """);
+
+        Assert.Equal(2, found.Count);
+        Assert.All(found, static d => Assert.Contains("'A'", d.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("AllowMultiple = true", "AllowMultiple = true", false)]
+    [InlineData("", "AllowMultiple = true", false)]
+    [InlineData("AllowMultiple = true", "", true)]
+    public void ZAI021_ReportsALaterRegistrationWithoutAllowMultiple(string first, string second, bool expected)
+    {
+        var found = Zai021($$"""
+            using ZeroAlloc.Inject;
+            public interface IFoo { }
+            [Transient({{first}})]
+            public class First : IFoo { }
+            [Transient({{second}})]
+            public class Second : IFoo { }
+            """);
+
+        Assert.Equal(expected ? 1 : 0, found.Count);
+    }
+
+    [Fact]
+    public void ZAI021_KeyedRegistrations_ConflictOnlyUnderTheSameKey()
+    {
+        var found = Zai021("""
+            using ZeroAlloc.Inject;
+            public interface IFoo { }
+            [Transient(Key = "a")]
+            public class A1 : IFoo { }
+            [Transient(Key = "a")]
+            public class A2 : IFoo { }
+            [Transient(Key = "b")]
+            public class B : IFoo { }
+            [Transient]
+            public class Unkeyed : IFoo { }
+            """);
+
+        Assert.Contains("'A2'", AssertEx.One(found).GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ZAI021_OpenGenerics_OfOneInterface_Warn()
+    {
+        var found = Zai021("""
+            using ZeroAlloc.Inject;
+            public interface IRepo<T> { }
+            [Transient]
+            public class First<T> : IRepo<T> { }
+            [Transient]
+            public class Second<T> : IRepo<T> { }
+            [Transient]
+            public class Consumer { public Consumer(IRepo<int> repo) { } }
+            """);
+
+        Assert.Contains("'Second'", AssertEx.One(found).GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ZAI021_ADecoratedInterface_IsNotReported()
+    {
+        // The extension registers a decorated interface with Add, so every mode resolves the last.
+        var found = Zai021("""
+            using ZeroAlloc.Inject;
+            public interface IFoo { }
+            [Transient]
+            public class First : IFoo { }
+            [Transient]
+            public class Second : IFoo { }
+            [Decorator]
+            public class LoggingFoo : IFoo { public LoggingFoo(IFoo inner) { } }
+            """);
+
+        Assert.Empty(found);
+    }
+
+    [Fact]
+    public void ZAI021_DistinctServiceTypes_AreNotReported()
+    {
+        var found = Zai021("""
+            using ZeroAlloc.Inject;
+            public interface IFoo { }
+            public interface IBar { }
+            [Transient]
+            public class Foo : IFoo { }
+            [Transient]
+            public class Bar : IBar { }
+            [Transient(As = typeof(IFoo))]
+            public class Narrow : IFoo, IBar { }
+            """);
+
+        // Narrow registers only IFoo, which Foo already does.
+        Assert.Contains("'Narrow'", AssertEx.One(found).GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
 }
