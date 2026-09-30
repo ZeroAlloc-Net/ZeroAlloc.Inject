@@ -1,13 +1,1 @@
 #nullable enable
-virtual ZeroAlloc.Inject.Container.ZeroAllocInjectScope.ResolveScopedKnownKeyed(System.Type! serviceType, object! serviceKey) -> object?
-virtual ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.ResolveKnownKeyed(System.Type! serviceType, object! serviceKey) -> object?
-virtual ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider.ResolveKnownKeyed(System.Type! serviceType, object! serviceKey) -> object?
-virtual ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope.ResolveScopedKnownKeyed(System.Type! serviceType, object! serviceKey) -> object?
-ZeroAlloc.Inject.Container.ZeroAllocInjectScope.GetKeyedService(System.Type! serviceType, object? serviceKey) -> object?
-ZeroAlloc.Inject.Container.ZeroAllocInjectScope.GetRequiredKeyedService(System.Type! serviceType, object? serviceKey) -> object!
-ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.GetKeyedService(System.Type! serviceType, object? serviceKey) -> object?
-ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.GetRequiredKeyedService(System.Type! serviceType, object? serviceKey) -> object!
-ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider.GetKeyedService(System.Type! serviceType, object? serviceKey) -> object?
-ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider.GetRequiredKeyedService(System.Type! serviceType, object? serviceKey) -> object!
-ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope.GetKeyedService(System.Type! serviceType, object? serviceKey) -> object?
-ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope.GetRequiredKeyedService(System.Type! serviceType, object? serviceKey) -> object!
