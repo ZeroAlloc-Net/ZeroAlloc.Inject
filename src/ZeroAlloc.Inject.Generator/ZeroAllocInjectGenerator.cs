@@ -1631,12 +1631,14 @@ namespace ZeroAlloc.Inject.Generator
                             sb.AppendLine("            {");
                             sb.AppendLine("                var instance = " + newExpr + ";");
                             AppendPropertySetters(sb, svc.PropertyInjections, "                ");
-                            sb.AppendLine("                return instance;");
+                            sb.AppendLine(svc.ImplementsDisposable
+                                ? "                return TrackDisposable(instance);"
+                                : "                return instance;");
                             sb.AppendLine("            }");
                         }
                         else
                         {
-                            sb.AppendLine("                return " + newExpr + ";");
+                            sb.AppendLine("                return " + TrackIfDisposable(newExpr, svc.ImplementsDisposable) + ";");
                         }
                     }
                 }
@@ -1668,7 +1670,7 @@ namespace ZeroAlloc.Inject.Generator
                     {
                         sb.AppendLine("                var existing = Interlocked.CompareExchange(ref " + fieldName + ", instance, null);");
                         sb.AppendLine("                if (existing != null) { (instance as System.IDisposable)?.Dispose(); return existing; }");
-                        sb.AppendLine("                return " + fieldName + ";");
+                        sb.AppendLine("                return TrackDisposable(instance);");
                     }
                     else
                     {
@@ -1716,7 +1718,7 @@ namespace ZeroAlloc.Inject.Generator
 
                         if (entry.Lifetime == "Transient")
                         {
-                            sb.Append(BuildNewExpression(entry.Svc));
+                            sb.Append(TrackIfDisposable(BuildNewExpression(entry.Svc), entry.Svc.ImplementsDisposable));
                         }
                         else if (entry.Lifetime == "Singleton")
                         {
@@ -1774,7 +1776,7 @@ namespace ZeroAlloc.Inject.Generator
                         {
                             sb.AppendLine("                    var existing = Interlocked.CompareExchange(ref " + fieldName + ", instance, null);");
                             sb.AppendLine("                    if (existing != null) { (instance as System.IDisposable)?.Dispose(); return existing; }");
-                            sb.AppendLine("                    return " + fieldName + ";");
+                            sb.AppendLine("                    return TrackDisposable(instance);");
                         }
                         else
                         {
@@ -1784,7 +1786,7 @@ namespace ZeroAlloc.Inject.Generator
                     }
                 }
 
-                // Keyed transients - new instance each call
+                // Keyed transients - new instance each call, tracked when disposable
                 foreach (var svc in keyedTransients)
                 {
                     var serviceTypes = GetServiceTypes(svc);
@@ -1798,12 +1800,14 @@ namespace ZeroAlloc.Inject.Generator
                             sb.AppendLine("                {");
                             sb.AppendLine("                    var instance = " + newExpr + ";");
                             AppendPropertySetters(sb, svc.PropertyInjections, "                    ");
-                            sb.AppendLine("                    return instance;");
+                            sb.AppendLine(svc.ImplementsDisposable
+                                ? "                    return TrackDisposable(instance);"
+                                : "                    return instance;");
                             sb.AppendLine("                }");
                         }
                         else
                         {
-                            sb.AppendLine("                    return " + newExpr + ";");
+                            sb.AppendLine("                    return " + TrackIfDisposable(newExpr, svc.ImplementsDisposable) + ";");
                         }
                     }
                 }
@@ -1820,8 +1824,6 @@ namespace ZeroAlloc.Inject.Generator
                 sb.AppendLine("        }");
                 sb.AppendLine();
             }
-
-            EmitSingletonDisposal(sb, DisposableSingletonFields(singletons, keyedSingletons, closedGenericFactories));
 
             // CreateScopeCore
             sb.AppendLine("        protected override global::ZeroAlloc.Inject.Container.ZeroAllocInjectScope CreateScopeCore(global::Microsoft.Extensions.DependencyInjection.IServiceScopeFactory fallbackScopeFactory)");
@@ -2401,12 +2403,14 @@ namespace ZeroAlloc.Inject.Generator
                             sb.AppendLine("            {");
                             sb.AppendLine("                var instance = " + newExpr + ";");
                             AppendPropertySetters(sb, svc.PropertyInjections, "                ");
-                            sb.AppendLine("                return instance;");
+                            sb.AppendLine(svc.ImplementsDisposable
+                                ? "                return TrackDisposable(instance);"
+                                : "                return instance;");
                             sb.AppendLine("            }");
                         }
                         else
                         {
-                            sb.AppendLine("                return " + newExpr + ";");
+                            sb.AppendLine("                return " + TrackIfDisposable(newExpr, svc.ImplementsDisposable) + ";");
                         }
                     }
                 }
@@ -2438,7 +2442,7 @@ namespace ZeroAlloc.Inject.Generator
                     {
                         sb.AppendLine("                var existing = Interlocked.CompareExchange(ref " + fieldName + ", instance, null);");
                         sb.AppendLine("                if (existing != null) { (instance as System.IDisposable)?.Dispose(); return existing; }");
-                        sb.AppendLine("                return " + fieldName + ";");
+                        sb.AppendLine("                return TrackDisposable(instance);");
                     }
                     else
                     {
@@ -2486,7 +2490,7 @@ namespace ZeroAlloc.Inject.Generator
 
                         if (entry.Lifetime == "Transient")
                         {
-                            sb.Append(BuildNewExpression(entry.Svc));
+                            sb.Append(TrackIfDisposable(BuildNewExpression(entry.Svc), entry.Svc.ImplementsDisposable));
                         }
                         else if (entry.Lifetime == "Singleton")
                         {
@@ -2514,7 +2518,7 @@ namespace ZeroAlloc.Inject.Generator
                     {
                         sb.AppendLine("                var _cg_existing_" + i + " = Interlocked.CompareExchange(ref _cg_s_" + i + ", _cg_instance_" + i + ", null);");
                         sb.AppendLine("                if (_cg_existing_" + i + " != null) { (_cg_instance_" + i + " as global::System.IDisposable)?.Dispose(); return _cg_existing_" + i + "; }");
-                        sb.AppendLine("                return _cg_s_" + i + "!;");
+                        sb.AppendLine("                return TrackDisposable(_cg_instance_" + i + ");");
                     }
                     else
                     {
@@ -2524,7 +2528,7 @@ namespace ZeroAlloc.Inject.Generator
                 }
                 else // Transient
                 {
-                    sb.AppendLine("                return " + BuildDecoratedClosedGenericExpr(cgf, decoratorsByInterface) + ";");
+                    sb.AppendLine("                return " + TrackIfDisposable(BuildDecoratedClosedGenericExpr(cgf, decoratorsByInterface), cgf.ImplementsDisposable) + ";");
                 }
             }
 
@@ -2568,7 +2572,7 @@ namespace ZeroAlloc.Inject.Generator
                         {
                             sb.AppendLine("                    var existing = Interlocked.CompareExchange(ref " + fieldName + ", instance, null);");
                             sb.AppendLine("                    if (existing != null) { (instance as System.IDisposable)?.Dispose(); return existing; }");
-                            sb.AppendLine("                    return " + fieldName + ";");
+                            sb.AppendLine("                    return TrackDisposable(instance);");
                         }
                         else
                         {
@@ -2578,7 +2582,7 @@ namespace ZeroAlloc.Inject.Generator
                     }
                 }
 
-                // Keyed transients - new instance each call
+                // Keyed transients - new instance each call, tracked when disposable
                 foreach (var svc in keyedTransients)
                 {
                     var serviceTypes = GetServiceTypes(svc);
@@ -2592,12 +2596,14 @@ namespace ZeroAlloc.Inject.Generator
                             sb.AppendLine("                {");
                             sb.AppendLine("                    var instance = " + newExpr + ";");
                             AppendPropertySetters(sb, svc.PropertyInjections, "                    ");
-                            sb.AppendLine("                    return instance;");
+                            sb.AppendLine(svc.ImplementsDisposable
+                                ? "                    return TrackDisposable(instance);"
+                                : "                    return instance;");
                             sb.AppendLine("                }");
                         }
                         else
                         {
-                            sb.AppendLine("                    return " + newExpr + ";");
+                            sb.AppendLine("                    return " + TrackIfDisposable(newExpr, svc.ImplementsDisposable) + ";");
                         }
                     }
                 }
@@ -2621,9 +2627,6 @@ namespace ZeroAlloc.Inject.Generator
             sb.AppendLine("            return new Scope(this);");
             sb.AppendLine("        }");
             sb.AppendLine();
-
-            // Dispose/DisposeAsync overrides — only when there are disposable singletons
-            EmitSingletonDisposal(sb, DisposableSingletonFields(singletons, keyedSingletons, closedGenericFactories));
 
             // Nested Scope class
             var scopeBase = "global::ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope";
@@ -2901,7 +2904,7 @@ namespace ZeroAlloc.Inject.Generator
                 }
                 else // Transient — fresh instance each call
                 {
-                    sb.AppendLine("                    return " + BuildDecoratedClosedGenericExpr(cgf, decoratorsByInterface) + ";");
+                    sb.AppendLine("                    return " + TrackIfDisposable(BuildDecoratedClosedGenericExpr(cgf, decoratorsByInterface), cgf.ImplementsDisposable) + ";");
                 }
             }
 
@@ -2992,62 +2995,11 @@ namespace ZeroAlloc.Inject.Generator
         }
 
         /// <summary>
-        /// The fields of a generated container that hold a disposable singleton it created.
+        /// A new instance from a generated root or scope, passed to TrackDisposable when disposable, so
+        /// the container disposes it with itself as Microsoft DI does.
         /// </summary>
-        private static List<string> DisposableSingletonFields(
-            List<ServiceRegistrationInfo> singletons,
-            List<ServiceRegistrationInfo> keyedSingletons,
-            ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories)
-        {
-            var fields = new List<string>();
-            for (int i = 0; i < singletons.Count; i++)
-                if (singletons[i].ImplementsDisposable) fields.Add("_singleton_" + i);
-            for (int i = 0; i < keyedSingletons.Count; i++)
-                if (keyedSingletons[i].ImplementsDisposable) fields.Add("_keyedSingleton_" + i);
-            for (int i = 0; i < closedGenericFactories.Length; i++)
-            {
-                var cgf = closedGenericFactories[i];
-                if (cgf.ImplementsDisposable && string.Equals(cgf.Lifetime, "Singleton", StringComparison.Ordinal))
-                    fields.Add("_cg_s_" + i);
-            }
-            return fields;
-        }
-
-        /// <summary>
-        /// Overrides Dispose(bool) and DisposeAsync so a generated container disposes the singletons it
-        /// created, each once: whichever runs first takes the instance out of its field.
-        /// </summary>
-        private static void EmitSingletonDisposal(StringBuilder sb, List<string> fields)
-        {
-            if (fields.Count == 0) return;
-
-            sb.AppendLine("        protected override void Dispose(bool disposing)");
-            sb.AppendLine("        {");
-            sb.AppendLine("            base.Dispose(disposing);");
-            sb.AppendLine("            if (disposing)");
-            sb.AppendLine("            {");
-            foreach (var field in fields)
-            {
-                sb.AppendLine("                var _" + field + " = global::System.Threading.Interlocked.Exchange(ref " + field + ", null);");
-                sb.AppendLine("                (_" + field + " as global::System.IDisposable)?.Dispose();");
-            }
-            sb.AppendLine("            }");
-            sb.AppendLine("        }");
-            sb.AppendLine();
-
-            sb.AppendLine("        public override async System.Threading.Tasks.ValueTask DisposeAsync()");
-            sb.AppendLine("        {");
-            foreach (var field in fields)
-            {
-                sb.AppendLine("            var _" + field + " = global::System.Threading.Interlocked.Exchange(ref " + field + ", null);");
-                sb.AppendLine("            if (_" + field + " is global::System.IAsyncDisposable _" + field + "_async)");
-                sb.AppendLine("                await _" + field + "_async.DisposeAsync().ConfigureAwait(false);");
-                sb.AppendLine("            else (_" + field + " as global::System.IDisposable)?.Dispose();");
-            }
-            sb.AppendLine("            await base.DisposeAsync().ConfigureAwait(false);");
-            sb.AppendLine("        }");
-            sb.AppendLine();
-        }
+        private static string TrackIfDisposable(string newExpr, bool implementsDisposable) =>
+            implementsDisposable ? "TrackDisposable(" + newExpr + ")" : newExpr;
 
         private static void EmitIsKnownService(
             StringBuilder sb,
@@ -3145,8 +3097,8 @@ namespace ZeroAlloc.Inject.Generator
 
         /// <summary>
         /// The instance of one closed generic registration in the hybrid root, with a null
-        /// <paramref name="className"/>, or in its scope: a transient is constructed and, in a scope,
-        /// tracked for disposal; a singleton comes from the root; a scoped one is cached in the scope.
+        /// <paramref name="className"/>, or in its scope: a transient is constructed and tracked for
+        /// disposal; a singleton comes from the root; a scoped one is cached in the scope.
         /// </summary>
         private static string HybridClosedGenericExpr(
             ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories,
@@ -3161,13 +3113,12 @@ namespace ZeroAlloc.Inject.Generator
                     : "((" + className + ")Root).ClosedGenericSingleton" + index + "()";
             }
 
-            var newExpr = BuildClosedGenericNewExpr(cgf);
-            var tracked = cgf.ImplementsDisposable ? "TrackDisposable(" + newExpr + ")" : newExpr;
+            var tracked = TrackIfDisposable(BuildClosedGenericNewExpr(cgf), cgf.ImplementsDisposable);
             if (string.Equals(cgf.Lifetime, "Scoped", StringComparison.Ordinal))
             {
                 return "(_cg_sc_" + index + " ??= " + tracked + ")";
             }
-            return className == null ? newExpr : tracked;
+            return tracked;
         }
 
         /// <summary>The indices of each closed form's registrations, closed form by closed form.</summary>
@@ -3207,7 +3158,9 @@ namespace ZeroAlloc.Inject.Generator
                 sb.AppendLine("            if (existing != null) return existing;");
                 sb.AppendLine("            var instance = " + BuildClosedGenericNewExpr(cgf) + ";");
                 sb.AppendLine("            var winner = Interlocked.CompareExchange(ref " + field + ", instance, null);");
-                sb.AppendLine("            if (winner == null) return instance;");
+                sb.AppendLine(cgf.ImplementsDisposable
+                    ? "            if (winner == null) return TrackDisposable(instance);"
+                    : "            if (winner == null) return instance;");
                 if (cgf.ImplementsDisposable)
                     sb.AppendLine("            (instance as global::System.IDisposable)?.Dispose();");
                 sb.AppendLine("            return winner;");

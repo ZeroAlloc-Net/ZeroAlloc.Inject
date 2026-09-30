@@ -1,0 +1,37 @@
+using System;
+using ZeroAlloc.Inject;
+
+namespace ZeroAlloc.Inject.AotSmoke;
+
+// Disposable transients resolved from the root provider, a plain one and an open generic closed
+// over a value type. Every mode disposes them with the provider, as Microsoft DI does.
+public interface IDisposalProbe
+{
+    bool IsDisposed { get; }
+}
+
+[Transient]
+public sealed class DisposalProbe : IDisposalProbe, IDisposable
+{
+    public bool IsDisposed { get; private set; }
+    public void Dispose() => IsDisposed = true;
+}
+
+public interface IGenericDisposalProbe<T>
+{
+    bool IsDisposed { get; }
+}
+
+[Transient]
+public sealed class GenericDisposalProbe<T> : IGenericDisposalProbe<T>, IDisposable
+{
+    public bool IsDisposed { get; private set; }
+    public void Dispose() => IsDisposed = true;
+}
+
+// Stub: surfaces IGenericDisposalProbe<int> for the generator's closed-usage scan.
+[Transient]
+internal sealed class DisposalProbeUsage
+{
+    public DisposalProbeUsage(IGenericDisposalProbe<int> _) { }
+}

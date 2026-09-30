@@ -1005,8 +1005,10 @@ public class ContainerGeneratorTests
     // --- Standalone singleton disposal ---
 
     [Fact]
-    public void Standalone_DisposableSingleton_GeneratesDisposeOverride()
+    public void Standalone_DisposableSingleton_IsTrackedForDisposal()
     {
+        // The root tracks what it creates, singletons with transients, in creation order, and the
+        // base provider disposes them in reverse. No Dispose override is generated for it.
         var source = """
             using ZeroAlloc.Inject;
             using System;
@@ -1020,32 +1022,13 @@ public class ContainerGeneratorTests
             """;
         var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
         var standaloneSection = output.Substring(output.IndexOf("TestAssemblyStandaloneServiceProvider"));
-        Assert.Contains("protected override void Dispose(bool disposing)", standaloneSection);
-        Assert.Contains("Interlocked.Exchange(ref _singleton_", standaloneSection);
+        Assert.Contains("return TrackDisposable(instance);", standaloneSection);
+        Assert.DoesNotContain("protected override void Dispose(bool disposing)", standaloneSection);
+        Assert.DoesNotContain("override async System.Threading.Tasks.ValueTask DisposeAsync()", standaloneSection);
     }
 
     [Fact]
-    public void Standalone_DisposableSingleton_GeneratesDisposeAsyncOverride()
-    {
-        var source = """
-            using ZeroAlloc.Inject;
-            using System;
-            namespace TestApp;
-            public interface ICache { }
-            [Singleton]
-            public class Cache : ICache, IDisposable
-            {
-                public void Dispose() { }
-            }
-            """;
-        var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
-        var standaloneSection = output.Substring(output.IndexOf("TestAssemblyStandaloneServiceProvider"));
-        Assert.Contains("override async System.Threading.Tasks.ValueTask DisposeAsync()", standaloneSection);
-        Assert.Contains("Interlocked.Exchange(ref _singleton_", standaloneSection);
-    }
-
-    [Fact]
-    public void Standalone_NonDisposableSingleton_NoDisposeOverride()
+    public void Standalone_NonDisposableSingleton_IsNotTracked()
     {
         var source = """
             using ZeroAlloc.Inject;
@@ -1056,7 +1039,7 @@ public class ContainerGeneratorTests
             """;
         var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
         var standaloneSection = output.Substring(output.IndexOf("TestAssemblyStandaloneServiceProvider"));
-        Assert.DoesNotContain("protected override void Dispose(bool disposing)", standaloneSection);
+        Assert.DoesNotContain("TrackDisposable(", standaloneSection);
     }
 
     [Fact]

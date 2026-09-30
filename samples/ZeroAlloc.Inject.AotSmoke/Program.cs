@@ -75,6 +75,14 @@ using (var standalone = new ZeroAlloc.Inject.Generated.ZeroAllocInjectAotSmokeSt
     if (CheckValueTypeGenerics(standalone, "standalone container") is { } standaloneError) return Fail(standaloneError);
 }
 
+// Disposable transients resolved from the root are disposed with the provider in every mode.
+if (CheckRootDisposal(() => new ServiceCollection().AddZeroAllocInjectAotSmokeServices().BuildServiceProvider(), "Microsoft DI") is { } microsoftDiDisposalError)
+    return Fail(microsoftDiDisposalError);
+if (CheckRootDisposal(() => new ServiceCollection().AddZeroAllocInjectAotSmokeServices().BuildZeroAllocInjectServiceProvider(), "hybrid container") is { } hybridDisposalError)
+    return Fail(hybridDisposalError);
+if (CheckRootDisposal(() => new ZeroAlloc.Inject.Generated.ZeroAllocInjectAotSmokeStandaloneServiceProvider(), "standalone container") is { } standaloneDisposalError)
+    return Fail(standaloneDisposalError);
+
 Console.WriteLine("AOT smoke: PASS");
 return 0;
 
@@ -174,6 +182,23 @@ static string? CheckValueTypeEnumerables(IServiceProvider provider, string mode)
     var registries = provider.GetServices<IValueRegistry<SmokeKey>>().ToList();
     if (registries.Count != 1 || !ReferenceEquals(registries[0], provider.GetRequiredService<IValueRegistry<SmokeKey>>()))
         return $"{mode}: IEnumerable<IValueRegistry<SmokeKey>> expected the singleton, got {registries.Count}";
+
+    return null;
+}
+
+static string? CheckRootDisposal(Func<IServiceProvider> create, string mode)
+{
+    var provider = create();
+    var probe = provider.GetRequiredService<IDisposalProbe>();
+    var generic = provider.GetRequiredService<IGenericDisposalProbe<int>>();
+    if (probe.IsDisposed || generic.IsDisposed)
+        return $"{mode}: a root transient was disposed before the provider";
+
+    ((IDisposable)provider).Dispose();
+    if (!probe.IsDisposed)
+        return $"{mode}: the disposable transient DisposalProbe resolved from the root was not disposed with it";
+    if (!generic.IsDisposed)
+        return $"{mode}: the disposable transient GenericDisposalProbe<int> resolved from the root was not disposed with it";
 
     return null;
 }

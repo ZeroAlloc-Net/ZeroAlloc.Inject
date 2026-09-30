@@ -251,6 +251,12 @@ await repo.SaveChangesAsync();
 
 A scope obtained from a standalone provider tracks all disposables in a `List<object>` guarded by a lock. Open-generic scoped instances are tracked in a separate `Dictionary<Type, object>` within the same scope, also guarded by the same lock.
 
+### Disposing the Root Provider
+
+The root provider tracks what it creates the same way: every disposable transient resolved from the root, and every disposable singleton, in construction order. Disposing the provider disposes them in reverse order, with the same `Dispose()` and `DisposeAsync()` rules as a scope, and in hybrid mode then disposes the MS DI fallback. This is what MS DI does too.
+
+As with MS DI, a disposable transient resolved from the root stays referenced until the provider is disposed. Resolve short-lived disposable transients from a scope instead, so they are released when the scope ends.
+
 ---
 
 ## Trade-off Comparison Table
