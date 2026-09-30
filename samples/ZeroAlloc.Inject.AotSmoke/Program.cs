@@ -98,6 +98,18 @@ if (CheckNonGenericDecorators(() => new ServiceCollection().AddZeroAllocInjectAo
 if (CheckNonGenericDecorators(() => new ZeroAlloc.Inject.Generated.ZeroAllocInjectAotSmokeStandaloneServiceProvider(), "standalone container") is { } standaloneDecoratorError)
     return Fail(standaloneDecoratorError);
 
+// WhenRegistered, decided from the registrations in every mode.
+if (CheckWhenRegistered(new ServiceCollection().AddSingleton<TracingFeature>().AddZeroAllocInjectAotSmokeServices().BuildServiceProvider(), "cached(traced(feed))", "Microsoft DI") is { } microsoftDiWhenError)
+    return Fail(microsoftDiWhenError);
+if (CheckWhenRegistered(new ServiceCollection().AddZeroAllocInjectAotSmokeServices().BuildServiceProvider(), "cached(feed)", "Microsoft DI without TracingFeature") is { } microsoftDiWhenSkippedError)
+    return Fail(microsoftDiWhenSkippedError);
+if (CheckWhenRegistered(new ServiceCollection().AddSingleton<TracingFeature>().AddZeroAllocInjectAotSmokeServices().BuildZeroAllocInjectServiceProvider(), "cached(traced(feed))", "hybrid container") is { } hybridWhenError)
+    return Fail(hybridWhenError);
+if (CheckWhenRegistered(new ServiceCollection().AddZeroAllocInjectAotSmokeServices().BuildZeroAllocInjectServiceProvider(), "cached(feed)", "hybrid container without TracingFeature") is { } hybridWhenSkippedError)
+    return Fail(hybridWhenSkippedError);
+if (CheckWhenRegistered(new ZeroAlloc.Inject.Generated.ZeroAllocInjectAotSmokeStandaloneServiceProvider(), "cached(feed)", "standalone container") is { } standaloneWhenError)
+    return Fail(standaloneWhenError);
+
 Console.WriteLine("AOT smoke: PASS");
 return 0;
 
@@ -318,6 +330,17 @@ static string? CheckKeyedFallback(IServiceProvider hybrid)
         return "hybrid container: keyed IGreeter 'unknown' expected null";
 
     return null;
+}
+
+static string? CheckWhenRegistered(IServiceProvider provider, string expected, string mode)
+{
+    using (provider as IDisposable)
+    {
+        var feed = provider.GetRequiredService<IPriceFeed>().Describe();
+        return string.Equals(feed, expected, StringComparison.Ordinal)
+            ? null
+            : $"{mode}: IPriceFeed expected '{expected}', got '{feed}'";
+    }
 }
 
 static int Fail(string message)

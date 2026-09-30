@@ -248,7 +248,15 @@ The generated `AddXxxServices()` extension on Microsoft DI, the hybrid container
 
 ## Conditional Decorators with `WhenRegistered`
 
-The `WhenRegistered` property gates a decorator on whether a specified type is present in the `IServiceCollection` at the moment the generated extension method is called.
+The `WhenRegistered` property gates a decorator on whether a specified type is registered. Each mode decides it from the registrations it has:
+
+| Mode | The decorator applies when the type is |
+|---|---|
+| `AddXxxServices()` on Microsoft DI | in the `IServiceCollection` when the extension method runs |
+| Hybrid container | in the `IServiceCollection` the container is built from |
+| Standalone container | a service the generator registers |
+
+A type the generator registers itself, one with a lifetime attribute in the same assembly, is registered in every mode, so a decorator gated on it always applies.
 
 ```csharp
 [DecoratorOf(typeof(IProductRetriever), Order = 3, WhenRegistered = typeof(TracingOptions))]
@@ -273,22 +281,25 @@ The generated registration looks roughly like:
 
 ```csharp
 // Generated — simplified for illustration
-bool when2 = services.Any(d => d.ServiceType == typeof(TracingOptions));
+bool whenRegistered0 = services.Any(d => d.ServiceType == typeof(TracingOptions));
+
 services.AddTransient<IProductRetriever>(sp =>
 {
     IProductRetriever decorated = sp.GetRequiredService<ProductRetriever>();
     decorated = new CachingRetriever(decorated);
     decorated = new LoggingRetriever(decorated);
-    if (when2) decorated = new TracingRetriever(decorated);
+    if (whenRegistered0) decorated = new TracingRetriever(decorated);
     return decorated;
 });
 ```
 
 **Key characteristics:**
 
-- The check is a single O(n) scan of the `ServiceDescriptor` list at startup, not at every resolution. Once the extension method returns, the decision is permanent.
+- The check is a single O(n) scan of the `ServiceDescriptor` list at startup, not at every resolution: once when the extension method runs, or once when the hybrid container is built. The decision is then permanent.
+- The extension sees only what was registered before it runs. Register `TracingOptions` before calling `AddXxxServices()`; a registration after it counts for the hybrid container, which is built from the whole collection, but not for plain Microsoft DI.
+- The standalone container has no `IServiceCollection`, so a decorator gated on a type the generator does not register never applies there.
 - If `TracingOptions` is not registered, the decorator is silently skipped and the next lower-order decorator becomes the outermost wrapper. The service stays registered, undecorated when no other decorator applies. There is no runtime penalty.
-- Only the generated extension evaluates `WhenRegistered`. The hybrid and standalone containers apply a conditional decorator unconditionally for now; see [#180](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/180).
+- `WhenRegistered` works the same way on a decorator of an open generic.
 - This pattern cleanly supports environment-aware stacks: register `TracingOptions` in development or staging environments only, and the tracing decorator is wired in automatically without `#if` directives or conditional logic in `Program.cs`.
 
 ---
