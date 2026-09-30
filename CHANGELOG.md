@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.9.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.9.0...v1.9.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* apply [Decorator] and Key on open generic services in the Add...Services extension and both containers ([#176](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/176)) ([0b1244e](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/0b1244eed5bb0e2f6ed5ad469991bb7e29fade38))
+* dispose root transients with the generated containers, as Microsoft DI does ([#182](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/182)) ([66a8378](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/66a83782a8a348060c2f94dba04b92e7bc367c91)), closes [#177](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/177)
+* resolve IEnumerable&lt;T&gt; of closed generic forms in the standalone container and detect concrete closed-type parameters ([#178](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/178)) ([0b1244e](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/0b1244eed5bb0e2f6ed5ad469991bb7e29fade38))
+
 ## [1.9.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.8.0...v1.9.0) (2026-09-28)
 
 
