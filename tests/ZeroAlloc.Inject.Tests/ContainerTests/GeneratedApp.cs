@@ -118,25 +118,31 @@ internal sealed class GeneratedApp
         return services;
     }
 
-    /// <summary>Plain Microsoft DI over the generated registrations.</summary>
-    public ServiceProvider BuildMicrosoftDi(Action<IServiceCollection>? before = null)
+    /// <summary>
+    /// Plain Microsoft DI over the generated registrations. <paramref name="before"/> and
+    /// <paramref name="after"/> add the application's own registrations around them.
+    /// </summary>
+    public ServiceProvider BuildMicrosoftDi(Action<IServiceCollection>? before = null, Action<IServiceCollection>? after = null)
     {
         var services = new ServiceCollection();
         before?.Invoke(services);
-        return AddServices(services).BuildServiceProvider();
+        AddServices(services);
+        after?.Invoke(services);
+        return services.BuildServiceProvider();
     }
 
     /// <summary>
     /// The hybrid container. With <paramref name="addServices"/>, its Microsoft DI fallback holds the
     /// generated registrations, as in an application; without, only the generated type switch can
-    /// resolve the source's services. <paramref name="before"/> adds the application's own
-    /// registrations first.
+    /// resolve the source's services. <paramref name="before"/> and <paramref name="after"/> add the
+    /// application's own registrations around them.
     /// </summary>
-    public IServiceProvider BuildHybrid(bool addServices = true, Action<IServiceCollection>? before = null)
+    public IServiceProvider BuildHybrid(bool addServices = true, Action<IServiceCollection>? before = null, Action<IServiceCollection>? after = null)
     {
         var services = new ServiceCollection();
         before?.Invoke(services);
         if (addServices) AddServices(services);
+        after?.Invoke(services);
         var build = Assembly.GetTypes()
             .First(t => string.Equals(t.Name, "ZeroAllocInjectServiceCollectionExtensions", StringComparison.Ordinal))
             .GetMethod("BuildZeroAllocInjectServiceProvider", BindingFlags.Public | BindingFlags.Static)!;
