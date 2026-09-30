@@ -1696,10 +1696,6 @@ namespace ZeroAlloc.Inject.Generator
             sb.AppendLine("namespace ZeroAlloc.Inject.Generated");
             sb.AppendLine("{");
             var baseClass = "global::ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase";
-            if (hasKeyedServices)
-            {
-                baseClass = baseClass + ", IKeyedServiceProvider";
-            }
             sb.AppendLine("    internal sealed class " + className + " : " + baseClass);
             sb.AppendLine("    {");
 
@@ -1744,12 +1740,6 @@ namespace ZeroAlloc.Inject.Generator
             // ResolveKnown - root provider: transients + singletons (scoped returns null)
             sb.AppendLine("        protected override object? ResolveKnown(Type serviceType)");
             sb.AppendLine("        {");
-
-            if (hasKeyedServices)
-            {
-                sb.AppendLine("            if (serviceType == typeof(IKeyedServiceProvider))");
-                sb.AppendLine("                return this;");
-            }
 
             // Transients
             foreach (var svc in transients)
@@ -1892,16 +1882,16 @@ namespace ZeroAlloc.Inject.Generator
             EmitClosedGenericSingletonAccessors(sb, closedGenericFactories, decoratorsByInterface);
             EmitDecoratedMembers(sb, decoratedEntries, inScope: false);
 
-            EmitIsKnownService(sb, serviceTypeGroups, hasKeyedServices, closedGenericFactories);
+            EmitIsKnownService(sb, serviceTypeGroups, closedGenericFactories);
             sb.AppendLine();
 
             EmitIsKnownKeyedService(sb, keyedServices, closedGenericFactories);
             sb.AppendLine();
 
-            // Keyed service methods
+            // Keyed services the generator knows; the base resolves any other key, and a null one.
             if (hasKeyedServices)
             {
-                sb.AppendLine("        public object? GetKeyedService(Type serviceType, object? serviceKey)");
+                sb.AppendLine("        protected override object? ResolveKnownKeyed(Type serviceType, object serviceKey)");
                 sb.AppendLine("        {");
                 sb.AppendLine("            if (serviceKey is string key)");
                 sb.AppendLine("            {");
@@ -1970,13 +1960,6 @@ namespace ZeroAlloc.Inject.Generator
                 sb.AppendLine("            return null;");
                 sb.AppendLine("        }");
                 sb.AppendLine();
-                sb.AppendLine("        public object GetRequiredKeyedService(Type serviceType, object? serviceKey)");
-                sb.AppendLine("        {");
-                sb.AppendLine("            var result = GetKeyedService(serviceType, serviceKey);");
-                sb.AppendLine("            if (result == null) throw new InvalidOperationException($\"No keyed service of type '{serviceType}' with key '{serviceKey}' has been registered.\");");
-                sb.AppendLine("            return result;");
-                sb.AppendLine("        }");
-                sb.AppendLine();
             }
 
             // CreateScopeCore
@@ -1988,10 +1971,6 @@ namespace ZeroAlloc.Inject.Generator
 
             // Nested Scope class
             var scopeBase = "global::ZeroAlloc.Inject.Container.ZeroAllocInjectScope";
-            if (hasKeyedServices)
-            {
-                scopeBase = scopeBase + ", IKeyedServiceProvider";
-            }
             sb.AppendLine("        private sealed class Scope : " + scopeBase);
             sb.AppendLine("        {");
 
@@ -2019,12 +1998,6 @@ namespace ZeroAlloc.Inject.Generator
             // ResolveScopedKnown
             sb.AppendLine("            protected override object? ResolveScopedKnown(Type serviceType)");
             sb.AppendLine("            {");
-
-            if (hasKeyedServices)
-            {
-                sb.AppendLine("                if (serviceType == typeof(IKeyedServiceProvider))");
-                sb.AppendLine("                    return this;");
-            }
 
             // Transients in scope - fresh instance each call
             foreach (var svc in transients)
@@ -2213,11 +2186,11 @@ namespace ZeroAlloc.Inject.Generator
             sb.AppendLine("                return null;");
             sb.AppendLine("            }");
 
-            // Keyed service methods in scope
+            // Keyed services the generator knows, in scope; the base resolves any other key.
             if (hasKeyedServices)
             {
                 sb.AppendLine();
-                sb.AppendLine("            public object? GetKeyedService(Type serviceType, object? serviceKey)");
+                sb.AppendLine("            protected override object? ResolveScopedKnownKeyed(Type serviceType, object serviceKey)");
                 sb.AppendLine("            {");
                 sb.AppendLine("                if (serviceKey is string key)");
                 sb.AppendLine("                {");
@@ -2230,7 +2203,7 @@ namespace ZeroAlloc.Inject.Generator
                     foreach (var serviceType in serviceTypes)
                     {
                         sb.AppendLine("                    if (serviceType == typeof(" + serviceType + ") && key == \"" + escapedKey + "\")");
-                        sb.AppendLine("                        return ((" + className + ")Root).GetKeyedService(serviceType, serviceKey);");
+                        sb.AppendLine("                        return ((" + className + ")Root).ResolveKnownKeyed(serviceType, serviceKey);");
                     }
                 }
 
@@ -2280,13 +2253,6 @@ namespace ZeroAlloc.Inject.Generator
 
                 sb.AppendLine("                }");
                 sb.AppendLine("                return null;");
-                sb.AppendLine("            }");
-                sb.AppendLine();
-                sb.AppendLine("            public object GetRequiredKeyedService(Type serviceType, object? serviceKey)");
-                sb.AppendLine("            {");
-                sb.AppendLine("                var result = GetKeyedService(serviceType, serviceKey);");
-                sb.AppendLine("                if (result == null) throw new InvalidOperationException($\"No keyed service of type '{serviceType}' with key '{serviceKey}' has been registered.\");");
-                sb.AppendLine("                return result;");
                 sb.AppendLine("            }");
             }
 
@@ -2459,10 +2425,6 @@ namespace ZeroAlloc.Inject.Generator
             sb.AppendLine("namespace ZeroAlloc.Inject.Generated");
             sb.AppendLine("{");
             var baseClass = "global::ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider";
-            if (hasKeyedServices)
-            {
-                baseClass = baseClass + ", IKeyedServiceProvider";
-            }
             sb.AppendLine("    internal sealed class " + className + " : " + baseClass);
             sb.AppendLine("    {");
 
@@ -2507,12 +2469,6 @@ namespace ZeroAlloc.Inject.Generator
             // ResolveKnown - root provider: transients + singletons (scoped returns null)
             sb.AppendLine("        protected override object? ResolveKnown(Type serviceType)");
             sb.AppendLine("        {");
-
-            if (hasKeyedServices)
-            {
-                sb.AppendLine("            if (serviceType == typeof(IKeyedServiceProvider))");
-                sb.AppendLine("                return this;");
-            }
 
             // Transients
             foreach (var svc in transients)
@@ -2654,16 +2610,16 @@ namespace ZeroAlloc.Inject.Generator
             EmitClosedGenericSingletonAccessors(sb, closedGenericFactories, decoratorsByInterface);
             EmitDecoratedMembers(sb, decoratedEntries, inScope: false);
 
-            EmitIsKnownService(sb, serviceTypeGroups, hasKeyedServices, closedGenericFactories);
+            EmitIsKnownService(sb, serviceTypeGroups, closedGenericFactories);
             sb.AppendLine();
 
             EmitIsKnownKeyedService(sb, keyedServices, closedGenericFactories);
             sb.AppendLine();
 
-            // Keyed service methods
+            // Keyed services the generator knows; the base resolves any other key, and a null one.
             if (hasKeyedServices)
             {
-                sb.AppendLine("        public object? GetKeyedService(Type serviceType, object? serviceKey)");
+                sb.AppendLine("        protected override object? ResolveKnownKeyed(Type serviceType, object serviceKey)");
                 sb.AppendLine("        {");
                 sb.AppendLine("            if (serviceKey is string key)");
                 sb.AppendLine("            {");
@@ -2732,13 +2688,6 @@ namespace ZeroAlloc.Inject.Generator
                 sb.AppendLine("            return null;");
                 sb.AppendLine("        }");
                 sb.AppendLine();
-                sb.AppendLine("        public object GetRequiredKeyedService(Type serviceType, object? serviceKey)");
-                sb.AppendLine("        {");
-                sb.AppendLine("            var result = GetKeyedService(serviceType, serviceKey);");
-                sb.AppendLine("            if (result == null) throw new InvalidOperationException($\"No keyed service of type '{serviceType}' with key '{serviceKey}' has been registered.\");");
-                sb.AppendLine("            return result;");
-                sb.AppendLine("        }");
-                sb.AppendLine();
             }
 
             // CreateScopeCore - no parameter for standalone
@@ -2750,10 +2699,6 @@ namespace ZeroAlloc.Inject.Generator
 
             // Nested Scope class
             var scopeBase = "global::ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope";
-            if (hasKeyedServices)
-            {
-                scopeBase = scopeBase + ", IKeyedServiceProvider";
-            }
             sb.AppendLine("        private sealed class Scope : " + scopeBase);
             sb.AppendLine("        {");
 
@@ -2781,12 +2726,6 @@ namespace ZeroAlloc.Inject.Generator
             // ResolveScopedKnown
             sb.AppendLine("            protected override object? ResolveScopedKnown(Type serviceType)");
             sb.AppendLine("            {");
-
-            if (hasKeyedServices)
-            {
-                sb.AppendLine("                if (serviceType == typeof(IKeyedServiceProvider))");
-                sb.AppendLine("                    return this;");
-            }
 
             // Transients in scope - fresh instance each call
             foreach (var svc in transients)
@@ -2975,11 +2914,11 @@ namespace ZeroAlloc.Inject.Generator
             sb.AppendLine("            }");
 
 
-            // Keyed service methods in scope
+            // Keyed services the generator knows, in scope; the base resolves any other key.
             if (hasKeyedServices)
             {
                 sb.AppendLine();
-                sb.AppendLine("            public object? GetKeyedService(Type serviceType, object? serviceKey)");
+                sb.AppendLine("            protected override object? ResolveScopedKnownKeyed(Type serviceType, object serviceKey)");
                 sb.AppendLine("            {");
                 sb.AppendLine("                if (serviceKey is string key)");
                 sb.AppendLine("                {");
@@ -2992,7 +2931,7 @@ namespace ZeroAlloc.Inject.Generator
                     foreach (var serviceType in serviceTypes)
                     {
                         sb.AppendLine("                    if (serviceType == typeof(" + serviceType + ") && key == \"" + escapedKey + "\")");
-                        sb.AppendLine("                        return ((" + className + ")Root).GetKeyedService(serviceType, serviceKey);");
+                        sb.AppendLine("                        return ((" + className + ")Root).ResolveKnownKeyed(serviceType, serviceKey);");
                     }
                 }
 
@@ -3043,13 +2982,6 @@ namespace ZeroAlloc.Inject.Generator
                 sb.AppendLine("                }");
                 sb.AppendLine("                return null;");
                 sb.AppendLine("            }");
-                sb.AppendLine();
-                sb.AppendLine("            public object GetRequiredKeyedService(Type serviceType, object? serviceKey)");
-                sb.AppendLine("            {");
-                sb.AppendLine("                var result = GetKeyedService(serviceType, serviceKey);");
-                sb.AppendLine("                if (result == null) throw new InvalidOperationException($\"No keyed service of type '{serviceType}' with key '{serviceKey}' has been registered.\");");
-                sb.AppendLine("                return result;");
-                sb.AppendLine("            }");
             }
 
             sb.AppendLine("        }");
@@ -3069,17 +3001,10 @@ namespace ZeroAlloc.Inject.Generator
         private static void EmitIsKnownService(
             StringBuilder sb,
             Dictionary<string, List<ServiceTypeGroupEntry>> serviceTypeGroups,
-            bool hasKeyedServices,
             ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories)
         {
             sb.AppendLine("        protected override bool IsKnownService(global::System.Type serviceType)");
             sb.AppendLine("        {");
-
-            if (hasKeyedServices)
-            {
-                sb.AppendLine("            if (serviceType == typeof(global::Microsoft.Extensions.DependencyInjection.IKeyedServiceProvider)) return true;");
-                sb.AppendLine("            if (serviceType == typeof(global::Microsoft.Extensions.DependencyInjection.IServiceProviderIsKeyedService)) return true;");
-            }
 
             foreach (var kvp in serviceTypeGroups)
             {

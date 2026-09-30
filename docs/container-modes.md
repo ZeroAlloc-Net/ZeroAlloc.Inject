@@ -86,6 +86,8 @@ This is implemented in `ZeroAllocInjectServiceProviderBase`:
 ResolveKnown(serviceType) ?? _fallback.GetService(serviceType)
 ```
 
+Keyed services work the same way: `GetKeyedService` tries the keyed services the generator knows first, and falls through to the MS DI inner provider for any other type and key, such as a keyed registration the application adds itself. A `null` key resolves the unkeyed service, as in MS DI.
+
 ### Package
 
 ```
@@ -177,8 +179,11 @@ The generated standalone provider implements:
 - `IServiceScopeFactory`
 - `IServiceProviderIsService`
 - `IServiceProviderIsKeyedService`
+- `IKeyedServiceProvider`
 - `IDisposable`
 - `IAsyncDisposable`
+
+`GetKeyedService` returns `null` for a type and key the generator does not know, as MS DI does, whether or not the assembly has any keyed service.
 
 ### Singleton Lifecycle
 

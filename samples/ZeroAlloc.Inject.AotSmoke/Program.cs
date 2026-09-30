@@ -11,6 +11,8 @@ using ZeroAlloc.Inject.AotSmoke;
 
 var services = new ServiceCollection();
 services.AddZeroAllocInjectAotSmokeServices();
+// A keyed registration the generator does not know: the hybrid container falls back to Microsoft DI for it.
+services.AddKeyedSingleton<IGreeter>("manual", (_, _) => new ManualGreeter());
 using var provider = services.BuildServiceProvider();
 
 var welcome = provider.GetRequiredService<IWelcomeService>();
@@ -70,6 +72,7 @@ using (hybrid)
     if (CheckValueTypeGenerics(hybrid, "hybrid container") is { } hybridError) return Fail(hybridError);
     if (CheckValueTypeEnumerables(hybrid, "hybrid container") is { } hybridEnumerableError) return Fail(hybridEnumerableError);
     if (CheckOpenGenericFeatures(hybrid, "hybrid container") is { } hybridFeatureError) return Fail(hybridFeatureError);
+    if (CheckKeyedFallback(hybrid) is { } hybridKeyedError) return Fail(hybridKeyedError);
 }
 
 using (var standalone = new ZeroAlloc.Inject.Generated.ZeroAllocInjectAotSmokeStandaloneServiceProvider())
@@ -295,6 +298,24 @@ static string? CheckNonGenericDecorators(Func<IServiceProvider> create, string m
     ((IDisposable)provider).Dispose();
     if (!timestamped.IsDisposed || !timestamped.Inner.IsDisposed)
         return $"{mode}: the singleton TimestampedAuditLog and its inner were not both disposed with the provider";
+
+    return null;
+}
+
+// The hybrid container resolves a keyed service it does not know from its Microsoft DI fallback,
+// in the root and in a scope, as it does an unkeyed one.
+static string? CheckKeyedFallback(IServiceProvider hybrid)
+{
+    var manual = hybrid.GetRequiredKeyedService<IGreeter>("manual");
+    if (manual is not ManualGreeter)
+        return $"hybrid container: keyed IGreeter 'manual' expected ManualGreeter from the fallback, got {manual.GetType().Name}";
+    using (var scope = hybrid.CreateScope())
+    {
+        if (!ReferenceEquals(manual, scope.ServiceProvider.GetRequiredKeyedService<IGreeter>("manual")))
+            return "hybrid container: keyed singleton IGreeter 'manual' resolved another instance in a scope";
+    }
+    if (hybrid.GetKeyedService<IGreeter>("unknown") is not null)
+        return "hybrid container: keyed IGreeter 'unknown' expected null";
 
     return null;
 }
