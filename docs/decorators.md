@@ -229,6 +229,23 @@ If two decorators share the same `Order` for the same interface, the generator r
 
 ---
 
+## Lifetime, `As` and Disposal
+
+A decorator has the lifetime of the service it decorates: a decorated singleton resolves one decorated instance, a scoped one one per scope, and a transient a new chain on every resolution.
+
+The innermost decorator wraps the service's own concrete registration, `ProductRetriever` in the example above, so the inner has the service's lifetime too: resolving `ProductRetriever` in the same scope returns the instance the scoped chain wraps. The inner is disposed by its own registration, and a disposable decorator is disposed as well, each once. When a class decorates two interfaces of one service, both chains wrap the same concrete instance, except for a transient.
+
+With `As`, the concrete type is not registered, so the decorator wraps a new instance. No container disposes it; a decorator that owns it can dispose it with itself.
+
+```csharp
+[Singleton(As = typeof(IProductRetriever))]
+public class ProductRetriever : IProductRetriever, IAdminRetriever { /* ... */ }
+```
+
+The generated `AddXxxServices()` extension on Microsoft DI, the hybrid container and the standalone container all resolve the same decorated instance, and `IEnumerable<IProductRetriever>` holds one decorated entry per registration. A keyed service is not decorated in any mode.
+
+---
+
 ## Conditional Decorators with `WhenRegistered`
 
 The `WhenRegistered` property gates a decorator on whether a specified type is present in the `IServiceCollection` at the moment the generated extension method is called.
@@ -256,17 +273,22 @@ The generated registration looks roughly like:
 
 ```csharp
 // Generated — simplified for illustration
-if (services.Any(d => d.ServiceType == typeof(TracingOptions)))
+bool when2 = services.Any(d => d.ServiceType == typeof(TracingOptions));
+services.AddTransient<IProductRetriever>(sp =>
 {
-    services.TryAddTransient<IProductRetriever>(sp =>
-        new TracingRetriever(sp.GetRequiredService<IProductRetriever>()));
-}
+    IProductRetriever decorated = sp.GetRequiredService<ProductRetriever>();
+    decorated = new CachingRetriever(decorated);
+    decorated = new LoggingRetriever(decorated);
+    if (when2) decorated = new TracingRetriever(decorated);
+    return decorated;
+});
 ```
 
 **Key characteristics:**
 
 - The check is a single O(n) scan of the `ServiceDescriptor` list at startup, not at every resolution. Once the extension method returns, the decision is permanent.
-- If `TracingOptions` is not registered, the decorator is silently skipped and the next lower-order decorator becomes the outermost wrapper. There is no runtime penalty.
+- If `TracingOptions` is not registered, the decorator is silently skipped and the next lower-order decorator becomes the outermost wrapper. The service stays registered, undecorated when no other decorator applies. There is no runtime penalty.
+- Only the generated extension evaluates `WhenRegistered`. The hybrid and standalone containers apply a conditional decorator unconditionally for now; see [#180](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/180).
 - This pattern cleanly supports environment-aware stacks: register `TracingOptions` in development or staging environments only, and the tracing decorator is wired in automatically without `#if` directives or conditional logic in `Program.cs`.
 
 ---

@@ -1253,8 +1253,9 @@ namespace ZeroAlloc.Inject.Generator
         }
 
         /// <summary>
-        /// Registers a non-generic service. A decorated interface is registered as its decorator chain
-        /// around the concrete registration. A keyed service is not decorated, as in the generated
+        /// Registers a non-generic service. A decorated service type is registered as its decorator
+        /// chain around the concrete registration, or around a new instance when As leaves the
+        /// concrete type unregistered. A keyed service is not decorated, as in the generated
         /// containers: its decorators would wrap an unkeyed inner that is not registered.
         /// </summary>
         private static void EmitRegistration(
@@ -1265,145 +1266,100 @@ namespace ZeroAlloc.Inject.Generator
             var lifetime = svc.Lifetime;
             var fqn = svc.FullyQualifiedName;
             var useAdd = svc.AllowMultiple;
+            var serviceTypes = svc.AsType != null ? new List<string> { svc.AsType } : svc.Interfaces;
 
-            if (svc.AsType != null)
+            foreach (var serviceType in serviceTypes)
             {
-                // Only register as the specified type
-                EmitSingleRegistration(sb, lifetime, svc.AsType, fqn, svc.Key, useAdd, svc.ConstructorParameters, svc.PropertyInjections);
-                return;
-            }
-
-            // Register all non-filtered interfaces, wrapping with decorator when applicable
-            foreach (var iface in svc.Interfaces)
-            {
-                if (svc.Key == null && decoratorsByInterface.TryGetValue(iface, out var decorators))
+                if (svc.Key == null && decoratorsByInterface.TryGetValue(serviceType, out var decorators) && decorators.Count > 0)
                 {
-                    // Emit factory wrapping with chained decorators, applying WhenRegistered guards per decorator
-                    EmitDecoratorRegistrations(sb, lifetime, iface, fqn, decorators);
+                    EmitDecoratedRegistration(sb, svc, serviceType, decorators);
                 }
                 else
                 {
-                    EmitSingleRegistration(sb, lifetime, iface, fqn, svc.Key, useAdd, svc.ConstructorParameters, svc.PropertyInjections);
+                    EmitSingleRegistration(sb, lifetime, serviceType, fqn, svc.Key, useAdd, svc.ConstructorParameters, svc.PropertyInjections);
                 }
             }
 
-            // Always register concrete type (inner needs to be resolvable by itself)
-            EmitConcreteRegistration(sb, lifetime, fqn, svc.Key, useAdd, svc.ConstructorParameters, svc.PropertyInjections);
+            // Without As, the concrete type is a service too, and the inner its decorators wrap.
+            if (svc.AsType == null)
+            {
+                EmitConcreteRegistration(sb, lifetime, fqn, svc.Key, useAdd, svc.ConstructorParameters, svc.PropertyInjections);
+            }
         }
 
-        private static void EmitDecoratorRegistrations(
+        /// <summary>
+        /// Registers a decorated service type as one factory that chains its decorators, innermost
+        /// first. A decorator with WhenRegistered is applied only when its type is in the service
+        /// collection when this method runs. Skipping it leaves the rest of the chain, and the
+        /// service, registered, as the next lower decorator becomes the outermost.
+        /// </summary>
+        private static void EmitDecoratedRegistration(
             StringBuilder sb,
-            string lifetime,
-            string ifaceFqn,
-            string innerConcreteFqn,
+            ServiceRegistrationInfo svc,
+            string serviceType,
             List<DecoratorRegistrationInfo> decorators)
         {
-            // Check if any decorator has a WhenRegistered guard
-            bool hasAnyConditional = false;
-            foreach (var dec in decorators)
-            {
-                if (dec.WhenRegisteredFqn != null)
-                {
-                    hasAnyConditional = true;
-                    break;
-                }
-            }
+            bool newInner = svc.AsType != null;
+            bool conditional = decorators.Exists(static d => d.WhenRegisteredFqn != null);
+            var register = "services.Add" + svc.Lifetime + "<" + serviceType + ">";
 
-            if (!hasAnyConditional)
+            if (!conditional && (!newInner || svc.PropertyInjections.Count == 0))
             {
-                // Fast path: no conditional decorators, emit the full chain as a single registration
-                var decoratorFactory = BuildDecoratorFactoryLambdaChained(decorators, innerConcreteFqn);
-                sb.AppendLine(string.Format(
-                    "            services.Add{0}<{1}>({2});",
-                    lifetime, ifaceFqn, decoratorFactory));
+                var chain = newInner
+                    ? NewWithServiceProvider(svc)
+                    : ServiceProviderResolve(svc.FullyQualifiedName, optional: false);
+                foreach (var decorator in decorators)
+                {
+                    chain = NewDecorator(decorator, chain, ServiceProviderResolve);
+                }
+                sb.AppendLine("            " + register + "(sp => " + chain + ");");
                 return;
             }
 
-            // Slow path: at least one conditional decorator — emit per-decorator registrations
-            // We build the chain incrementally. Unconditional decorators up to each conditional one
-            // are folded into the chain expression before the conditional check.
-            var currentInner = innerConcreteFqn;
-            // Split decorators into groups: run of unconditional, then a conditional
-            // For simplicity, process each decorator individually, accumulating the chain
-            var unconditionalAccumulator = new System.Collections.Generic.List<DecoratorRegistrationInfo>();
-
-            foreach (var dec in decorators)
+            sb.AppendLine("            {");
+            for (int i = 0; i < decorators.Count; i++)
             {
-                if (dec.WhenRegisteredFqn == null)
-                {
-                    // Unconditional: accumulate for later chain building
-                    unconditionalAccumulator.Add(dec);
-                }
-                else
-                {
-                    // Conditional decorator: first flush unconditional ones if any, then emit conditional
-                    // Build the chain so far with unconditional + this conditional decorator
-                    var chainDecorators = new System.Collections.Generic.List<DecoratorRegistrationInfo>(unconditionalAccumulator) { dec };
-                    var decoratorFactory = BuildDecoratorFactoryLambdaChained(chainDecorators, currentInner);
-
-                    sb.AppendLine(string.Format(
-                        "            if (services.Any(d => d.ServiceType == typeof({0})))",
-                        dec.WhenRegisteredFqn));
-                    sb.AppendLine("            {");
-                    sb.AppendLine(string.Format(
-                        "                services.Add{0}<{1}>({2});",
-                        lifetime, ifaceFqn, decoratorFactory));
-                    sb.AppendLine("            }");
-
-                    // After a conditional registration, the chain is emitted inside the guard.
-                    // For subsequent decorators, they would wrap the result of this conditional.
-                    // Since we cannot know at generation time whether the conditional registration
-                    // ran, we reset the accumulator and continue chaining on the same base.
-                    unconditionalAccumulator.Clear();
-                    // Note: currentInner stays the same — subsequent decorators wrap from the concrete
-                }
+                if (decorators[i].WhenRegisteredFqn is { } whenRegistered)
+                    sb.AppendLine("                bool when" + i + " = services.Any(d => d.ServiceType == typeof(" + whenRegistered + "));");
             }
-
-            // If there are remaining unconditional decorators that were never followed by a conditional,
-            // emit them as a plain registration
-            if (unconditionalAccumulator.Count > 0)
+            sb.AppendLine("                " + register + "(sp =>");
+            sb.AppendLine("                {");
+            if (newInner)
             {
-                var decoratorFactory = BuildDecoratorFactoryLambdaChained(unconditionalAccumulator, currentInner);
-                sb.AppendLine(string.Format(
-                    "            services.Add{0}<{1}>({2});",
-                    lifetime, ifaceFqn, decoratorFactory));
+                sb.AppendLine("                    var instance = " + NewWithServiceProvider(svc) + ";");
+                foreach (var prop in svc.PropertyInjections)
+                {
+                    sb.AppendLine("                    instance." + prop.PropertyName + " = " + ServiceProviderResolve(prop.FullyQualifiedTypeName, !prop.IsRequired) + ";");
+                }
+                sb.AppendLine("                    " + serviceType + " decorated = instance;");
             }
+            else
+            {
+                sb.AppendLine("                    " + serviceType + " decorated = " + ServiceProviderResolve(svc.FullyQualifiedName, optional: false) + ";");
+            }
+            for (int i = 0; i < decorators.Count; i++)
+            {
+                var apply = "decorated = " + NewDecorator(decorators[i], "decorated", ServiceProviderResolve) + ";";
+                sb.AppendLine("                    " + (decorators[i].WhenRegisteredFqn != null ? "if (when" + i + ") " + apply : apply));
+            }
+            sb.AppendLine("                    return decorated;");
+            sb.AppendLine("                });");
+            sb.AppendLine("            }");
         }
 
-        private static string BuildDecoratorFactoryLambdaChained(
-            List<DecoratorRegistrationInfo> decorators,
-            string innerConcreteFqn)
+        /// <summary>A new instance of a service, its constructor parameters resolved from <c>sp</c>.</summary>
+        private static string NewWithServiceProvider(ServiceRegistrationInfo svc)
         {
-            // Build the innermost expression: sp.GetRequiredService<ConcreteType>()
-            var currentExpr = "sp.GetRequiredService<" + innerConcreteFqn + ">()";
-
-            // Chain each decorator: first wraps concrete, each subsequent wraps previous
-            foreach (var decorator in decorators)
+            var sb = new StringBuilder();
+            sb.Append("new ").Append(svc.FullyQualifiedName).Append("(");
+            for (int i = 0; i < svc.ConstructorParameters.Count; i++)
             {
-                var sb = new StringBuilder();
-                sb.Append("new ");
-                sb.Append(decorator.DecoratorFqn);
-                sb.Append("(");
-                bool first = true;
-                foreach (var param in decorator.ConstructorParameters)
-                {
-                    if (!first) sb.Append(", ");
-                    first = false;
-                    if (param.FullyQualifiedTypeName == decorator.DecoratedInterfaceFqn)
-                    {
-                        sb.Append(currentExpr);
-                    }
-                    else
-                    {
-                        var method = param.IsOptional ? "GetService" : "GetRequiredService";
-                        sb.Append("sp.").Append(method).Append("<").Append(param.FullyQualifiedTypeName).Append(">()");
-                    }
-                }
-                sb.Append(")");
-                currentExpr = sb.ToString();
+                if (i > 0) sb.Append(", ");
+                var param = svc.ConstructorParameters[i];
+                sb.Append(ServiceProviderResolve(param.FullyQualifiedTypeName, param.IsOptional));
             }
-
-            return "sp => " + currentExpr;
+            sb.Append(")");
+            return sb.ToString();
         }
 
         private static void EmitSingleRegistration(
@@ -1435,31 +1391,174 @@ namespace ZeroAlloc.Inject.Generator
             }
         }
 
-        private static string BuildDecoratedNewExpression(
-            ServiceRegistrationInfo svc,
-            string serviceTypeFqn,
-            System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<DecoratorRegistrationInfo>> decoratorsByInterface,
-            bool forScope)
+        /// <summary>
+        /// The decorated service types a generated container resolves, one per unkeyed non-generic
+        /// service and service type that has decorators, numbered for the members emitted for each.
+        /// </summary>
+        private static List<DecoratedServiceEntry> CollectDecoratedEntries(
+            List<ServiceRegistrationInfo> services,
+            Dictionary<string, List<DecoratorRegistrationInfo>> decoratorsByInterface)
         {
-            var baseExpr = forScope ? BuildNewExpressionForScope(svc) : BuildNewExpression(svc);
-            if (!decoratorsByInterface.TryGetValue(serviceTypeFqn, out var decorators))
-                return baseExpr;
-
-            // Chain decorators: first wraps concrete, each subsequent wraps previous
-            var currentExpr = baseExpr;
-            foreach (var decorator in decorators)
+            var entries = new List<DecoratedServiceEntry>();
+            foreach (var svc in services)
             {
-                currentExpr = BuildNewExpressionWithDecorator(
-                    decorator, svc.FullyQualifiedName, currentExpr, decorator.DecoratedInterfaceFqn!);
+                if (svc.IsOpenGeneric || svc.Key != null) continue;
+                foreach (var serviceType in GetServiceTypes(svc))
+                {
+                    if (decoratorsByInterface.TryGetValue(serviceType, out var decorators) && decorators.Count > 0)
+                        entries.Add(new DecoratedServiceEntry(svc, serviceType, decorators, entries.Count));
+                }
             }
-            return currentExpr;
+            return entries;
         }
 
-        private static string BuildNewExpressionWithDecorator(
+        private static DecoratedServiceEntry? FindDecorated(
+            List<DecoratedServiceEntry> entries,
+            ServiceRegistrationInfo svc,
+            string serviceType)
+        {
+            foreach (var entry in entries)
+            {
+                if (ReferenceEquals(entry.Svc, svc) && string.Equals(entry.ServiceType, serviceType, StringComparison.Ordinal))
+                    return entry;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Whether a service has a service type without decorators, which a generated container
+        /// caches the service's own instance for. A service registered with As whose one service
+        /// type is decorated has none: its decorated factory creates the inner itself.
+        /// </summary>
+        private static bool HasUndecoratedServiceType(List<DecoratedServiceEntry> decoratedEntries, ServiceRegistrationInfo svc)
+        {
+            foreach (var serviceType in GetServiceTypes(svc))
+            {
+                if (FindDecorated(decoratedEntries, svc, serviceType) == null)
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// The instance of a decorated entry in a generated root, with a null <paramref name="className"/>,
+        /// or in its scope: a singleton comes from the root's cache, a scoped one from the scope's, and
+        /// a transient is created and tracked for disposal when its outermost decorator is disposable.
+        /// The inner is tracked by its own registration, as Microsoft DI tracks it.
+        /// </summary>
+        private static string DecoratedExpr(DecoratedServiceEntry entry, string? className)
+        {
+            var i = entry.Index;
+            if (string.Equals(entry.Svc.Lifetime, "Singleton", StringComparison.Ordinal))
+            {
+                return className == null
+                    ? "DecoratedSingleton" + i + "()"
+                    : "((" + className + ")Root).DecoratedSingleton" + i + "()";
+            }
+
+            var created = TrackIfDisposable("NewDecorated" + i + "()", entry.Decorators[entry.Decorators.Count - 1].ImplementsDisposable);
+            return string.Equals(entry.Svc.Lifetime, "Scoped", StringComparison.Ordinal)
+                ? "(_decorated_" + i + " ??= " + created + ")"
+                : created;
+        }
+
+        /// <summary>
+        /// One entry of a generated root's cached IEnumerable&lt;T&gt; of singletons: a decorated one
+        /// from its cache, any other through its concrete type.
+        /// </summary>
+        private static string EnumerableEntryExpr(
+            List<DecoratedServiceEntry> decoratedEntries,
+            ServiceTypeGroupEntry entry,
+            string serviceType,
+            string? className)
+        {
+            var decorated = FindDecorated(decoratedEntries, entry.Svc, serviceType);
+            return decorated != null
+                ? DecoratedExpr(decorated, className)
+                : "(" + serviceType + ")GetService(typeof(" + entry.Svc.FullyQualifiedName + "))!";
+        }
+
+        /// <summary>
+        /// The members a generated root, or with <paramref name="inScope"/> its scope, needs for its
+        /// decorated entries: a factory for each entry it creates, and the cache of each singleton in
+        /// the root and of each scoped entry in the scope.
+        /// </summary>
+        private static void EmitDecoratedMembers(StringBuilder sb, List<DecoratedServiceEntry> entries, bool inScope)
+        {
+            var indent = inScope ? "            " : "        ";
+            foreach (var entry in entries)
+            {
+                var lifetime = entry.Svc.Lifetime;
+                bool singleton = string.Equals(lifetime, "Singleton", StringComparison.Ordinal);
+                bool scoped = string.Equals(lifetime, "Scoped", StringComparison.Ordinal);
+                if (inScope ? singleton : scoped) continue;
+
+                var i = entry.Index;
+                if (singleton || scoped)
+                    sb.AppendLine(indent + "private " + entry.ServiceType + "? _decorated_" + i + ";");
+
+                EmitDecoratedFactory(sb, entry, indent);
+
+                if (singleton)
+                {
+                    var field = "_decorated_" + i;
+                    sb.AppendLine(indent + "private " + entry.ServiceType + " DecoratedSingleton" + i + "()");
+                    sb.AppendLine(indent + "{");
+                    sb.AppendLine(indent + "    var existing = " + field + ";");
+                    sb.AppendLine(indent + "    if (existing != null) return existing;");
+                    sb.AppendLine(indent + "    var instance = NewDecorated" + i + "();");
+                    sb.AppendLine(indent + "    var winner = Interlocked.CompareExchange(ref " + field + ", instance, null);");
+                    // The instance that loses a race is not disposed: its inner is the shared concrete
+                    // singleton, which a decorator may dispose with itself.
+                    sb.AppendLine(entry.Decorators[entry.Decorators.Count - 1].ImplementsDisposable
+                        ? indent + "    if (winner == null) return TrackDisposable(instance);"
+                        : indent + "    if (winner == null) return instance;");
+                    sb.AppendLine(indent + "    return winner;");
+                    sb.AppendLine(indent + "}");
+                    sb.AppendLine();
+                }
+            }
+        }
+
+        /// <summary>
+        /// A factory that chains an entry's decorators, innermost first, around its inner: the
+        /// concrete registration of the service, as the Add...Services extension resolves it, so the
+        /// inner has that registration's lifetime and is disposed with it. When As leaves the concrete
+        /// type unregistered, the decorators wrap a new instance, as in the extension.
+        /// </summary>
+        private static void EmitDecoratedFactory(StringBuilder sb, DecoratedServiceEntry entry, string indent)
+        {
+            var svc = entry.Svc;
+            sb.AppendLine(indent + "private " + entry.ServiceType + " NewDecorated" + entry.Index + "()");
+            sb.AppendLine(indent + "{");
+            if (svc.AsType == null)
+            {
+                sb.AppendLine(indent + "    " + entry.ServiceType + " inner = " + ContainerResolve(svc.FullyQualifiedName, optional: false) + ";");
+            }
+            else
+            {
+                sb.AppendLine(indent + "    var instance = " + BuildNewExpression(svc) + ";");
+                AppendPropertySetters(sb, svc.PropertyInjections, indent + "    ");
+                sb.AppendLine(indent + "    " + entry.ServiceType + " inner = instance;");
+            }
+            var chain = "inner";
+            foreach (var decorator in entry.Decorators)
+            {
+                chain = NewDecorator(decorator, chain, ContainerResolve);
+            }
+            sb.AppendLine(indent + "    return " + chain + ";");
+            sb.AppendLine(indent + "}");
+            sb.AppendLine();
+        }
+
+        /// <summary>
+        /// A new decorator around <paramref name="innerExpr"/>: its parameter of the decorated type
+        /// takes the inner, and its other parameters are resolved.
+        /// </summary>
+        private static string NewDecorator(
             DecoratorRegistrationInfo decorator,
-            string innerConcreteFqn,
-            string innerNewExpr,
-            string decoratedInterfaceFqn)
+            string innerExpr,
+            Func<string, bool, string> resolve)
         {
             var sb = new StringBuilder();
             sb.Append("new ").Append(decorator.DecoratorFqn).Append("(");
@@ -1468,14 +1567,10 @@ namespace ZeroAlloc.Inject.Generator
             {
                 if (!first) sb.Append(", ");
                 first = false;
-                if (param.FullyQualifiedTypeName == decoratedInterfaceFqn)
-                {
-                    sb.Append("(").Append(decoratedInterfaceFqn).Append(")(").Append(innerNewExpr).Append(")");
-                }
+                if (string.Equals(param.FullyQualifiedTypeName, decorator.DecoratedInterfaceFqn, StringComparison.Ordinal))
+                    sb.Append(innerExpr);
                 else
-                {
-                    sb.Append("(").Append(param.FullyQualifiedTypeName).Append(")GetService(typeof(").Append(param.FullyQualifiedTypeName).Append("))!");
-                }
+                    sb.Append(resolve(param.FullyQualifiedTypeName, param.IsOptional));
             }
             sb.Append(")");
             return sb.ToString();
@@ -1582,6 +1677,7 @@ namespace ZeroAlloc.Inject.Generator
             }
 
             bool hasKeyedServices = keyedServices.Count > 0 || closedGenericFactories.Any(static cgf => cgf.Key != null);
+            var decoratedEntries = CollectDecoratedEntries(services, decoratorsByInterface);
 
             var sb = new StringBuilder();
             sb.AppendLine("// <auto-generated />");
@@ -1622,7 +1718,8 @@ namespace ZeroAlloc.Inject.Generator
             // Singleton fields
             for (int i = 0; i < singletons.Count; i++)
             {
-                sb.AppendLine("        private " + singletons[i].FullyQualifiedName + "? _singleton_" + i + ";");
+                if (HasUndecoratedServiceType(decoratedEntries, singletons[i]))
+                    sb.AppendLine("        private " + singletons[i].FullyQualifiedName + "? _singleton_" + i + ";");
             }
             // Keyed singleton fields
             for (int i = 0; i < keyedSingletons.Count; i++)
@@ -1664,8 +1761,13 @@ namespace ZeroAlloc.Inject.Generator
                     if (lastRegistrationPerType.TryGetValue(serviceType, out lastEntry)
                         && lastEntry.Svc == svc && lastEntry.Lifetime == "Transient")
                     {
-                        var newExpr = BuildDecoratedNewExpression(svc, serviceType, decoratorsByInterface, false);
                         sb.AppendLine("            if (serviceType == typeof(" + serviceType + "))");
+                        if (FindDecorated(decoratedEntries, svc, serviceType) is { } decoratedTransient)
+                        {
+                            sb.AppendLine("                return " + DecoratedExpr(decoratedTransient, className: null) + ";");
+                            continue;
+                        }
+                        var newExpr = BuildNewExpression(svc);
                         if (svc.PropertyInjections.Count > 0)
                         {
                             sb.AppendLine("            {");
@@ -1702,6 +1804,11 @@ namespace ZeroAlloc.Inject.Generator
                     }
 
                     sb.AppendLine("            if (serviceType == typeof(" + serviceType + "))");
+                    if (FindDecorated(decoratedEntries, svc, serviceType) is { } decoratedSingleton)
+                    {
+                        sb.AppendLine("                return " + DecoratedExpr(decoratedSingleton, className: null) + ";");
+                        continue;
+                    }
                     sb.AppendLine("            {");
                     sb.AppendLine("                if (" + fieldName + " != null) return " + fieldName + ";");
                     sb.AppendLine("                var instance = " + newExpr + ";");
@@ -1743,7 +1850,7 @@ namespace ZeroAlloc.Inject.Generator
                     for (int j = 0; j < rootEntries.Count; j++)
                     {
                         if (j > 0) sb.Append(", ");
-                        sb.Append("(" + serviceType + ")GetService(typeof(" + rootEntries[j].Svc.FullyQualifiedName + "))!");
+                        sb.Append(EnumerableEntryExpr(decoratedEntries, rootEntries[j], serviceType, className: null));
                     }
                     sb.AppendLine(" };");
                 }
@@ -1756,7 +1863,11 @@ namespace ZeroAlloc.Inject.Generator
                         if (j > 0) sb.Append(", ");
                         var entry = rootEntries[j];
 
-                        if (entry.Lifetime == "Transient")
+                        if (FindDecorated(decoratedEntries, entry.Svc, serviceType) is { } decoratedEntry)
+                        {
+                            sb.Append(DecoratedExpr(decoratedEntry, className: null));
+                        }
+                        else if (entry.Lifetime == "Transient")
                         {
                             sb.Append(TrackIfDisposable(BuildNewExpression(entry.Svc), entry.Svc.ImplementsDisposable));
                         }
@@ -1779,6 +1890,7 @@ namespace ZeroAlloc.Inject.Generator
             sb.AppendLine();
 
             EmitClosedGenericSingletonAccessors(sb, closedGenericFactories, decoratorsByInterface);
+            EmitDecoratedMembers(sb, decoratedEntries, inScope: false);
 
             EmitIsKnownService(sb, serviceTypeGroups, hasKeyedServices, closedGenericFactories);
             sb.AppendLine();
@@ -1886,18 +1998,8 @@ namespace ZeroAlloc.Inject.Generator
             // Scoped fields
             for (int i = 0; i < scopeds.Count; i++)
             {
-                sb.AppendLine("            private " + scopeds[i].FullyQualifiedName + "? _scoped_" + i + ";");
-                // Emit a cached-decorator field for each scoped service that has a decorated interface
-                foreach (var st in GetServiceTypes(scopeds[i]))
-                {
-                    if (decoratorsByInterface.TryGetValue(st, out var decList))
-                    {
-                        // Use the outermost decorator type for the cached field
-                        var outermost = decList[decList.Count - 1];
-                        sb.AppendLine("            private " + outermost.DecoratorFqn + "? _scoped_" + i + "_d;");
-                        break;
-                    }
-                }
+                if (HasUndecoratedServiceType(decoratedEntries, scopeds[i]))
+                    sb.AppendLine("            private " + scopeds[i].FullyQualifiedName + "? _scoped_" + i + ";");
             }
             for (int i = 0; i < keyedScopedServices.Count; i++)
             {
@@ -1912,6 +2014,7 @@ namespace ZeroAlloc.Inject.Generator
             // Scope constructor
             sb.AppendLine("            public Scope(" + className + " root, global::Microsoft.Extensions.DependencyInjection.IServiceScopeFactory fallbackScopeFactory) : base(root, fallbackScopeFactory) { }");
             sb.AppendLine();
+            EmitDecoratedMembers(sb, decoratedEntries, inScope: true);
 
             // ResolveScopedKnown
             sb.AppendLine("            protected override object? ResolveScopedKnown(Type serviceType)");
@@ -1933,8 +2036,13 @@ namespace ZeroAlloc.Inject.Generator
                     if (lastRegistrationPerType.TryGetValue(serviceType, out lastEntry)
                         && lastEntry.Svc == svc && lastEntry.Lifetime == "Transient")
                     {
-                        var newExpr = BuildDecoratedNewExpression(svc, serviceType, decoratorsByInterface, true);
                         sb.AppendLine("                if (serviceType == typeof(" + serviceType + "))");
+                        if (FindDecorated(decoratedEntries, svc, serviceType) is { } decoratedTransient)
+                        {
+                            sb.AppendLine("                    return " + DecoratedExpr(decoratedTransient, className) + ";");
+                            continue;
+                        }
+                        var newExpr = BuildNewExpressionForScope(svc);
                         if (svc.PropertyInjections.Count > 0)
                         {
                             sb.AppendLine("                {");
@@ -1998,27 +2106,9 @@ namespace ZeroAlloc.Inject.Generator
 
                     sb.AppendLine("                if (serviceType == typeof(" + serviceType + "))");
                     sb.AppendLine("                {");
-                    if (decoratorsByInterface.TryGetValue(serviceType, out var scopedDecoratorList))
+                    if (FindDecorated(decoratedEntries, svc, serviceType) is { } decoratedScoped)
                     {
-                        // Decorated interface: cache the inner concrete, chain decorators, cache the outermost
-                        var currentExpr = "(" + svc.FullyQualifiedName + ")" + fieldName;
-                        foreach (var dec in scopedDecoratorList)
-                        {
-                            currentExpr = BuildNewExpressionWithDecorator(dec, svc.FullyQualifiedName,
-                                currentExpr, serviceType);
-                        }
-                        if (svc.PropertyInjections.Count > 0)
-                        {
-                            sb.AppendLine("                    if (" + fieldName + " == null) { " + fieldName + " = " + innerExpr + ";");
-                            AppendPropertySetters(sb, svc.PropertyInjections, "                        ", fieldName);
-                            sb.AppendLine("                    }");
-                        }
-                        else
-                        {
-                            sb.AppendLine("                    if (" + fieldName + " == null) " + fieldName + " = " + innerExpr + ";");
-                        }
-                        sb.AppendLine("                    if (" + fieldName + "_d == null) { " + fieldName + "_d = " + currentExpr + "; TrackDisposable(" + fieldName + "_d); }");
-                        sb.AppendLine("                    return " + fieldName + "_d;");
+                        sb.AppendLine("                    return " + DecoratedExpr(decoratedScoped, className) + ";");
                     }
                     else if (svc.ImplementsDisposable)
                     {
@@ -2077,7 +2167,11 @@ namespace ZeroAlloc.Inject.Generator
                         if (j > 0) sb.Append(", ");
                         var entry = entries[j];
 
-                        if (entry.Lifetime == "Transient")
+                        if (FindDecorated(decoratedEntries, entry.Svc, serviceType) is { } decoratedEntry)
+                        {
+                            sb.Append(DecoratedExpr(decoratedEntry, className));
+                        }
+                        else if (entry.Lifetime == "Transient")
                         {
                             var newExpr = BuildNewExpressionForScope(entry.Svc);
                             if (entry.Svc.ImplementsDisposable)
@@ -2346,6 +2440,7 @@ namespace ZeroAlloc.Inject.Generator
             }
 
             bool hasKeyedServices = keyedServices.Count > 0 || closedGenericFactories.Any(static cgf => cgf.Key != null);
+            var decoratedEntries = CollectDecoratedEntries(services, decoratorsByInterface);
 
             var sb = new StringBuilder();
             sb.AppendLine("// <auto-generated />");
@@ -2386,7 +2481,8 @@ namespace ZeroAlloc.Inject.Generator
             // Singleton fields
             for (int i = 0; i < singletons.Count; i++)
             {
-                sb.AppendLine("        private " + singletons[i].FullyQualifiedName + "? _singleton_" + i + ";");
+                if (HasUndecoratedServiceType(decoratedEntries, singletons[i]))
+                    sb.AppendLine("        private " + singletons[i].FullyQualifiedName + "? _singleton_" + i + ";");
             }
             // Keyed singleton fields
             for (int i = 0; i < keyedSingletons.Count; i++)
@@ -2428,8 +2524,13 @@ namespace ZeroAlloc.Inject.Generator
                     if (lastRegistrationPerType.TryGetValue(serviceType, out lastEntry)
                         && lastEntry.Svc == svc && lastEntry.Lifetime == "Transient")
                     {
-                        var newExpr = BuildDecoratedNewExpression(svc, serviceType, decoratorsByInterface, false);
                         sb.AppendLine("            if (serviceType == typeof(" + serviceType + "))");
+                        if (FindDecorated(decoratedEntries, svc, serviceType) is { } decoratedTransient)
+                        {
+                            sb.AppendLine("                return " + DecoratedExpr(decoratedTransient, className: null) + ";");
+                            continue;
+                        }
+                        var newExpr = BuildNewExpression(svc);
                         if (svc.PropertyInjections.Count > 0)
                         {
                             sb.AppendLine("            {");
@@ -2466,6 +2567,11 @@ namespace ZeroAlloc.Inject.Generator
                     }
 
                     sb.AppendLine("            if (serviceType == typeof(" + serviceType + "))");
+                    if (FindDecorated(decoratedEntries, svc, serviceType) is { } decoratedSingleton)
+                    {
+                        sb.AppendLine("                return " + DecoratedExpr(decoratedSingleton, className: null) + ";");
+                        continue;
+                    }
                     sb.AppendLine("            {");
                     sb.AppendLine("                if (" + fieldName + " != null) return " + fieldName + ";");
                     sb.AppendLine("                var instance = " + newExpr + ";");
@@ -2507,7 +2613,7 @@ namespace ZeroAlloc.Inject.Generator
                     for (int j = 0; j < rootEntries.Count; j++)
                     {
                         if (j > 0) sb.Append(", ");
-                        sb.Append("(" + serviceType + ")GetService(typeof(" + rootEntries[j].Svc.FullyQualifiedName + "))!");
+                        sb.Append(EnumerableEntryExpr(decoratedEntries, rootEntries[j], serviceType, className: null));
                     }
                     sb.AppendLine(" };");
                 }
@@ -2520,7 +2626,11 @@ namespace ZeroAlloc.Inject.Generator
                         if (j > 0) sb.Append(", ");
                         var entry = rootEntries[j];
 
-                        if (entry.Lifetime == "Transient")
+                        if (FindDecorated(decoratedEntries, entry.Svc, serviceType) is { } decoratedEntry)
+                        {
+                            sb.Append(DecoratedExpr(decoratedEntry, className: null));
+                        }
+                        else if (entry.Lifetime == "Transient")
                         {
                             sb.Append(TrackIfDisposable(BuildNewExpression(entry.Svc), entry.Svc.ImplementsDisposable));
                         }
@@ -2542,6 +2652,7 @@ namespace ZeroAlloc.Inject.Generator
             sb.AppendLine();
 
             EmitClosedGenericSingletonAccessors(sb, closedGenericFactories, decoratorsByInterface);
+            EmitDecoratedMembers(sb, decoratedEntries, inScope: false);
 
             EmitIsKnownService(sb, serviceTypeGroups, hasKeyedServices, closedGenericFactories);
             sb.AppendLine();
@@ -2649,18 +2760,8 @@ namespace ZeroAlloc.Inject.Generator
             // Scoped fields
             for (int i = 0; i < scopeds.Count; i++)
             {
-                sb.AppendLine("            private " + scopeds[i].FullyQualifiedName + "? _scoped_" + i + ";");
-                // Emit a cached-decorator field for each scoped service that has a decorated interface
-                foreach (var st in GetServiceTypes(scopeds[i]))
-                {
-                    if (decoratorsByInterface.TryGetValue(st, out var decList))
-                    {
-                        // Use the outermost decorator type for the cached field
-                        var outermost = decList[decList.Count - 1];
-                        sb.AppendLine("            private " + outermost.DecoratorFqn + "? _scoped_" + i + "_d;");
-                        break;
-                    }
-                }
+                if (HasUndecoratedServiceType(decoratedEntries, scopeds[i]))
+                    sb.AppendLine("            private " + scopeds[i].FullyQualifiedName + "? _scoped_" + i + ";");
             }
             for (int i = 0; i < keyedScopedServices.Count; i++)
             {
@@ -2675,6 +2776,7 @@ namespace ZeroAlloc.Inject.Generator
             // Scope constructor - only root, no fallbackScope
             sb.AppendLine("            public Scope(" + className + " root) : base(root) { }");
             sb.AppendLine();
+            EmitDecoratedMembers(sb, decoratedEntries, inScope: true);
 
             // ResolveScopedKnown
             sb.AppendLine("            protected override object? ResolveScopedKnown(Type serviceType)");
@@ -2696,8 +2798,13 @@ namespace ZeroAlloc.Inject.Generator
                     if (lastRegistrationPerType.TryGetValue(serviceType, out lastEntry)
                         && lastEntry.Svc == svc && lastEntry.Lifetime == "Transient")
                     {
-                        var newExpr = BuildDecoratedNewExpression(svc, serviceType, decoratorsByInterface, true);
                         sb.AppendLine("                if (serviceType == typeof(" + serviceType + "))");
+                        if (FindDecorated(decoratedEntries, svc, serviceType) is { } decoratedTransient)
+                        {
+                            sb.AppendLine("                    return " + DecoratedExpr(decoratedTransient, className) + ";");
+                            continue;
+                        }
+                        var newExpr = BuildNewExpressionForScope(svc);
                         if (svc.PropertyInjections.Count > 0)
                         {
                             sb.AppendLine("                {");
@@ -2761,27 +2868,9 @@ namespace ZeroAlloc.Inject.Generator
 
                     sb.AppendLine("                if (serviceType == typeof(" + serviceType + "))");
                     sb.AppendLine("                {");
-                    if (decoratorsByInterface.TryGetValue(serviceType, out var scopedDecoratorList))
+                    if (FindDecorated(decoratedEntries, svc, serviceType) is { } decoratedScoped)
                     {
-                        // Decorated interface: cache the inner concrete, chain decorators, cache the outermost
-                        var currentExpr = "(" + svc.FullyQualifiedName + ")" + fieldName;
-                        foreach (var dec in scopedDecoratorList)
-                        {
-                            currentExpr = BuildNewExpressionWithDecorator(dec, svc.FullyQualifiedName,
-                                currentExpr, serviceType);
-                        }
-                        if (svc.PropertyInjections.Count > 0)
-                        {
-                            sb.AppendLine("                    if (" + fieldName + " == null) { " + fieldName + " = " + innerExpr + ";");
-                            AppendPropertySetters(sb, svc.PropertyInjections, "                        ", fieldName);
-                            sb.AppendLine("                    }");
-                        }
-                        else
-                        {
-                            sb.AppendLine("                    if (" + fieldName + " == null) " + fieldName + " = " + innerExpr + ";");
-                        }
-                        sb.AppendLine("                    if (" + fieldName + "_d == null) { " + fieldName + "_d = " + currentExpr + "; TrackDisposable(" + fieldName + "_d); }");
-                        sb.AppendLine("                    return " + fieldName + "_d;");
+                        sb.AppendLine("                    return " + DecoratedExpr(decoratedScoped, className) + ";");
                     }
                     else if (svc.ImplementsDisposable)
                     {
@@ -2840,7 +2929,11 @@ namespace ZeroAlloc.Inject.Generator
                         if (j > 0) sb.Append(", ");
                         var entry = entries[j];
 
-                        if (entry.Lifetime == "Transient")
+                        if (FindDecorated(decoratedEntries, entry.Svc, serviceType) is { } decoratedEntry)
+                        {
+                            sb.Append(DecoratedExpr(decoratedEntry, className));
+                        }
+                        else if (entry.Lifetime == "Transient")
                         {
                             var newExpr = BuildNewExpressionForScope(entry.Svc);
                             if (entry.Svc.ImplementsDisposable)
@@ -4020,6 +4113,26 @@ namespace ZeroAlloc.Inject.Generator
         public string? Key { get; }
 
         public List<ServiceRegistrationInfo> Registrations { get; } = new List<ServiceRegistrationInfo>();
+    }
+
+    /// <summary>
+    /// An unkeyed non-generic service type that has decorators, of one service registration. The
+    /// generated containers emit a factory for each, and a cache for a singleton or scoped one.
+    /// </summary>
+    internal sealed class DecoratedServiceEntry
+    {
+        public ServiceRegistrationInfo Svc { get; }
+        public string ServiceType { get; }
+        public List<DecoratorRegistrationInfo> Decorators { get; }
+        public int Index { get; }
+
+        public DecoratedServiceEntry(ServiceRegistrationInfo svc, string serviceType, List<DecoratorRegistrationInfo> decorators, int index)
+        {
+            Svc = svc;
+            ServiceType = serviceType;
+            Decorators = decorators;
+            Index = index;
+        }
     }
 
     internal sealed class ServiceTypeGroupEntry
