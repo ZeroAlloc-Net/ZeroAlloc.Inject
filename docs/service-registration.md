@@ -153,6 +153,23 @@ A keyed service forwards the same way under its key. A class registered with `As
 
 > **Dispose must be idempotent.** Microsoft DI disposes an instance once for every registration it resolved it through. On plain Microsoft DI, a disposable `Store` resolved through `IReader`, `IWriter` and `Store` has `Dispose` called three times, and a transient resolved through `IReader` twice. The hybrid and standalone containers dispose it once. .NET's disposal guidance already requires `Dispose` to be safe to call more than once.
 
+### A class with one interface
+
+A class with exactly one registered interface is not forwarded. On plain Microsoft DI, resolving it through the interface and through its concrete type gives two separate instances, one per registration, even for a singleton or within one scope. The hybrid and standalone containers share one instance between them.
+
+```csharp
+[Singleton]
+public class OrderService : IOrderService { }
+
+var viaInterface = provider.GetRequiredService<IOrderService>();
+var viaClass = provider.GetRequiredService<OrderService>();
+
+// Plain Microsoft DI:                  ReferenceEquals(viaInterface, viaClass) is false
+// Hybrid and standalone containers:    ReferenceEquals(viaInterface, viaClass) is true
+```
+
+Forwarding the interface would close that gap, but Microsoft DI would then dispose every disposable service with one interface twice: resolving it through the interface alone would track it for the interface registration and for the concrete registration the interface forwards to. That would affect almost every disposable service, while most code only ever resolves the interface. On plain Microsoft DI, resolve such a service through its interface only when it must be one instance.
+
 ### TryAdd semantics
 
 All registrations use `TryAdd` variants by default. `TryAdd` only registers a service type if it is **not already present** in the `IServiceCollection`. This means:
