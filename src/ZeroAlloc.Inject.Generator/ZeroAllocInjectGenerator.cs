@@ -339,6 +339,7 @@ namespace ZeroAlloc.Inject.Generator
             }
 
             DetectCircularDependencies(diagnostics, allServices, decoratorsByInterface);
+            DetectDuplicateRegistrations(diagnostics, allServices, decoratorsByInterface);
 
             // ZAI018: warn when an open generic has no detected closed usages
             {
@@ -3279,6 +3280,45 @@ namespace ZeroAlloc.Inject.Generator
                 types.Add(svc.FullyQualifiedName);
             }
             return types;
+        }
+
+        /// <summary>
+        /// ZAI021: a registration without AllowMultiple of a service type and key that an earlier
+        /// registration already has. The Add...Services extension adds it with TryAdd, so the first
+        /// registration wins there and IEnumerable&lt;T&gt; holds only that one, while the generated
+        /// containers resolve the last and list both. A decorated service type is registered with Add
+        /// in every mode, so the modes agree on it and it is not reported. Registrations are in the
+        /// order the extension emits them, which is the order of <paramref name="allServices"/>.
+        /// </summary>
+        private static void DetectDuplicateRegistrations(
+            List<DiagnosticInfo> diagnostics,
+            List<ServiceRegistrationInfo> allServices,
+            Dictionary<string, List<DecoratorRegistrationInfo>> decoratorsByInterface)
+        {
+            var first = new Dictionary<string, ServiceRegistrationInfo>(StringComparer.Ordinal);
+            foreach (var svc in allServices)
+            {
+                foreach (var serviceType in GetServiceTypes(svc))
+                {
+                    if (svc.Key == null && !svc.IsOpenGeneric && decoratorsByInterface.ContainsKey(serviceType)) continue;
+
+                    var slot = svc.Key == null ? serviceType : serviceType + "\u0000" + svc.Key;
+                    if (!first.TryGetValue(slot, out var earlier))
+                    {
+                        first[slot] = svc;
+                        continue;
+                    }
+                    if (svc.AllowMultiple) continue;
+
+                    diagnostics.Add(new DiagnosticInfo(
+                        DiagnosticDescriptors.DuplicateRegistrationWithoutAllowMultiple,
+                        svc.Location,
+                        earlier.Location == null ? ImmutableArray<LocationInfo>.Empty : ImmutableArray.Create(earlier.Location),
+                        svc.TypeName,
+                        serviceType.StartsWith("global::", StringComparison.Ordinal) ? serviceType.Substring("global::".Length) : serviceType,
+                        earlier.TypeName));
+                }
+            }
         }
 
         private static void DetectCircularDependencies(
