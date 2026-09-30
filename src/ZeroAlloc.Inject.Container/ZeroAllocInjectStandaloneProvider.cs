@@ -4,6 +4,7 @@ namespace ZeroAlloc.Inject.Container;
 
 public abstract class ZeroAllocInjectStandaloneProvider : IServiceProvider, IServiceScopeFactory, IServiceProviderIsService, IServiceProviderIsKeyedService, IDisposable, IAsyncDisposable
 {
+    private readonly DisposableTracker _tracked = new DisposableTracker();
     private int _disposed;
 
     public object? GetService(Type serviceType)
@@ -57,6 +58,18 @@ public abstract class ZeroAllocInjectStandaloneProvider : IServiceProvider, ISer
 
     protected abstract ZeroAllocInjectStandaloneScope CreateScopeCore();
 
+    /// <summary>
+    /// Tracks an instance this provider created, when it is <see cref="IDisposable"/> or
+    /// <see cref="IAsyncDisposable"/>, so disposing the provider disposes it, in reverse creation
+    /// order, as Microsoft DI does for the transients and singletons of its root.
+    /// </summary>
+    protected T TrackDisposable<T>(T instance)
+        where T : notnull
+    {
+        _tracked.Track(instance);
+        return instance;
+    }
+
     public void Dispose()
     {
         Dispose(disposing: true);
@@ -67,18 +80,17 @@ public abstract class ZeroAllocInjectStandaloneProvider : IServiceProvider, ISer
     {
         if (disposing && Interlocked.Exchange(ref _disposed, 1) == 0)
         {
-            // No resources to dispose in standalone base — subclasses override
+            _tracked.DisposeAll();
         }
     }
 
-    public virtual ValueTask DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 0)
         {
-            // No fallback to dispose — just mark as disposed
+            await _tracked.DisposeAllAsync().ConfigureAwait(false);
         }
 
         GC.SuppressFinalize(this);
-        return default;
     }
 }
