@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.10.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.9.1...v1.10.0) (2026-09-30)
+
+
+### Features
+
+* warn with ZAI021 when a service type is registered twice without AllowMultiple ([#189](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/189)) ([3ab341f](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/3ab341fef1321830618cd393929550d82324c7ac)), closes [#186](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/186)
+
+
+### Bug Fixes
+
+* decide WhenRegistered from the registrations in every container mode ([#188](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/188)) ([073967b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/073967b5d7d8bf627693c311d22b621e7d509ecb)), closes [#180](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/180)
+* decorate non-generic services the same way in every container mode ([#184](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/184)) ([1d51b0f](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/1d51b0f947ac118798b11c17793d15d6bda86ed2)), closes [#180](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/180)
+* fall back to Microsoft DI for keyed services in the hybrid container ([#185](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/185)) ([184a93c](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/184a93c1c7fb2a821e9a0632de35c79507591df3)), closes [#181](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/181)
+* share one instance across the interfaces of a service on Microsoft DI ([#190](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/190)) ([1108ec2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/1108ec2e9c38021d3668e8308952587bf8a7d111)), closes [#186](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/186)
+
+
+### Documentation
+
+* explain why a class with one interface is not forwarded on Microsoft DI ([#191](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/191)) ([e416fb1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/e416fb1a6380062bf4585b728e5cd67142d9bbbb))
+
 ## [1.9.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.9.0...v1.9.1) (2026-09-30)
 
 
