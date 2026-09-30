@@ -62,17 +62,21 @@ if (!string.Equals(invDesc, "InMemoryInventory<Product>", StringComparison.Ordin
 // instantiation, and Microsoft DI refuses to close an open generic over a value type under
 // NativeAOT, so the generated registrations and the hybrid type switch have to supply them.
 if (CheckValueTypeGenerics(provider, "Microsoft DI") is { } microsoftDiError) return Fail(microsoftDiError);
+if (CheckOpenGenericFeatures(provider, "Microsoft DI") is { } microsoftDiFeatureError) return Fail(microsoftDiFeatureError);
 
 var hybrid = (ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase)services.BuildZeroAllocInjectServiceProvider();
 using (hybrid)
 {
     if (CheckValueTypeGenerics(hybrid, "hybrid container") is { } hybridError) return Fail(hybridError);
     if (CheckValueTypeEnumerables(hybrid, "hybrid container") is { } hybridEnumerableError) return Fail(hybridEnumerableError);
+    if (CheckOpenGenericFeatures(hybrid, "hybrid container") is { } hybridFeatureError) return Fail(hybridFeatureError);
 }
 
 using (var standalone = new ZeroAlloc.Inject.Generated.ZeroAllocInjectAotSmokeStandaloneServiceProvider())
 {
     if (CheckValueTypeGenerics(standalone, "standalone container") is { } standaloneError) return Fail(standaloneError);
+    if (CheckValueTypeEnumerables(standalone, "standalone container") is { } standaloneEnumerableError) return Fail(standaloneEnumerableError);
+    if (CheckOpenGenericFeatures(standalone, "standalone container") is { } standaloneFeatureError) return Fail(standaloneFeatureError);
 }
 
 // Disposable transients resolved from the root are disposed with the provider in every mode.
@@ -191,7 +195,8 @@ static string? CheckRootDisposal(Func<IServiceProvider> create, string mode)
     var provider = create();
     var probe = provider.GetRequiredService<IDisposalProbe>();
     var generic = provider.GetRequiredService<IGenericDisposalProbe<int>>();
-    if (probe.IsDisposed || generic.IsDisposed)
+    var decorated = provider.GetRequiredService<IDecoratedDisposalProbe<int>>();
+    if (probe.IsDisposed || generic.IsDisposed || decorated.IsDisposed)
         return $"{mode}: a root transient was disposed before the provider";
 
     ((IDisposable)provider).Dispose();
@@ -199,6 +204,50 @@ static string? CheckRootDisposal(Func<IServiceProvider> create, string mode)
         return $"{mode}: the disposable transient DisposalProbe resolved from the root was not disposed with it";
     if (!generic.IsDisposed)
         return $"{mode}: the disposable transient GenericDisposalProbe<int> resolved from the root was not disposed with it";
+    if (decorated is not AuditedDisposalProbe<int> audited || !audited.IsDisposed || !audited.Inner.IsDisposed)
+        return $"{mode}: the decorated transient IDecoratedDisposalProbe<int> and its inner were not both disposed with the root";
+
+    return null;
+}
+
+// [Decorator] and Key on open generics closed over value types, and a concrete closed type as a
+// constructor parameter: each closed form resolves, with its lifetime, in every mode.
+static string? CheckOpenGenericFeatures(IServiceProvider provider, string mode)
+{
+    using (var scope = provider.CreateScope())
+    {
+        var sp = scope.ServiceProvider;
+        var consumer = sp.GetRequiredService<OpenGenericFeaturesConsumer>();
+        if (consumer.Store is not AuditedValueStore<int> audited)
+            return $"{mode}: IValueStore<int> expected AuditedValueStore<int>, got {consumer.Store.GetType()}";
+        if (audited.Inner is not ValueStore<int> || !ReferenceEquals(audited.Inner, sp.GetRequiredService<ValueStore<int>>()))
+            return $"{mode}: AuditedValueStore<int> expected to wrap the scoped ValueStore<int>, got {audited.Inner.GetType()}";
+        if (!ReferenceEquals(audited, sp.GetRequiredService<IValueStore<int>>()))
+            return $"{mode}: scoped IValueStore<int> resolved more than one instance in a scope";
+        var stores = sp.GetServices<IValueStore<int>>().ToList();
+        if (stores.Count != 1 || !ReferenceEquals(stores[0], audited))
+            return $"{mode}: IEnumerable<IValueStore<int>> expected the one decorated instance, got {stores.Count}";
+        audited.Set(9);
+        if (audited.Value != 9 || !string.Equals(audited.Describe(), "audited(store)", StringComparison.Ordinal))
+            return $"{mode}: AuditedValueStore<int> expected to hold 9 as 'audited(store)', got {audited.Value} as '{audited.Describe()}'";
+
+        var registry = sp.GetRequiredService<ValueRegistry<long>>();
+        if (!ReferenceEquals(registry, consumer.Registry))
+            return $"{mode}: singleton ValueRegistry<long> resolved more than one instance";
+        registry.Add(3L);
+        if (!consumer.Registry.Contains(3L))
+            return $"{mode}: ValueRegistry<long> expected to hold 3";
+    }
+
+    var counter = provider.GetRequiredKeyedService<IKeyedCounter<SmokeKey>>("primary");
+    if (counter is not KeyedCounter<SmokeKey>)
+        return $"{mode}: keyed IKeyedCounter<SmokeKey> expected KeyedCounter<SmokeKey>, got {counter.GetType()}";
+    if (!ReferenceEquals(counter, provider.GetRequiredKeyedService<IKeyedCounter<SmokeKey>>("primary")))
+        return $"{mode}: keyed singleton IKeyedCounter<SmokeKey> resolved more than one instance";
+    if (counter.Next() != 1 || counter.Next() != 2)
+        return $"{mode}: KeyedCounter<SmokeKey> expected to count 1, 2";
+    if (provider.GetService<IKeyedCounter<SmokeKey>>() is not null)
+        return $"{mode}: IKeyedCounter<SmokeKey> is keyed, but resolved without a key";
 
     return null;
 }

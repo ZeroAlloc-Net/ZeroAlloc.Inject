@@ -31,7 +31,7 @@ ZAI002 and ZAI005 are retired and their IDs will not be reused; see [Retired Rul
 | ZAI015 | ❌ Error | `[OptionalDependency]` on non-nullable parameter | The generator would emit `GetService<T>()` which can return `null`, but the parameter type is not nullable | Change the parameter type to `T?` (nullable) |
 | ZAI016 | ❌ Error | `[DecoratorOf]` interface not implemented by the class | The interface listed in `[DecoratorOf(typeof(IFoo))]` is not implemented by the class | Implement the interface or correct the type argument |
 | ZAI017 | ❌ Error | Two decorators share the same `Order` for the same interface | Ambiguous decorator ordering: two `[DecoratorOf]` attributes target the same interface with identical `Order` values | Assign unique `Order` values to each decorator for the same interface |
-| ZAI018 | ⚠️ Warning | Open generic has no detected closed usages | An open generic class is registered but no constructor in the assembly takes a closed form of its interface as a parameter; it will not be resolvable from the standalone or hybrid generated container | Ensure at least one constructor parameter of the closed generic type exists in the assembly, or switch to the MS DI extension method mode |
+| ZAI018 | ⚠️ Warning | Open generic has no detected closed usages | An open generic class is registered but no constructor in the assembly takes a closed form of its interface, or of the class itself when `As` is not set, as a parameter; it will not be resolvable from the standalone or hybrid generated container | Ensure at least one constructor parameter of the closed generic type exists in the assembly, or switch to the MS DI extension method mode |
 | ZAI019 | ❌ Error | `[Inject]` on a non-settable property | The property has no public setter (or uses `init`); the generator cannot emit a property assignment | Add a `public` setter, or remove `[Inject]` |
 | ZAI020 | ❌ Error | Invalid `ZeroAllocGeneratedAccessibility` value | The MSBuild property `ZeroAllocGeneratedAccessibility` is set to a value other than `Public` or `Internal` (case-insensitive) | Set the property to `Public` or `Internal`, or remove it to use the default (`Public`) |
 
@@ -605,9 +605,9 @@ public class ReportExporter : IReportExporter
 
 **Message:** `Open generic '{0}' is registered but no closed usages were detected in this assembly. It will not be resolvable from the standalone or hybrid container.`
 
-ZeroAlloc.Inject's standalone and hybrid container modes generate explicit registrations for each closed form of a generic service. To do so the generator scans constructor parameters across the assembly to find which closed forms (e.g., `IRepository<Order>`, `IRepository<Customer>`) are actually used. If no such usages are found, the open generic cannot be pre-registered and will be unavailable at runtime in those container modes.
+ZeroAlloc.Inject's standalone and hybrid container modes generate explicit registrations for each closed form of a generic service. To do so the generator scans constructor parameters across the assembly to find which closed forms (e.g., `IRepository<Order>`, `IRepository<Customer>`, or the concrete `Repository<Order>`) are actually used. If no such usages are found, the open generic cannot be pre-registered and will be unavailable at runtime in those container modes.
 
-The MS DI extension-method mode (`AddMyServices(IServiceCollection services)`) delegates open generic handling to the runtime container, so ZAI018 is only a concern for standalone/hybrid usage.
+The MS DI extension-method mode (`AddMyServices(IServiceCollection services)`) delegates open generic handling to the runtime container, so ZAI018 is only a concern for standalone/hybrid usage. The exception is an open generic interface with a `[Decorator]`: MS DI cannot decorate an open registration, so the extension method registers only the decorated closed forms the generator finds, and without any the interface is not resolvable in that mode either. See [Decorating Open Generics](decorators.md#decorating-open-generics).
 
 **Triggers ZAI018:**
 

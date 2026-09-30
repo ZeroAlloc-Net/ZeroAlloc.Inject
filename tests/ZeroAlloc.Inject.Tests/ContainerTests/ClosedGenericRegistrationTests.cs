@@ -432,6 +432,7 @@ public class ClosedGenericRegistrationTests
                 hybrid.GetRequiredService(serviceType).GetType());
         }
         Assert.IsType(app.Type("LoggingFoo"), hybrid.GetRequiredService(app.Type("IFoo")));
+        Assert.IsType(app.Type("LoggingRepo", typeof(int)), hybrid.GetRequiredService(app.Type("IRepo", typeof(int))));
     }
 
     // ---------------------------------------------------------------
@@ -470,5 +471,171 @@ public class ClosedGenericRegistrationTests
         Assert.True(standalone.IsService(app.Type("IRepo", typeof(int))));
         Assert.True(standalone.IsService(app.Type("IRepo", typeof(string))));
         Assert.False(standalone.IsService(app.Type("IRepo", typeof(long))));
+    }
+
+    [Theory]
+    [InlineData("Transient")]
+    [InlineData("Scoped")]
+    [InlineData("Singleton")]
+    public void Standalone_GetServices_CountsMatchMicrosoftDi(string lifetime)
+    {
+        var app = GeneratedApp.Compile(RepoWith(lifetime));
+        using var microsoftDi = app.BuildMicrosoftDi();
+        var standalone = app.BuildStandalone();
+
+        using var microsoftDiScope = microsoftDi.CreateScope();
+        using var standaloneScope = standalone.CreateScope();
+        AssertSameServices(app.Type("IRepo", typeof(int)));
+        AssertSameServices(app.Type("IRepo", typeof(string)));
+
+        if (!string.Equals(lifetime, "Scoped", StringComparison.Ordinal))
+        {
+            var serviceType = app.Type("IRepo", typeof(int));
+            Assert.Equal(microsoftDi.GetServices(serviceType).Count(), standalone.GetServices(serviceType).Count());
+        }
+
+        void AssertSameServices(Type serviceType)
+        {
+            var expected = microsoftDiScope.ServiceProvider.GetServices(serviceType).ToList();
+            var actual = standaloneScope.ServiceProvider.GetServices(serviceType).ToList();
+            Assert.Equal(expected.Select(s => s!.GetType()), actual.Select(s => s!.GetType()));
+            if (!string.Equals(lifetime, "Transient", StringComparison.Ordinal))
+            {
+                Assert.Same(standaloneScope.ServiceProvider.GetRequiredService(serviceType), Only(actual));
+            }
+        }
+    }
+
+    [Fact]
+    public void Standalone_AllowMultiple_EnumeratesEveryRegistrationInOrder()
+    {
+        const string source = """
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            public interface IRepo<T> { }
+            [Singleton(AllowMultiple = true)]
+            public class Repo<T> : IRepo<T> { }
+            [Transient(AllowMultiple = true)]
+            public class OtherRepo<T> : IRepo<T> { }
+            [Transient]
+            public class Consumer { public Consumer(IRepo<int> repo) { } }
+            """;
+
+        var app = GeneratedApp.Compile(source);
+        var standalone = app.BuildStandalone();
+        var repoOfInt = app.Type("IRepo", typeof(int));
+
+        var all = standalone.GetServices(repoOfInt).ToList();
+        using var microsoftDi = app.BuildMicrosoftDi();
+        Assert.Equal(
+            microsoftDi.GetServices(repoOfInt).Select(s => s!.GetType()),
+            all.Select(s => s!.GetType()));
+        Assert.Same(standalone.GetRequiredService(repoOfInt), all[1]);
+
+        using var scope = standalone.CreateScope();
+        var inScope = scope.ServiceProvider.GetServices(repoOfInt).ToList();
+        Assert.Equal(2, inScope.Count);
+        Assert.Same(all[1], inScope[1]);
+    }
+
+    [Fact]
+    public void Standalone_Singleton_OneInstanceAcrossGetServiceGetServicesConsumersAndScopes()
+    {
+        var app = GeneratedApp.Compile(RepoWith("Singleton"));
+        var standalone = app.BuildStandalone();
+        var repoOfInt = app.Type("IRepo", typeof(int));
+
+        var root = standalone.GetRequiredService(repoOfInt);
+        var consumer = standalone.GetRequiredService(app.Type("Consumer"));
+        using var scope = standalone.CreateScope();
+
+        Assert.Same(root, app.Type("Consumer").GetProperty("Numbers")!.GetValue(consumer));
+        Assert.Same(root, Only(standalone.GetServices(repoOfInt)));
+        Assert.Same(root, scope.ServiceProvider.GetRequiredService(repoOfInt));
+        Assert.Same(root, Only(scope.ServiceProvider.GetServices(repoOfInt)));
+    }
+
+    // ---------------------------------------------------------------
+    // A constructor parameter of the concrete closed type
+    // ---------------------------------------------------------------
+
+    private const string ConcreteRegistry = """
+        using ZeroAlloc.Inject;
+        namespace TestApp;
+        public interface IRegistry<T> { }
+        [LIFETIME]
+        public class Registry<T> : IRegistry<T> { }
+        [Transient]
+        public class Consumer
+        {
+            public Consumer(Registry<int> numbers, Registry<string> names) { Numbers = numbers; }
+            public Registry<int> Numbers { get; }
+        }
+        """;
+
+    [Theory]
+    [InlineData("Transient", ServiceLifetime.Transient)]
+    [InlineData("Scoped", ServiceLifetime.Scoped)]
+    [InlineData("Singleton", ServiceLifetime.Singleton)]
+    public void ConcreteClosedUsage_MicrosoftDi_WithoutDynamicCode_RegistersTheConcreteClosedForm(string lifetime, ServiceLifetime expected)
+    {
+        var app = GeneratedApp.Compile(ConcreteRegistry.Replace("LIFETIME", lifetime, StringComparison.Ordinal), withoutDynamicCode: true);
+        var services = app.AddServices(new ServiceCollection());
+
+        var closed = Only(DescriptorsFor(services, app.Type("Registry", typeof(int))));
+        Assert.Equal(app.Type("Registry", typeof(int)), closed.ImplementationType);
+        Assert.Equal(expected, closed.Lifetime);
+
+        // Nothing asks for the interface closed over int, and a reference type closes fine.
+        Assert.Empty(DescriptorsFor(services, app.Type("IRegistry", typeof(int))));
+        Assert.Empty(DescriptorsFor(services, app.Type("Registry", typeof(string))));
+    }
+
+    [Theory]
+    [InlineData("Transient", "HybridWithoutFallback")]
+    [InlineData("Scoped", "HybridWithoutFallback")]
+    [InlineData("Singleton", "HybridWithoutFallback")]
+    [InlineData("Transient", "Standalone")]
+    [InlineData("Scoped", "Standalone")]
+    [InlineData("Singleton", "Standalone")]
+    public void ConcreteClosedUsage_Containers_ResolveTheConcreteClosedForm(string lifetime, string mode)
+    {
+        var app = GeneratedApp.Compile(ConcreteRegistry.Replace("LIFETIME", lifetime, StringComparison.Ordinal));
+        var provider = string.Equals(mode, "Standalone", StringComparison.Ordinal) ? app.BuildStandalone() : app.BuildHybrid(addServices: false);
+        var registryOfInt = app.Type("Registry", typeof(int));
+
+        using var scope = provider.CreateScope();
+        var direct = scope.ServiceProvider.GetRequiredService(registryOfInt);
+        var consumer = scope.ServiceProvider.GetRequiredService(app.Type("Consumer"));
+
+        Assert.IsType(registryOfInt, direct);
+        Assert.IsType(app.Type("Registry", typeof(string)), scope.ServiceProvider.GetRequiredService(app.Type("Registry", typeof(string))));
+        Assert.Equal(
+            !string.Equals(lifetime, "Transient", StringComparison.Ordinal),
+            ReferenceEquals(direct, app.Type("Consumer").GetProperty("Numbers")!.GetValue(consumer)));
+        Assert.True(((IServiceProviderIsService)provider).IsService(registryOfInt));
+        Only(scope.ServiceProvider.GetServices(registryOfInt));
+        (provider as IDisposable)?.Dispose();
+    }
+
+    [Fact]
+    public void ConcreteClosedUsage_WithAs_IsNotAServiceInAnyMode()
+    {
+        const string source = """
+            using ZeroAlloc.Inject;
+            namespace TestApp;
+            public interface IRegistry<T> { }
+            [Singleton(As = typeof(IRegistry<>))]
+            public class Registry<T> : IRegistry<T> { }
+            [Transient]
+            public class Consumer { public Consumer(Registry<int> numbers) { } }
+            """;
+
+        var app = GeneratedApp.Compile(source, withoutDynamicCode: true);
+        var registryOfInt = app.Type("Registry", typeof(int));
+
+        Assert.Empty(DescriptorsFor(app.AddServices(new ServiceCollection()), registryOfInt));
+        Assert.False(((IServiceProviderIsService)app.BuildStandalone()).IsService(registryOfInt));
+        Assert.Null(app.BuildHybrid(addServices: false).GetService(registryOfInt));
     }
 }

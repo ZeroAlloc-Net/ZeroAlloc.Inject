@@ -296,6 +296,20 @@ services.TryAdd(ServiceDescriptor.Scoped(typeof(IRepository<>), typeof(Repositor
 
 This single registration covers all closed types — `IRepository<Product>`, `IRepository<Order>`, `IRepository<Customer>` — without requiring a separate attribute on each.
 
+The concrete type is registered open too, unless `As` narrows the registration, so a constructor can also ask for `Repository<Order>` itself.
+
+With `Key`, the open registrations are keyed, and every mode resolves the closed forms only under that key:
+
+```csharp
+[Scoped(Key = "archive")]
+public class ArchiveRepository<T> : IRepository<T> { }
+
+// Generated
+services.TryAdd(ServiceDescriptor.KeyedScoped(typeof(IRepository<>), "archive", typeof(ArchiveRepository<>)));
+```
+
+A `[Decorator]` of an open generic interface is applied to the closed forms the generator finds, see [Decorating Open Generics](decorators.md#decorating-open-generics).
+
 ### Standalone and hybrid container note (ZAI018)
 
 The generated container cannot resolve open generics dynamically because it uses a compile-time type switch. This applies to both **standalone mode** (no MS DI runtime) and **hybrid mode**. The generator analyses constructor parameters across the assembly to enumerate all closed usages at build time. If you use `[Scoped]` on an open generic class but no constructor in the assembly ever takes `IRepository<SomeType>` as a parameter, the generator emits a **ZAI018 warning**:
