@@ -135,6 +135,24 @@ services.TryAddTransient<IOrderService>(sp => new OrderService());
 services.TryAddTransient(sp => new OrderService());
 ```
 
+### Several interfaces share one instance
+
+A class with more than one registered interface is one service: every interface and the concrete type resolve the same instance for its lifetime, one singleton for the application or one scoped instance per scope, in every container mode. On Microsoft DI the generated extension forwards each interface to the concrete registration:
+
+```csharp
+[Singleton]
+public class Store : IReader, IWriter { }
+
+// Generated — simplified for illustration
+services.TryAddSingleton<IReader>(sp => sp.GetRequiredService<Store>());
+services.TryAddSingleton<IWriter>(sp => sp.GetRequiredService<Store>());
+services.TryAddSingleton(sp => new Store());
+```
+
+A keyed service forwards the same way under its key. A class registered with `As`, or with a single interface, keeps one registration per service type.
+
+> **Dispose must be idempotent.** Microsoft DI disposes an instance once for every registration it resolved it through. On plain Microsoft DI, a disposable `Store` resolved through `IReader`, `IWriter` and `Store` has `Dispose` called three times, and a transient resolved through `IReader` twice. The hybrid and standalone containers dispose it once. .NET's disposal guidance already requires `Dispose` to be safe to call more than once.
+
 ### TryAdd semantics
 
 All registrations use `TryAdd` variants by default. `TryAdd` only registers a service type if it is **not already present** in the `IServiceCollection`. This means:
