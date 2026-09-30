@@ -50,3 +50,11 @@ Rule ID | Category         | Severity | Notes
 --------|------------------|----------|--------------------------------------------------------------------
 ZAI002  | ZeroAlloc.Inject | Error    | Attribute on non-class type, redundant with compiler error CS0592
 ZAI005  | ZeroAlloc.Inject | Error    | Keyed services require .NET 8+, unreachable: the package needs net8.0
+
+## Release 1.10.0
+
+### New Rules
+
+Rule ID | Category         | Severity | Notes
+--------|------------------|----------|---------------------------------------------------------------
+ZAI021  | ZeroAlloc.Inject | Warning  | Service type registered more than once without AllowMultiple
