@@ -1,3 +1,1 @@
 #nullable enable
-ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.TrackDisposable<T>(T instance) -> T
-ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider.TrackDisposable<T>(T instance) -> T

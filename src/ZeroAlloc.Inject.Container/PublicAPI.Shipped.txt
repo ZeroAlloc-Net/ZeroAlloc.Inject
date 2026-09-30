@@ -32,6 +32,7 @@ ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.Fallback.get -> Sy
 ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.GetService(System.Type! serviceType) -> object?
 ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.IsKeyedService(System.Type! serviceType, object? serviceKey) -> bool
 ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.IsService(System.Type! serviceType) -> bool
+ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.TrackDisposable<T>(T instance) -> T
 ZeroAlloc.Inject.Container.ZeroAllocInjectServiceProviderBase.ZeroAllocInjectServiceProviderBase(Microsoft.Extensions.DependencyInjection.IServiceCollection! fallbackServices) -> void
 ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider
 ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider.CreateScope() -> Microsoft.Extensions.DependencyInjection.IServiceScope!
@@ -39,6 +40,7 @@ ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider.Dispose() -> void
 ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider.GetService(System.Type! serviceType) -> object?
 ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider.IsKeyedService(System.Type! serviceType, object? serviceKey) -> bool
 ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider.IsService(System.Type! serviceType) -> bool
+ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider.TrackDisposable<T>(T instance) -> T
 ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneProvider.ZeroAllocInjectStandaloneProvider() -> void
 ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope
 ZeroAlloc.Inject.Container.ZeroAllocInjectStandaloneScope.Dispose() -> void
