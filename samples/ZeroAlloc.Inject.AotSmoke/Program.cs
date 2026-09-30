@@ -87,6 +87,14 @@ if (CheckRootDisposal(() => new ServiceCollection().AddZeroAllocInjectAotSmokeSe
 if (CheckRootDisposal(() => new ZeroAlloc.Inject.Generated.ZeroAllocInjectAotSmokeStandaloneServiceProvider(), "standalone container") is { } standaloneDisposalError)
     return Fail(standaloneDisposalError);
 
+// Non-generic decorators of a singleton, a scoped service and an As service, in every mode.
+if (CheckNonGenericDecorators(() => new ServiceCollection().AddZeroAllocInjectAotSmokeServices().BuildServiceProvider(), "Microsoft DI") is { } microsoftDiDecoratorError)
+    return Fail(microsoftDiDecoratorError);
+if (CheckNonGenericDecorators(() => new ServiceCollection().AddZeroAllocInjectAotSmokeServices().BuildZeroAllocInjectServiceProvider(), "hybrid container") is { } hybridDecoratorError)
+    return Fail(hybridDecoratorError);
+if (CheckNonGenericDecorators(() => new ZeroAlloc.Inject.Generated.ZeroAllocInjectAotSmokeStandaloneServiceProvider(), "standalone container") is { } standaloneDecoratorError)
+    return Fail(standaloneDecoratorError);
+
 Console.WriteLine("AOT smoke: PASS");
 return 0;
 
@@ -248,6 +256,45 @@ static string? CheckOpenGenericFeatures(IServiceProvider provider, string mode)
         return $"{mode}: KeyedCounter<SmokeKey> expected to count 1, 2";
     if (provider.GetService<IKeyedCounter<SmokeKey>>() is not null)
         return $"{mode}: IKeyedCounter<SmokeKey> is keyed, but resolved without a key";
+
+    return null;
+}
+
+static string? CheckNonGenericDecorators(Func<IServiceProvider> create, string mode)
+{
+    var provider = create();
+
+    var log = provider.GetRequiredService<IAuditLog>();
+    if (log is not TimestampedAuditLog timestamped)
+        return $"{mode}: singleton IAuditLog expected TimestampedAuditLog, got {log.GetType().Name}";
+    if (!ReferenceEquals(timestamped.Inner, provider.GetRequiredService<AuditLog>()))
+        return $"{mode}: TimestampedAuditLog expected to wrap the singleton AuditLog";
+
+    IUnitOfWork unit;
+    using (var scope = provider.CreateScope())
+    {
+        var sp = scope.ServiceProvider;
+        if (!ReferenceEquals(log, sp.GetRequiredService<IAuditLog>()))
+            return $"{mode}: singleton IAuditLog resolved more than one instance";
+
+        unit = sp.GetRequiredService<IUnitOfWork>();
+        if (unit is not TracedUnitOfWork traced || !ReferenceEquals(traced.Inner, sp.GetRequiredService<UnitOfWork>()))
+            return $"{mode}: scoped IUnitOfWork expected TracedUnitOfWork around the scoped UnitOfWork, got {unit.GetType().Name}";
+        if (!ReferenceEquals(unit, sp.GetRequiredService<IUnitOfWork>()))
+            return $"{mode}: scoped IUnitOfWork resolved more than one instance in a scope";
+
+        var sink = sp.GetRequiredService<IReportSink>();
+        if (sink is not BufferedReportSink || !string.Equals(sink.Name, "buffered(sink)", StringComparison.Ordinal))
+            return $"{mode}: IReportSink registered with As expected 'buffered(sink)', got {sink.GetType().Name}";
+        if (sp.GetService<ReportSink>() is not null || sp.GetService<IOtherSink>() is not null)
+            return $"{mode}: ReportSink is registered only as IReportSink, but resolved as another type";
+    }
+    if (!unit.IsDisposed)
+        return $"{mode}: the scoped UnitOfWork that TracedUnitOfWork wraps was not disposed with its scope";
+
+    ((IDisposable)provider).Dispose();
+    if (!timestamped.IsDisposed || !timestamped.Inner.IsDisposed)
+        return $"{mode}: the singleton TimestampedAuditLog and its inner were not both disposed with the provider";
 
     return null;
 }

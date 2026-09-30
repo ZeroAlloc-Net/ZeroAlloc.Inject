@@ -76,9 +76,28 @@ internal sealed class GeneratedApp
                 "\n", emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => d.ToString())));
         }
 
+        ThrowOnGeneratedWarnings(compilation, emit);
+
         stream.Seek(0, SeekOrigin.Begin);
         var context = new AssemblyLoadContext(null, isCollectible: true);
         return new GeneratedApp(context.LoadFromStream(stream));
+    }
+
+    /// <summary>
+    /// Throws when the generated code has warnings, which a consumer that builds with warnings as
+    /// errors could not compile.
+    /// </summary>
+    private static void ThrowOnGeneratedWarnings(Compilation source, Microsoft.CodeAnalysis.Emit.EmitResult emit)
+    {
+        var generatedWarnings = emit.Diagnostics
+            .Where(d => d.Severity == DiagnosticSeverity.Warning
+                && d.Location.SourceTree is { } tree
+                && !source.SyntaxTrees.Contains(tree))
+            .ToList();
+        if (generatedWarnings.Count > 0)
+        {
+            throw new InvalidOperationException("The generated code has warnings:\n" + string.Join("\n", generatedWarnings.Select(d => d.ToString())));
+        }
     }
 
     /// <summary>The source's type <paramref name="name"/>, closed over <paramref name="typeArguments"/> when given.</summary>
