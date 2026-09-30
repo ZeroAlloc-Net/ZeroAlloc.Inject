@@ -1286,11 +1286,19 @@ namespace ZeroAlloc.Inject.Generator
             var useAdd = svc.AllowMultiple;
             var serviceTypes = svc.AsType != null ? new List<string> { svc.AsType } : svc.Interfaces;
 
+            // A service with several interfaces is one instance per lifetime in the generated
+            // containers, so each interface forwards to the concrete registration here too.
+            bool forward = svc.AsType == null && svc.Interfaces.Count > 1;
+
             foreach (var serviceType in serviceTypes)
             {
                 if (svc.Key == null && decoratorsByInterface.TryGetValue(serviceType, out var decorators) && decorators.Count > 0)
                 {
                     EmitDecoratedRegistration(sb, svc, serviceType, decorators, condition);
+                }
+                else if (forward)
+                {
+                    EmitForwardingRegistration(sb, lifetime, serviceType, fqn, svc.Key, useAdd);
                 }
                 else
                 {
@@ -1388,6 +1396,31 @@ namespace ZeroAlloc.Inject.Generator
             }
             sb.Append(")");
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Registers a service type as the concrete registration of the service, keyed under the same
+        /// key when it has one, so every service type of the service resolves one instance per
+        /// lifetime, as in the generated containers. Microsoft DI tracks a disposable instance once per
+        /// registration it resolves it through, so it disposes such an instance more than once.
+        /// </summary>
+        private static void EmitForwardingRegistration(
+            StringBuilder sb,
+            string lifetime,
+            string serviceType,
+            string implType,
+            string? key,
+            bool useAdd)
+        {
+            if (key != null)
+            {
+                sb.AppendLine("            services." + (useAdd ? "AddKeyed" : "TryAddKeyed") + lifetime + "<" + serviceType + ">(\"" + EscapeKey(key)
+                    + "\", (sp, key) => sp.GetRequiredKeyedService<" + implType + ">(key));");
+            }
+            else
+            {
+                sb.AppendLine("            services." + (useAdd ? "Add" : "TryAdd") + lifetime + "<" + serviceType + ">(sp => sp.GetRequiredService<" + implType + ">());");
+            }
         }
 
         private static void EmitSingleRegistration(

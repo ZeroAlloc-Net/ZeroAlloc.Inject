@@ -110,6 +110,14 @@ if (CheckWhenRegistered(new ServiceCollection().AddZeroAllocInjectAotSmokeServic
 if (CheckWhenRegistered(new ZeroAlloc.Inject.Generated.ZeroAllocInjectAotSmokeStandaloneServiceProvider(), "cached(feed)", "standalone container") is { } standaloneWhenError)
     return Fail(standaloneWhenError);
 
+// A service with several interfaces is one instance through each of them, in every mode.
+if (CheckSharedInstance(new ServiceCollection().AddZeroAllocInjectAotSmokeServices().BuildServiceProvider(), "Microsoft DI") is { } microsoftDiSharedError)
+    return Fail(microsoftDiSharedError);
+if (CheckSharedInstance(new ServiceCollection().AddZeroAllocInjectAotSmokeServices().BuildZeroAllocInjectServiceProvider(), "hybrid container") is { } hybridSharedError)
+    return Fail(hybridSharedError);
+if (CheckSharedInstance(new ZeroAlloc.Inject.Generated.ZeroAllocInjectAotSmokeStandaloneServiceProvider(), "standalone container") is { } standaloneSharedError)
+    return Fail(standaloneSharedError);
+
 Console.WriteLine("AOT smoke: PASS");
 return 0;
 
@@ -340,6 +348,20 @@ static string? CheckWhenRegistered(IServiceProvider provider, string expected, s
         return string.Equals(feed, expected, StringComparison.Ordinal)
             ? null
             : $"{mode}: IPriceFeed expected '{expected}', got '{feed}'";
+    }
+}
+
+static string? CheckSharedInstance(IServiceProvider provider, string mode)
+{
+    using (provider as IDisposable)
+    {
+        using var scope = provider.CreateScope();
+        var reader = scope.ServiceProvider.GetRequiredService<ISettingsReader>();
+        if (!ReferenceEquals(reader, scope.ServiceProvider.GetRequiredService<ISettingsWriter>())
+            || !ReferenceEquals(reader, scope.ServiceProvider.GetRequiredService<SettingsStore>())
+            || !ReferenceEquals(reader, provider.GetRequiredService<ISettingsWriter>()))
+            return $"{mode}: the singleton SettingsStore resolved another instance through one of its interfaces";
+        return null;
     }
 }
 

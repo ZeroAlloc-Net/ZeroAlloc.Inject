@@ -232,9 +232,10 @@ public class BasicRegistrationTests
 
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
-        Assert.Contains("TryAddTransient<global::TestApp.IFoo>(sp => new global::TestApp.MultiService())", output);
-        Assert.Contains("TryAddTransient<global::TestApp.IBar>(sp => new global::TestApp.MultiService())", output);
-        Assert.Contains("TryAddTransient<global::TestApp.IBaz>(sp => new global::TestApp.MultiService())", output);
+        // Each interface forwards to the concrete registration, see ZeroAlloc-Net/ZeroAlloc.Inject#186.
+        Assert.Contains("TryAddTransient<global::TestApp.IFoo>(sp => sp.GetRequiredService<global::TestApp.MultiService>())", output);
+        Assert.Contains("TryAddTransient<global::TestApp.IBar>(sp => sp.GetRequiredService<global::TestApp.MultiService>())", output);
+        Assert.Contains("TryAddTransient<global::TestApp.IBaz>(sp => sp.GetRequiredService<global::TestApp.MultiService>())", output);
         Assert.Contains("TryAddTransient(sp => new global::TestApp.MultiService())", output);
     }
 
