@@ -434,6 +434,46 @@ public class DiagnosticTests
         Assert.DoesNotContain(diagnostics, static d => string.Equals(d.Id, "ZAI018", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void ZAI018_OpenGenericWithConcreteClosedUsage_NoWarning()
+    {
+        // The concrete type is registered too, so Repository<string> is a closed usage of it.
+        var source = """
+            using ZeroAlloc.Inject;
+            public interface IRepository<T> { }
+            [Transient]
+            public class Repository<T> : IRepository<T> { }
+            [Transient]
+            public class OrderService
+            {
+                public OrderService(Repository<string> repo) { }
+            }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+        Assert.DoesNotContain(diagnostics, static d => string.Equals(d.Id, "ZAI018", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ZAI018_OpenGenericWithAsNarrowing_ConcreteClosedUsage_ReportsWarning()
+    {
+        // With As, only IReadRepo<> is registered: Repo<string> is not a service to close.
+        var source = """
+            using ZeroAlloc.Inject;
+            public interface IReadRepo<T> { }
+            [Transient(As = typeof(IReadRepo<>))]
+            public class Repo<T> : IReadRepo<T> { }
+            [Transient]
+            public class OrderService
+            {
+                public OrderService(Repo<string> repo) { }
+            }
+            """;
+
+        var (_, diagnostics) = GeneratorTestHelper.RunGenerator(source);
+        Assert.Contains(diagnostics, static d => string.Equals(d.Id, "ZAI018", StringComparison.Ordinal));
+    }
+
     // Asserts that exactly one diagnostic with the given ID was reported and returns it.
     private static Diagnostic ExactlyOne(ImmutableArray<Diagnostic> diagnostics, string id)
     {

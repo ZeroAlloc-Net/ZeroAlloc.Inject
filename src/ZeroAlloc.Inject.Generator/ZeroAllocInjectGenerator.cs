@@ -135,6 +135,7 @@ namespace ZeroAlloc.Inject.Generator
             var closedGenericUsages = transients
                 .Combine(scopeds)
                 .Combine(singletons)
+                .Combine(allDecorators)
                 .Combine(context.CompilationProvider)
                 .Select(static (data, ct) => FindClosedGenericUsages(data, ct))
                 // The step reruns on every compilation. Comparing the result by content, not by array
@@ -222,10 +223,7 @@ namespace ZeroAlloc.Inject.Generator
                 var providerSource = GenerateServiceProviderClass(allServices, asmName, decoratorsByInterface, accessibility.Keyword, input.ClosedGenericFactories);
                 spc.AddSource("ZeroAlloc.Inject.ServiceProvider.g.cs", providerSource);
 
-                // The standalone container has no IEnumerable<T> branch for a closed form, so it only
-                // needs the registration that resolving the closed form returns.
-                var resolvedClosedForms = input.ClosedGenericFactories.Where(static cgf => cgf.IsResolved).ToImmutableArray();
-                var standaloneCode = GenerateStandaloneServiceProviderClass(allServices, asmName, decoratorsByInterface, resolvedClosedForms);
+                var standaloneCode = GenerateStandaloneServiceProviderClass(allServices, asmName, decoratorsByInterface, input.ClosedGenericFactories);
                 spc.AddSource(asmName + ".StandaloneServiceProvider.g.cs", standaloneCode);
             }
         }
@@ -352,9 +350,8 @@ namespace ZeroAlloc.Inject.Generator
                 {
                     if (!svc.IsOpenGeneric) continue;
 
-                    var ifaces = svc.AsType != null
-                        ? new System.Collections.Generic.List<string> { svc.AsType }
-                        : svc.Interfaces;
+                    // Without As, the concrete type is registered too, so a closed usage of it counts.
+                    var ifaces = GetServiceTypes(svc);
 
                     bool anyUsage = false;
                     foreach (var iface in ifaces)
@@ -1095,10 +1092,13 @@ namespace ZeroAlloc.Inject.Generator
 
             foreach (var svc in services)
             {
-                EmitRegistration(sb, svc, decoratorsByInterface);
+                if (svc.IsOpenGeneric)
+                    EmitOpenGenericRegistration(sb, svc, decoratorsByInterface, closedGenericFactories);
+                else
+                    EmitRegistration(sb, svc, decoratorsByInterface);
             }
 
-            EmitValueTypeClosedGenericRegistrations(sb, closedGenericFactories);
+            EmitValueTypeClosedGenericRegistrations(sb, closedGenericFactories, decoratorsByInterface);
 
             sb.AppendLine("            return services;");
             sb.AppendLine("        }");
@@ -1114,15 +1114,17 @@ namespace ZeroAlloc.Inject.Generator
         /// generic over a value type, as under NativeAOT, so without them resolving one throws.
         /// With dynamic code they are left out: Microsoft DI treats a closed registration as a second
         /// registration next to the open one, so IEnumerable&lt;T&gt; would return both. Each closed
-        /// registration is the one Microsoft DI resolves from the open registrations, and uses TryAdd,
-        /// so a closed registration the application made first still wins, as it does over the open one.
+        /// registration is the one Microsoft DI resolves from the open registrations of its service and
+        /// key, and uses TryAdd, so a closed registration the application made first still wins, as it
+        /// does over the open one. A decorated closed form is registered closed in any case.
         /// </summary>
         private static void EmitValueTypeClosedGenericRegistrations(
             StringBuilder sb,
-            ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories)
+            ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories,
+            Dictionary<string, List<DecoratorRegistrationInfo>> decoratorsByInterface)
         {
             var registrations = closedGenericFactories
-                .Where(static cgf => cgf.IsResolved && cgf.HasValueTypeArgument)
+                .Where(cgf => cgf.IsResolved && cgf.HasValueTypeArgument && ClosedGenericDecorators(cgf, decoratorsByInterface) == null)
                 .ToList();
             if (registrations.Count == 0) return;
 
@@ -1134,12 +1136,61 @@ namespace ZeroAlloc.Inject.Generator
             sb.AppendLine("            {");
             foreach (var cgf in registrations)
             {
-                sb.AppendLine(string.Format(
-                    "                services.TryAdd(ServiceDescriptor.{0}(typeof({1}), typeof({2})));",
-                    cgf.Lifetime, cgf.InterfaceFqn, cgf.ImplementationFqn));
+                sb.AppendLine("                services.TryAdd(" + TypeDescriptor(cgf.Lifetime, cgf.Key, cgf.InterfaceFqn, cgf.ImplementationFqn) + ");");
             }
             sb.AppendLine("            }");
             sb.AppendLine();
+        }
+
+        /// <summary>A ServiceDescriptor of a service type to an implementation type, keyed when a key is given.</summary>
+        private static string TypeDescriptor(string lifetime, string? key, string serviceType, string implementationType) => key == null
+            ? "ServiceDescriptor." + lifetime + "(typeof(" + serviceType + "), typeof(" + implementationType + "))"
+            : "ServiceDescriptor.Keyed" + lifetime + "(typeof(" + serviceType + "), \"" + EscapeKey(key) + "\", typeof(" + implementationType + "))";
+
+        /// <summary>
+        /// Registers an open generic service by its open types, keyed when it has a key. Microsoft DI
+        /// cannot decorate an open generic, so a decorated service type is registered instead as the
+        /// decorated closed forms constructors ask for, each with the same lifetime and order. An open
+        /// registration next to them would add an undecorated entry to IEnumerable&lt;T&gt;, so other
+        /// closed forms of a decorated service type do not resolve, as in the generated containers.
+        /// </summary>
+        private static void EmitOpenGenericRegistration(
+            StringBuilder sb,
+            ServiceRegistrationInfo svc,
+            Dictionary<string, List<DecoratorRegistrationInfo>> decoratorsByInterface,
+            ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories)
+        {
+            var addOrTryAdd = svc.AllowMultiple ? "Add" : "TryAdd";
+            var serviceTypes = svc.AsType != null ? new List<string> { svc.AsType } : svc.Interfaces;
+            int arity = int.Parse(svc.OpenGenericArity!, System.Globalization.CultureInfo.InvariantCulture);
+
+            foreach (var serviceType in serviceTypes)
+            {
+                if (svc.Key == null && decoratorsByInterface.ContainsKey(serviceType))
+                {
+                    foreach (var cgf in closedGenericFactories)
+                    {
+                        if (cgf.Key != null
+                            || !string.Equals(cgf.OpenServiceFqn, serviceType, StringComparison.Ordinal)
+                            || !string.Equals(ToUnboundGenericString(cgf.ImplementationFqn, arity), svc.FullyQualifiedName, StringComparison.Ordinal))
+                        {
+                            continue;
+                        }
+
+                        var instance = BuildClosedGenericInstanceExpr(closedGenericFactories, cgf, decoratorsByInterface, ServiceProviderResolve);
+                        sb.AppendLine("            services." + addOrTryAdd + svc.Lifetime + "<" + cgf.InterfaceFqn + ">(sp => " + instance + ");");
+                    }
+                    continue;
+                }
+
+                sb.AppendLine("            services." + addOrTryAdd + "(" + TypeDescriptor(svc.Lifetime, svc.Key, serviceType, svc.FullyQualifiedName) + ");");
+            }
+
+            // Without As, the concrete type is a service too, and the inner a decorated closed form wraps.
+            if (svc.AsType == null)
+            {
+                sb.AppendLine("            services." + addOrTryAdd + "(" + TypeDescriptor(svc.Lifetime, svc.Key, svc.FullyQualifiedName, svc.FullyQualifiedName) + ");");
+            }
         }
 
         private static string BuildFactoryLambda(string implType, List<ConstructorParameterInfo> parameters, List<PropertyInjectionInfo> propertyInjections)
@@ -1201,6 +1252,11 @@ namespace ZeroAlloc.Inject.Generator
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Registers a non-generic service. A decorated interface is registered as its decorator chain
+        /// around the concrete registration. A keyed service is not decorated, as in the generated
+        /// containers: its decorators would wrap an unkeyed inner that is not registered.
+        /// </summary>
         private static void EmitRegistration(
             StringBuilder sb,
             ServiceRegistrationInfo svc,
@@ -1213,26 +1269,26 @@ namespace ZeroAlloc.Inject.Generator
             if (svc.AsType != null)
             {
                 // Only register as the specified type
-                EmitSingleRegistration(sb, lifetime, svc.AsType, fqn, svc.Key, useAdd, svc.IsOpenGeneric, svc.ConstructorParameters, svc.PropertyInjections);
+                EmitSingleRegistration(sb, lifetime, svc.AsType, fqn, svc.Key, useAdd, svc.ConstructorParameters, svc.PropertyInjections);
                 return;
             }
 
             // Register all non-filtered interfaces, wrapping with decorator when applicable
             foreach (var iface in svc.Interfaces)
             {
-                if (!svc.IsOpenGeneric && decoratorsByInterface.TryGetValue(iface, out var decorators))
+                if (svc.Key == null && decoratorsByInterface.TryGetValue(iface, out var decorators))
                 {
                     // Emit factory wrapping with chained decorators, applying WhenRegistered guards per decorator
                     EmitDecoratorRegistrations(sb, lifetime, iface, fqn, decorators);
                 }
                 else
                 {
-                    EmitSingleRegistration(sb, lifetime, iface, fqn, svc.Key, useAdd, svc.IsOpenGeneric, svc.ConstructorParameters, svc.PropertyInjections);
+                    EmitSingleRegistration(sb, lifetime, iface, fqn, svc.Key, useAdd, svc.ConstructorParameters, svc.PropertyInjections);
                 }
             }
 
             // Always register concrete type (inner needs to be resolvable by itself)
-            EmitConcreteRegistration(sb, lifetime, fqn, svc.Key, useAdd, svc.IsOpenGeneric, svc.ConstructorParameters, svc.PropertyInjections);
+            EmitConcreteRegistration(sb, lifetime, fqn, svc.Key, useAdd, svc.ConstructorParameters, svc.PropertyInjections);
         }
 
         private static void EmitDecoratorRegistrations(
@@ -1357,20 +1413,9 @@ namespace ZeroAlloc.Inject.Generator
             string implType,
             string? key,
             bool useAdd,
-            bool isOpenGeneric,
             List<ConstructorParameterInfo> constructorParameters,
             List<PropertyInjectionInfo> propertyInjections)
         {
-            if (isOpenGeneric)
-            {
-                // For open generics, use ServiceDescriptor
-                var addOrTryAdd = useAdd ? "Add" : "TryAdd";
-                sb.AppendLine(string.Format(
-                    "            services.{0}(ServiceDescriptor.{1}(typeof({2}), typeof({3})));",
-                    addOrTryAdd, lifetime, serviceType, implType));
-                return;
-            }
-
             if (key != null)
             {
                 var method = useAdd ? "AddKeyed" + lifetime : "TryAddKeyed" + lifetime;
@@ -1536,7 +1581,7 @@ namespace ZeroAlloc.Inject.Generator
                 }
             }
 
-            bool hasKeyedServices = keyedServices.Count > 0;
+            bool hasKeyedServices = keyedServices.Count > 0 || closedGenericFactories.Any(static cgf => cgf.Key != null);
 
             var sb = new StringBuilder();
             sb.AppendLine("// <auto-generated />");
@@ -1584,12 +1629,7 @@ namespace ZeroAlloc.Inject.Generator
             {
                 sb.AppendLine("        private " + keyedSingletons[i].FullyQualifiedName + "? _keyedSingleton_" + i + ";");
             }
-            // Closed generic singleton fields
-            for (int i = 0; i < closedGenericFactories.Length; i++)
-            {
-                if (string.Equals(closedGenericFactories[i].Lifetime, "Singleton", StringComparison.Ordinal))
-                    sb.AppendLine("        private " + closedGenericFactories[i].ImplementationFqn + "? _cg_s_" + i + ";");
-            }
+            EmitClosedGenericSingletonFields(sb, closedGenericFactories);
             // IEnumerable<T> cache fields (one per all-singleton enumerable group)
             foreach (var (fieldName, fieldServiceType) in enumerableCacheFields)
             {
@@ -1732,18 +1772,18 @@ namespace ZeroAlloc.Inject.Generator
                 sb.AppendLine("            }");
             }
 
-            EmitHybridClosedGenericRoot(sb, closedGenericFactories);
+            EmitClosedGenericRoot(sb, closedGenericFactories, decoratorsByInterface);
 
             sb.AppendLine("            return null;");
             sb.AppendLine("        }");
             sb.AppendLine();
 
-            EmitClosedGenericSingletonAccessors(sb, closedGenericFactories);
+            EmitClosedGenericSingletonAccessors(sb, closedGenericFactories, decoratorsByInterface);
 
             EmitIsKnownService(sb, serviceTypeGroups, hasKeyedServices, closedGenericFactories);
             sb.AppendLine();
 
-            EmitIsKnownKeyedService(sb, keyedServices);
+            EmitIsKnownKeyedService(sb, keyedServices, closedGenericFactories);
             sb.AppendLine();
 
             // Keyed service methods
@@ -1812,6 +1852,8 @@ namespace ZeroAlloc.Inject.Generator
                     }
                 }
 
+                EmitKeyedClosedGenericBranches(sb, closedGenericFactories, decoratorsByInterface, className: null, "                ");
+
                 sb.AppendLine("            }");
                 sb.AppendLine("            return null;");
                 sb.AppendLine("        }");
@@ -1861,13 +1903,7 @@ namespace ZeroAlloc.Inject.Generator
             {
                 sb.AppendLine("            private " + keyedScopedServices[i].FullyQualifiedName + "? _keyedScoped_" + i + ";");
             }
-            bool hasScopedClosedGenerics = false;
-            for (int i = 0; i < closedGenericFactories.Length; i++)
-            {
-                if (!string.Equals(closedGenericFactories[i].Lifetime, "Scoped", StringComparison.Ordinal)) continue;
-                sb.AppendLine("            private " + closedGenericFactories[i].ImplementationFqn + "? _cg_sc_" + i + ";");
-                hasScopedClosedGenerics = true;
-            }
+            bool hasScopedClosedGenerics = EmitClosedGenericScopedFields(sb, closedGenericFactories);
             if (scopeds.Count > 0 || keyedScopedServices.Count > 0 || hasScopedClosedGenerics)
             {
                 sb.AppendLine();
@@ -2078,7 +2114,7 @@ namespace ZeroAlloc.Inject.Generator
                 sb.AppendLine("                }");
             }
 
-            EmitHybridClosedGenericScope(sb, closedGenericFactories, className);
+            EmitClosedGenericScope(sb, closedGenericFactories, decoratorsByInterface, className);
 
             sb.AppendLine("                return null;");
             sb.AppendLine("            }");
@@ -2145,6 +2181,8 @@ namespace ZeroAlloc.Inject.Generator
                         sb.AppendLine("                        return " + newExpr + ";");
                     }
                 }
+
+                EmitKeyedClosedGenericBranches(sb, closedGenericFactories, decoratorsByInterface, className, "                    ");
 
                 sb.AppendLine("                }");
                 sb.AppendLine("                return null;");
@@ -2307,7 +2345,7 @@ namespace ZeroAlloc.Inject.Generator
                 }
             }
 
-            bool hasKeyedServices = keyedServices.Count > 0;
+            bool hasKeyedServices = keyedServices.Count > 0 || closedGenericFactories.Any(static cgf => cgf.Key != null);
 
             var sb = new StringBuilder();
             sb.AppendLine("// <auto-generated />");
@@ -2355,13 +2393,7 @@ namespace ZeroAlloc.Inject.Generator
             {
                 sb.AppendLine("        private " + keyedSingletons[i].FullyQualifiedName + "? _keyedSingleton_" + i + ";");
             }
-            // Closed generic singleton fields
-            for (int i = 0; i < closedGenericFactories.Length; i++)
-            {
-                var cgf = closedGenericFactories[i];
-                if (string.Equals(cgf.Lifetime, "Singleton", StringComparison.Ordinal))
-                    sb.AppendLine("        private " + cgf.ImplementationFqn + "? _cg_s_" + i + ";");
-            }
+            EmitClosedGenericSingletonFields(sb, closedGenericFactories);
             // IEnumerable<T> cache fields (one per all-singleton enumerable group)
             foreach (var (fieldName, fieldServiceType) in enumerableCacheFields)
             {
@@ -2503,43 +2535,18 @@ namespace ZeroAlloc.Inject.Generator
                 sb.AppendLine("            }");
             }
 
-            // Explicit closed generic entries (Transient + Singleton; Scoped handled in ResolveScopedKnown)
-            for (int i = 0; i < closedGenericFactories.Length; i++)
-            {
-                var cgf = closedGenericFactories[i];
-                if (string.Equals(cgf.Lifetime, "Scoped", StringComparison.Ordinal)) continue;
-                sb.AppendLine("            if (serviceType == typeof(" + cgf.InterfaceFqn + "))");
-                if (string.Equals(cgf.Lifetime, "Singleton", StringComparison.Ordinal))
-                {
-                    sb.AppendLine("            {");
-                    sb.AppendLine("                if (_cg_s_" + i + " != null) return _cg_s_" + i + ";");
-                    sb.AppendLine("                var _cg_instance_" + i + " = " + BuildDecoratedClosedGenericExpr(cgf, decoratorsByInterface) + ";");
-                    if (cgf.ImplementsDisposable)
-                    {
-                        sb.AppendLine("                var _cg_existing_" + i + " = Interlocked.CompareExchange(ref _cg_s_" + i + ", _cg_instance_" + i + ", null);");
-                        sb.AppendLine("                if (_cg_existing_" + i + " != null) { (_cg_instance_" + i + " as global::System.IDisposable)?.Dispose(); return _cg_existing_" + i + "; }");
-                        sb.AppendLine("                return TrackDisposable(_cg_instance_" + i + ");");
-                    }
-                    else
-                    {
-                        sb.AppendLine("                return Interlocked.CompareExchange(ref _cg_s_" + i + ", _cg_instance_" + i + ", null) ?? _cg_s_" + i + ";");
-                    }
-                    sb.AppendLine("            }");
-                }
-                else // Transient
-                {
-                    sb.AppendLine("                return " + TrackIfDisposable(BuildDecoratedClosedGenericExpr(cgf, decoratorsByInterface), cgf.ImplementsDisposable) + ";");
-                }
-            }
+            EmitClosedGenericRoot(sb, closedGenericFactories, decoratorsByInterface);
 
             sb.AppendLine("            return null;");
             sb.AppendLine("        }");
             sb.AppendLine();
 
+            EmitClosedGenericSingletonAccessors(sb, closedGenericFactories, decoratorsByInterface);
+
             EmitIsKnownService(sb, serviceTypeGroups, hasKeyedServices, closedGenericFactories);
             sb.AppendLine();
 
-            EmitIsKnownKeyedService(sb, keyedServices);
+            EmitIsKnownKeyedService(sb, keyedServices, closedGenericFactories);
             sb.AppendLine();
 
             // Keyed service methods
@@ -2608,6 +2615,8 @@ namespace ZeroAlloc.Inject.Generator
                     }
                 }
 
+                EmitKeyedClosedGenericBranches(sb, closedGenericFactories, decoratorsByInterface, className: null, "                ");
+
                 sb.AppendLine("            }");
                 sb.AppendLine("            return null;");
                 sb.AppendLine("        }");
@@ -2657,19 +2666,7 @@ namespace ZeroAlloc.Inject.Generator
             {
                 sb.AppendLine("            private " + keyedScopedServices[i].FullyQualifiedName + "? _keyedScoped_" + i + ";");
             }
-            // Closed generic scoped fields
-            for (int i = 0; i < closedGenericFactories.Length; i++)
-            {
-                var cgf = closedGenericFactories[i];
-                if (string.Equals(cgf.Lifetime, "Scoped", StringComparison.Ordinal))
-                    sb.AppendLine("            private " + cgf.ImplementationFqn + "? _cg_sc_" + i + ";");
-            }
-            bool hasScopedCgFields = false;
-            for (int i = 0; i < closedGenericFactories.Length; i++)
-            {
-                if (string.Equals(closedGenericFactories[i].Lifetime, "Scoped", StringComparison.Ordinal))
-                { hasScopedCgFields = true; break; }
-            }
+            bool hasScopedCgFields = EmitClosedGenericScopedFields(sb, closedGenericFactories);
             if (scopeds.Count > 0 || keyedScopedServices.Count > 0 || hasScopedCgFields)
             {
                 sb.AppendLine();
@@ -2879,34 +2876,7 @@ namespace ZeroAlloc.Inject.Generator
                 sb.AppendLine("                }");
             }
 
-            // Explicit closed generic entries in scope (all lifetimes)
-            for (int i = 0; i < closedGenericFactories.Length; i++)
-            {
-                var cgf = closedGenericFactories[i];
-                sb.AppendLine("                if (serviceType == typeof(" + cgf.InterfaceFqn + "))");
-                if (string.Equals(cgf.Lifetime, "Singleton", StringComparison.Ordinal))
-                {
-                    sb.AppendLine("                    return Root.GetService(serviceType);");
-                }
-                else if (string.Equals(cgf.Lifetime, "Scoped", StringComparison.Ordinal))
-                {
-                    sb.AppendLine("                {");
-                    if (cgf.ImplementsDisposable)
-                    {
-                        sb.AppendLine("                    if (_cg_sc_" + i + " == null) { _cg_sc_" + i + " = " + BuildDecoratedClosedGenericExpr(cgf, decoratorsByInterface) + "; TrackDisposable(_cg_sc_" + i + "); }");
-                    }
-                    else
-                    {
-                        sb.AppendLine("                    if (_cg_sc_" + i + " == null) _cg_sc_" + i + " = " + BuildDecoratedClosedGenericExpr(cgf, decoratorsByInterface) + ";");
-                    }
-                    sb.AppendLine("                    return _cg_sc_" + i + ";");
-                    sb.AppendLine("                }");
-                }
-                else // Transient — fresh instance each call
-                {
-                    sb.AppendLine("                    return " + TrackIfDisposable(BuildDecoratedClosedGenericExpr(cgf, decoratorsByInterface), cgf.ImplementsDisposable) + ";");
-                }
-            }
+            EmitClosedGenericScope(sb, closedGenericFactories, decoratorsByInterface, className);
 
             sb.AppendLine("                return null;");
             sb.AppendLine("            }");
@@ -2975,6 +2945,8 @@ namespace ZeroAlloc.Inject.Generator
                     }
                 }
 
+                EmitKeyedClosedGenericBranches(sb, closedGenericFactories, decoratorsByInterface, className, "                    ");
+
                 sb.AppendLine("                }");
                 sb.AppendLine("                return null;");
                 sb.AppendLine("            }");
@@ -3024,7 +2996,7 @@ namespace ZeroAlloc.Inject.Generator
             // The closed forms of open generics that constructors ask for
             foreach (var cgf in closedGenericFactories)
             {
-                if (!cgf.IsResolved || serviceTypeGroups.ContainsKey(cgf.InterfaceFqn)) continue;
+                if (!cgf.IsResolved || cgf.Key != null || serviceTypeGroups.ContainsKey(cgf.InterfaceFqn)) continue;
                 sb.AppendLine("            if (serviceType == typeof(" + cgf.InterfaceFqn + ")) return true;");
             }
 
@@ -3033,54 +3005,111 @@ namespace ZeroAlloc.Inject.Generator
         }
 
         /// <summary>
-        /// The hybrid container's root branches for the closed forms of open generics: the one
-        /// resolving a closed form returns, and IEnumerable&lt;T&gt; of every registration in order, as
-        /// Microsoft DI returns them. A scoped registration is left to the Microsoft DI fallback at the
-        /// root, as for any scoped service, and so is IEnumerable&lt;T&gt; of a closed form that has one.
+        /// The fields of a generated container that hold closed generic singletons, typed as the
+        /// service, since a decorated one holds its outermost decorator.
         /// </summary>
-        private static void EmitHybridClosedGenericRoot(
+        private static void EmitClosedGenericSingletonFields(
             StringBuilder sb,
             ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories)
         {
             for (int i = 0; i < closedGenericFactories.Length; i++)
             {
                 var cgf = closedGenericFactories[i];
-                if (!cgf.IsResolved || string.Equals(cgf.Lifetime, "Scoped", StringComparison.Ordinal)) continue;
+                if (string.Equals(cgf.Lifetime, "Singleton", StringComparison.Ordinal))
+                    sb.AppendLine("        private " + cgf.InterfaceFqn + "? _cg_s_" + i + ";");
+            }
+        }
+
+        /// <summary>The fields of a generated scope that hold its closed generic scoped instances.</summary>
+        private static bool EmitClosedGenericScopedFields(
+            StringBuilder sb,
+            ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories)
+        {
+            bool any = false;
+            for (int i = 0; i < closedGenericFactories.Length; i++)
+            {
+                var cgf = closedGenericFactories[i];
+                if (!string.Equals(cgf.Lifetime, "Scoped", StringComparison.Ordinal)) continue;
+                sb.AppendLine("            private " + cgf.InterfaceFqn + "? _cg_sc_" + i + ";");
+                any = true;
+            }
+            return any;
+        }
+
+        /// <summary>
+        /// A generated container's root branches for the unkeyed closed forms of open generics: the
+        /// one resolving a closed form returns, and IEnumerable&lt;T&gt; of every registration in order,
+        /// as Microsoft DI returns them. A scoped registration is not resolved at the root, as for any
+        /// scoped service, and neither is IEnumerable&lt;T&gt; of a closed form that has one.
+        /// </summary>
+        private static void EmitClosedGenericRoot(
+            StringBuilder sb,
+            ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories,
+            Dictionary<string, List<DecoratorRegistrationInfo>> decoratorsByInterface)
+        {
+            for (int i = 0; i < closedGenericFactories.Length; i++)
+            {
+                var cgf = closedGenericFactories[i];
+                if (!cgf.IsResolved || cgf.Key != null || string.Equals(cgf.Lifetime, "Scoped", StringComparison.Ordinal)) continue;
                 sb.AppendLine("            if (serviceType == typeof(" + cgf.InterfaceFqn + "))");
-                sb.AppendLine("                return " + HybridClosedGenericExpr(closedGenericFactories, i, className: null) + ";");
+                sb.AppendLine("                return " + ClosedGenericExpr(closedGenericFactories, i, decoratorsByInterface, className: null) + ";");
             }
 
             foreach (var closedForm in GroupClosedForms(closedGenericFactories))
             {
                 if (closedForm.Exists(i => string.Equals(closedGenericFactories[i].Lifetime, "Scoped", StringComparison.Ordinal))) continue;
-                EmitHybridClosedGenericEnumerable(sb, closedGenericFactories, closedForm, className: null, "            ");
+                EmitClosedGenericEnumerable(sb, closedGenericFactories, closedForm, decoratorsByInterface, className: null, "            ");
             }
         }
 
-        /// <summary>The hybrid container's scope branches for the closed forms of open generics.</summary>
-        private static void EmitHybridClosedGenericScope(
+        /// <summary>A generated scope's branches for the unkeyed closed forms of open generics.</summary>
+        private static void EmitClosedGenericScope(
             StringBuilder sb,
             ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories,
+            Dictionary<string, List<DecoratorRegistrationInfo>> decoratorsByInterface,
             string className)
         {
             for (int i = 0; i < closedGenericFactories.Length; i++)
             {
                 var cgf = closedGenericFactories[i];
-                if (!cgf.IsResolved) continue;
+                if (!cgf.IsResolved || cgf.Key != null) continue;
                 sb.AppendLine("                if (serviceType == typeof(" + cgf.InterfaceFqn + "))");
-                sb.AppendLine("                    return " + HybridClosedGenericExpr(closedGenericFactories, i, className) + ";");
+                sb.AppendLine("                    return " + ClosedGenericExpr(closedGenericFactories, i, decoratorsByInterface, className) + ";");
             }
 
             foreach (var closedForm in GroupClosedForms(closedGenericFactories))
             {
-                EmitHybridClosedGenericEnumerable(sb, closedGenericFactories, closedForm, className, "                ");
+                EmitClosedGenericEnumerable(sb, closedGenericFactories, closedForm, decoratorsByInterface, className, "                ");
             }
         }
 
-        private static void EmitHybridClosedGenericEnumerable(
+        /// <summary>
+        /// A generated container's GetKeyedService branches for the keyed closed forms of open
+        /// generics, in the root with a null <paramref name="className"/> or in its scope. As for a
+        /// keyed non-generic service, a scoped one is not resolved at the root.
+        /// </summary>
+        private static void EmitKeyedClosedGenericBranches(
+            StringBuilder sb,
+            ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories,
+            Dictionary<string, List<DecoratorRegistrationInfo>> decoratorsByInterface,
+            string? className,
+            string indent)
+        {
+            for (int i = 0; i < closedGenericFactories.Length; i++)
+            {
+                var cgf = closedGenericFactories[i];
+                if (!cgf.IsResolved || cgf.Key == null) continue;
+                if (className == null && string.Equals(cgf.Lifetime, "Scoped", StringComparison.Ordinal)) continue;
+                sb.AppendLine(indent + "if (serviceType == typeof(" + cgf.InterfaceFqn + ") && key == \"" + EscapeKey(cgf.Key) + "\")");
+                sb.AppendLine(indent + "    return " + ClosedGenericExpr(closedGenericFactories, i, decoratorsByInterface, className) + ";");
+            }
+        }
+
+        private static void EmitClosedGenericEnumerable(
             StringBuilder sb,
             ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories,
             List<int> closedForm,
+            Dictionary<string, List<DecoratorRegistrationInfo>> decoratorsByInterface,
             string? className,
             string indent)
         {
@@ -3090,19 +3119,20 @@ namespace ZeroAlloc.Inject.Generator
             for (int j = 0; j < closedForm.Count; j++)
             {
                 if (j > 0) sb.Append(", ");
-                sb.Append(HybridClosedGenericExpr(closedGenericFactories, closedForm[j], className));
+                sb.Append(ClosedGenericExpr(closedGenericFactories, closedForm[j], decoratorsByInterface, className));
             }
             sb.AppendLine(" };");
         }
 
         /// <summary>
-        /// The instance of one closed generic registration in the hybrid root, with a null
+        /// The instance of one closed generic registration in a generated root, with a null
         /// <paramref name="className"/>, or in its scope: a transient is constructed and tracked for
         /// disposal; a singleton comes from the root; a scoped one is cached in the scope.
         /// </summary>
-        private static string HybridClosedGenericExpr(
+        private static string ClosedGenericExpr(
             ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories,
             int index,
+            Dictionary<string, List<DecoratorRegistrationInfo>> decoratorsByInterface,
             string? className)
         {
             var cgf = closedGenericFactories[index];
@@ -3113,7 +3143,8 @@ namespace ZeroAlloc.Inject.Generator
                     : "((" + className + ")Root).ClosedGenericSingleton" + index + "()";
             }
 
-            var tracked = TrackIfDisposable(BuildClosedGenericNewExpr(cgf), cgf.ImplementsDisposable);
+            var newExpr = BuildClosedGenericInstanceExpr(closedGenericFactories, cgf, decoratorsByInterface, ContainerResolve);
+            var tracked = TrackIfDisposable(newExpr, ClosedGenericIsDisposable(cgf, decoratorsByInterface));
             if (string.Equals(cgf.Lifetime, "Scoped", StringComparison.Ordinal))
             {
                 return "(_cg_sc_" + index + " ??= " + tracked + ")";
@@ -3121,13 +3152,14 @@ namespace ZeroAlloc.Inject.Generator
             return tracked;
         }
 
-        /// <summary>The indices of each closed form's registrations, closed form by closed form.</summary>
+        /// <summary>The indices of each unkeyed closed form's registrations, closed form by closed form.</summary>
         private static List<List<int>> GroupClosedForms(ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories)
         {
             var groups = new List<List<int>>();
             var byServiceType = new Dictionary<string, List<int>>(StringComparer.Ordinal);
             for (int i = 0; i < closedGenericFactories.Length; i++)
             {
+                if (closedGenericFactories[i].Key != null) continue;
                 if (!byServiceType.TryGetValue(closedGenericFactories[i].InterfaceFqn, out var group))
                 {
                     group = new List<int>();
@@ -3140,28 +3172,31 @@ namespace ZeroAlloc.Inject.Generator
         }
 
         /// <summary>
-        /// One accessor per closed generic singleton in the hybrid container. It creates the instance
+        /// One accessor per closed generic singleton in a generated container. It creates the instance
         /// once, and the single and IEnumerable&lt;T&gt; branches of the root and of every scope share it.
+        /// The instance that loses a race is disposed, unless it is decorated: its inner is the shared
+        /// concrete singleton, which a decorator may dispose with itself.
         /// </summary>
         private static void EmitClosedGenericSingletonAccessors(
             StringBuilder sb,
-            ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories)
+            ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories,
+            Dictionary<string, List<DecoratorRegistrationInfo>> decoratorsByInterface)
         {
             for (int i = 0; i < closedGenericFactories.Length; i++)
             {
                 var cgf = closedGenericFactories[i];
                 if (!string.Equals(cgf.Lifetime, "Singleton", StringComparison.Ordinal)) continue;
                 var field = "_cg_s_" + i;
-                sb.AppendLine("        private " + cgf.ImplementationFqn + " ClosedGenericSingleton" + i + "()");
+                sb.AppendLine("        private " + cgf.InterfaceFqn + " ClosedGenericSingleton" + i + "()");
                 sb.AppendLine("        {");
                 sb.AppendLine("            var existing = " + field + ";");
                 sb.AppendLine("            if (existing != null) return existing;");
-                sb.AppendLine("            var instance = " + BuildClosedGenericNewExpr(cgf) + ";");
+                sb.AppendLine("            " + cgf.InterfaceFqn + " instance = " + BuildClosedGenericInstanceExpr(closedGenericFactories, cgf, decoratorsByInterface, ContainerResolve) + ";");
                 sb.AppendLine("            var winner = Interlocked.CompareExchange(ref " + field + ", instance, null);");
-                sb.AppendLine(cgf.ImplementsDisposable
+                sb.AppendLine(ClosedGenericIsDisposable(cgf, decoratorsByInterface)
                     ? "            if (winner == null) return TrackDisposable(instance);"
                     : "            if (winner == null) return instance;");
-                if (cgf.ImplementsDisposable)
+                if (ClosedGenericDecorators(cgf, decoratorsByInterface) == null && cgf.ImplementsDisposable)
                     sb.AppendLine("            (instance as global::System.IDisposable)?.Dispose();");
                 sb.AppendLine("            return winner;");
                 sb.AppendLine("        }");
@@ -3171,12 +3206,14 @@ namespace ZeroAlloc.Inject.Generator
 
         private static void EmitIsKnownKeyedService(
             StringBuilder sb,
-            List<ServiceRegistrationInfo> keyedServices)
+            List<ServiceRegistrationInfo> keyedServices,
+            ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories)
         {
             sb.AppendLine("        protected override bool IsKnownKeyedService(global::System.Type serviceType, object? serviceKey)");
             sb.AppendLine("        {");
 
-            if (keyedServices.Count > 0)
+            bool hasKeyedClosedForms = closedGenericFactories.Any(static cgf => cgf.Key != null);
+            if (keyedServices.Count > 0 || hasKeyedClosedForms)
             {
                 sb.AppendLine("            if (serviceKey is string key)");
                 sb.AppendLine("            {");
@@ -3184,11 +3221,17 @@ namespace ZeroAlloc.Inject.Generator
                 foreach (var svc in keyedServices)
                 {
                     var serviceTypes = GetServiceTypes(svc);
-                    var escapedKey = svc.Key!.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    var escapedKey = EscapeKey(svc.Key!);
                     foreach (var serviceType in serviceTypes)
                     {
                         sb.AppendLine("                if (serviceType == typeof(" + serviceType + ") && key == \"" + escapedKey + "\") return true;");
                     }
+                }
+
+                foreach (var cgf in closedGenericFactories)
+                {
+                    if (!cgf.IsResolved || cgf.Key == null) continue;
+                    sb.AppendLine("                if (serviceType == typeof(" + cgf.InterfaceFqn + ") && key == \"" + EscapeKey(cgf.Key) + "\") return true;");
                 }
 
                 sb.AppendLine("            }");
@@ -3197,6 +3240,9 @@ namespace ZeroAlloc.Inject.Generator
             sb.AppendLine("            return false;");
             sb.AppendLine("        }");
         }
+
+        /// <summary>A service key as the content of a C# string literal.</summary>
+        private static string EscapeKey(string key) => key.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
         private static List<string> GetServiceTypes(ServiceRegistrationInfo svc)
         {
@@ -3456,8 +3502,18 @@ namespace ZeroAlloc.Inject.Generator
 
         // ---- Closed generic factory code-gen helpers ----
 
-        /// <summary>Builds a "new ClosedImpl(args...)" expression for an explicit closed-generic entry.</summary>
-        private static string BuildClosedGenericNewExpr(ClosedGenericFactoryInfo cgf)
+        /// <summary>How a generated container resolves a dependency: through its own GetService.</summary>
+        private static string ContainerResolve(string typeFqn, bool optional) => optional
+            ? "(" + typeFqn + "?)GetService(typeof(" + typeFqn + "))"
+            : "(" + typeFqn + ")GetService(typeof(" + typeFqn + "))!";
+
+        /// <summary>How a factory in the generated Add...Services extension resolves a dependency.</summary>
+        private static string ServiceProviderResolve(string typeFqn, bool optional) => optional
+            ? "sp.GetService<" + typeFqn + ">()"
+            : "sp.GetRequiredService<" + typeFqn + ">()";
+
+        /// <summary>Builds a "new ClosedImpl(args...)" expression for a closed generic registration.</summary>
+        private static string BuildClosedGenericNewExpr(ClosedGenericFactoryInfo cgf, Func<string, bool, string> resolve)
         {
             var sb = new System.Text.StringBuilder();
             sb.Append("new ").Append(cgf.ImplementationFqn).Append("(");
@@ -3465,43 +3521,70 @@ namespace ZeroAlloc.Inject.Generator
             {
                 if (i > 0) sb.Append(", ");
                 var p = cgf.Parameters[i];
-                if (p.IsOptional)
-                {
-                    sb.Append("(").Append(p.FullyQualifiedTypeName).Append("?)GetService(typeof(")
-                      .Append(p.FullyQualifiedTypeName).Append("))");
-                }
-                else
-                {
-                    sb.Append("(").Append(p.FullyQualifiedTypeName).Append(")GetService(typeof(")
-                      .Append(p.FullyQualifiedTypeName).Append("))!");
-                }
+                sb.Append(resolve(p.FullyQualifiedTypeName, p.IsOptional));
             }
             sb.Append(")");
             return sb.ToString();
         }
 
         /// <summary>
-        /// Builds the instantiation expression for a closed generic factory, wrapping with decorator chain
-        /// if an open-generic decorator is registered for the interface's unbound form.
+        /// The decorators of a closed generic registration, innermost first, or null when it has none.
+        /// A keyed registration is not decorated, as a keyed non-generic service is not.
         /// </summary>
-        private static string BuildDecoratedClosedGenericExpr(
+        private static List<DecoratorRegistrationInfo>? ClosedGenericDecorators(
             ClosedGenericFactoryInfo cgf,
-            System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<DecoratorRegistrationInfo>> decoratorsByInterface)
+            Dictionary<string, List<DecoratorRegistrationInfo>> decoratorsByInterface)
         {
-            var innerExpr = BuildClosedGenericNewExpr(cgf);
+            if (cgf.Key != null) return null;
+            return decoratorsByInterface.TryGetValue(cgf.OpenServiceFqn, out var decorators) && decorators.Count > 0
+                ? decorators
+                : null;
+        }
 
-            // Derive unbound FQN (e.g. "global::IRepo<>" from "global::IRepo<string>")
-            var unboundFqn = GetUnboundFqnFromClosed(cgf.InterfaceFqn);
-            if (unboundFqn == null) return innerExpr;
+        /// <summary>
+        /// Whether the instance a closed generic registration creates is disposable: its outermost
+        /// decorator, or the implementation when it has none.
+        /// </summary>
+        private static bool ClosedGenericIsDisposable(
+            ClosedGenericFactoryInfo cgf,
+            Dictionary<string, List<DecoratorRegistrationInfo>> decoratorsByInterface)
+        {
+            var decorators = ClosedGenericDecorators(cgf, decoratorsByInterface);
+            return decorators == null ? cgf.ImplementsDisposable : decorators[decorators.Count - 1].ImplementsDisposable;
+        }
 
-            if (!decoratorsByInterface.TryGetValue(unboundFqn, out var decorators) || decorators.Count == 0)
-                return innerExpr;
+        /// <summary>
+        /// The instance expression of a closed generic registration. A decorated one chains its
+        /// decorators around the concrete closed registration of its implementation, as the
+        /// Add...Services extension does for a non-generic decorated service, so the inner has that
+        /// registration's lifetime and is disposed with it. When As leaves the implementation
+        /// unregistered, the decorators wrap a new instance.
+        /// </summary>
+        private static string BuildClosedGenericInstanceExpr(
+            ImmutableArray<ClosedGenericFactoryInfo> closedGenericFactories,
+            ClosedGenericFactoryInfo cgf,
+            Dictionary<string, List<DecoratorRegistrationInfo>> decoratorsByInterface,
+            Func<string, bool, string> resolve)
+        {
+            var decorators = ClosedGenericDecorators(cgf, decoratorsByInterface);
+            if (decorators == null) return BuildClosedGenericNewExpr(cgf, resolve);
 
-            var typeArgs = ExtractTypeArgsFromClosedFqn(cgf.InterfaceFqn);
-            if (typeArgs.Length == 0) return innerExpr;
+            bool concreteIsRegistered = false;
+            foreach (var other in closedGenericFactories)
+            {
+                if (other.Key == null && string.Equals(other.InterfaceFqn, cgf.ImplementationFqn, StringComparison.Ordinal))
+                {
+                    concreteIsRegistered = true;
+                    break;
+                }
+            }
+
+            var currentExpr = concreteIsRegistered
+                ? resolve(cgf.ImplementationFqn, false)
+                : BuildClosedGenericNewExpr(cgf, resolve);
 
             // Chain decorators innermost-first (list is already sorted by Order ascending)
-            var currentExpr = innerExpr;
+            var typeArgs = ExtractTypeArgsFromClosedFqn(cgf.InterfaceFqn);
             var closedInterfaceFqn = cgf.InterfaceFqn;
             foreach (var decorator in decorators)
             {
@@ -3515,37 +3598,19 @@ namespace ZeroAlloc.Inject.Generator
                     first = false;
                     var closedParamType = CloseUnboundFqn(param.FullyQualifiedTypeName, typeArgs);
                     // Identify the "inner" parameter by matching the closed or unbound interface FQN
-                    if (closedParamType == closedInterfaceFqn || param.FullyQualifiedTypeName == unboundFqn)
+                    if (closedParamType == closedInterfaceFqn || param.FullyQualifiedTypeName == cgf.OpenServiceFqn)
                     {
                         sb.Append("(").Append(closedInterfaceFqn).Append(")(").Append(currentExpr).Append(")");
                     }
-                    else if (param.IsOptional)
-                    {
-                        sb.Append("(").Append(closedParamType).Append("?)GetService(typeof(")
-                          .Append(closedParamType).Append("))");
-                    }
                     else
                     {
-                        sb.Append("(").Append(closedParamType).Append(")GetService(typeof(")
-                          .Append(closedParamType).Append("))!");
+                        sb.Append(resolve(closedParamType, param.IsOptional));
                     }
                 }
                 sb.Append(")");
                 currentExpr = sb.ToString();
             }
             return currentExpr;
-        }
-
-        /// <summary>Returns the unbound generic FQN from a closed generic FQN, e.g. "global::IFoo&lt;global::Bar&gt;" → "global::IFoo&lt;&gt;".</summary>
-        private static string? GetUnboundFqnFromClosed(string closedFqn)
-        {
-            var idx = closedFqn.IndexOf('<');
-            if (idx < 0) return null;
-            var prefix = closedFqn.Substring(0, idx);
-            var typeArgs = ExtractTypeArgsFromClosedFqn(closedFqn);
-            if (typeArgs.Length == 0) return null;
-            var commas = typeArgs.Length > 1 ? new string(',', typeArgs.Length - 1) : "";
-            return prefix + "<" + commas + ">";
         }
 
         /// <summary>Closes an unbound generic FQN with the supplied type args, e.g. "global::IFoo&lt;&gt;" + ["global::Bar"] → "global::IFoo&lt;global::Bar&gt;".</summary>
@@ -3587,19 +3652,9 @@ namespace ZeroAlloc.Inject.Generator
             string implType,
             string? key,
             bool useAdd,
-            bool isOpenGeneric,
             List<ConstructorParameterInfo> constructorParameters,
             List<PropertyInjectionInfo> propertyInjections)
         {
-            if (isOpenGeneric)
-            {
-                var addOrTryAdd = useAdd ? "Add" : "TryAdd";
-                sb.AppendLine(string.Format(
-                    "            services.{0}(ServiceDescriptor.{1}(typeof({2}), typeof({3})));",
-                    addOrTryAdd, lifetime, implType, implType));
-                return;
-            }
-
             if (key != null)
             {
                 var method = useAdd ? "AddKeyed" + lifetime : "TryAddKeyed" + lifetime;
@@ -3780,49 +3835,69 @@ namespace ZeroAlloc.Inject.Generator
                 attributeLocation: LocationInfo.From(attr.ApplicationSyntaxReference));
         }
 
+        /// <summary>Whether a constructor parameter is resolved optionally: it has a default value or [OptionalDependency].</summary>
+        private static bool IsOptionalParameter(IParameterSymbol parameter) =>
+            parameter.HasExplicitDefaultValue
+            || parameter.GetAttributes().Any(static a => a.AttributeClass?.ToDisplayString() == "ZeroAlloc.Inject.OptionalDependencyAttribute");
+
         private static ImmutableArray<ClosedGenericFactoryInfo> FindClosedGenericUsages(
-            (((ImmutableArray<ServiceRegistrationInfo?> transients,
-               ImmutableArray<ServiceRegistrationInfo?> scopeds),
-              ImmutableArray<ServiceRegistrationInfo?> singletons),
+            ((((ImmutableArray<ServiceRegistrationInfo?> transients,
+                ImmutableArray<ServiceRegistrationInfo?> scopeds),
+               ImmutableArray<ServiceRegistrationInfo?> singletons),
+              ImmutableArray<DecoratorRegistrationInfo?> decorators),
              Compilation compilation) data,
             CancellationToken ct)
         {
-            var transients  = data.Item1.Item1.Item1;
-            var scopeds     = data.Item1.Item1.Item2;
-            var singletons  = data.Item1.Item2;
+            var transients  = data.Item1.Item1.Item1.Item1;
+            var scopeds     = data.Item1.Item1.Item1.Item2;
+            var singletons  = data.Item1.Item1.Item2;
+            var decorators  = data.Item1.Item2;
             var compilation = data.Item2;
 
             // Unbound service type (global::IFoo<,> form) → the open generic registrations the generated
-            // Add...Services extension makes for it, in order. It registers transients, then scopeds, then
-            // singletons, with TryAdd, which skips a service type that is already registered, or with Add
-            // when AllowMultiple is set. Microsoft DI resolves the last registration.
-            var openGenericMap = new Dictionary<string, List<ServiceRegistrationInfo>>(StringComparer.Ordinal);
-            foreach (var svc in transients.Concat(scopeds).Concat(singletons))
+            // Add...Services extension makes for it, by key, each in order. It registers transients, then
+            // scopeds, then singletons, with TryAdd, which skips a service type and key that is already
+            // registered, or with Add when AllowMultiple is set. Microsoft DI resolves the last
+            // registration. Without As, the implementation type is registered as a service type too.
+            var openGenericMap = new Dictionary<string, List<KeyedRegistrations>>(StringComparer.Ordinal);
+            var registrable = new List<ServiceRegistrationInfo>();
+            AddRegistrable(registrable, transients, null, null);
+            AddRegistrable(registrable, scopeds, null, null);
+            AddRegistrable(registrable, singletons, null, null);
+            foreach (var svc in registrable)
             {
-                if (svc == null || !svc.IsRegistrable || !svc.IsOpenGeneric || svc.ImplementationMetadataName == null) continue;
-                var ifaces = svc.AsType != null ? new List<string> { svc.AsType } : svc.Interfaces;
-                foreach (var iface in ifaces)
+                if (!svc.IsOpenGeneric || svc.ImplementationMetadataName == null) continue;
+                foreach (var serviceType in GetServiceTypes(svc))
                 {
-                    if (!openGenericMap.TryGetValue(iface, out var registrations))
+                    if (!openGenericMap.TryGetValue(serviceType, out var byKey))
                     {
-                        registrations = new List<ServiceRegistrationInfo>();
-                        openGenericMap[iface] = registrations;
+                        byKey = new List<KeyedRegistrations>();
+                        openGenericMap[serviceType] = byKey;
                     }
-                    if (svc.AllowMultiple || registrations.Count == 0)
-                        registrations.Add(svc);
+                    var group = byKey.Find(g => string.Equals(g.Key, svc.Key, StringComparison.Ordinal));
+                    if (group == null)
+                    {
+                        group = new KeyedRegistrations(svc.Key);
+                        byKey.Add(group);
+                    }
+                    if (svc.AllowMultiple || group.Registrations.Count == 0)
+                        group.Registrations.Add(svc);
                 }
             }
 
             if (openGenericMap.Count == 0) return ImmutableArray<ClosedGenericFactoryInfo>.Empty;
+
+            // A decorated closed form wraps the concrete registration of its implementation, as the
+            // non-generic decorators do, so the concrete closed form is needed wherever it is.
+            var decoratedServiceTypes = GroupDecorators(ValidDecorators(registrable, decorators, null)).Keys;
 
             // Seed work queue from all constructor parameters of all registered services
             var workQueue = new Queue<ConstructorParameterInfo>();
             var processed = new HashSet<string>(StringComparer.Ordinal); // keyed by closed interface FQN
             var results = new List<ClosedGenericFactoryInfo>();
 
-            foreach (var svc in transients.Concat(scopeds).Concat(singletons))
+            foreach (var svc in registrable)
             {
-                if (svc == null || !svc.IsRegistrable) continue;
                 foreach (var param in svc.ConstructorParameters)
                     if (param.UnboundGenericInterfaceFqn != null)
                         workQueue.Enqueue(param);
@@ -3836,7 +3911,7 @@ namespace ZeroAlloc.Inject.Generator
 
                 if (!processed.Add(closedFqn)) continue;
                 if (param.UnboundGenericInterfaceFqn == null) continue;
-                if (!openGenericMap.TryGetValue(param.UnboundGenericInterfaceFqn, out var registrations)) continue;
+                if (!openGenericMap.TryGetValue(param.UnboundGenericInterfaceFqn, out var byKey)) continue;
 
                 var typeArgSymbols = new ITypeSymbol[param.TypeArgumentReferenceIds.Length];
                 bool allResolved = true;
@@ -3853,70 +3928,98 @@ namespace ZeroAlloc.Inject.Generator
 
                 bool hasValueTypeArgument = typeArgSymbols.Any(static t => t.IsValueType);
 
-                var closedForm = new List<ClosedGenericFactoryInfo>(registrations.Count);
-                for (int r = 0; r < registrations.Count; r++)
+                foreach (var group in byKey)
                 {
-                    var og = registrations[r];
-
-                    // Resolve impl symbol and close it
-                    var implSymbol = compilation.GetTypeByMetadataName(og.ImplementationMetadataName!);
-                    if (implSymbol == null) continue;
-
-                    var closedImpl = implSymbol.Construct(typeArgSymbols);
-                    var closedImplFqn = closedImpl.ToDisplayString(FullyQualifiedFormat);
-
-                    bool implementsDisposable = closedImpl.AllInterfaces.Any(static i =>
-                        i.SpecialType == SpecialType.System_IDisposable
-                        || string.Equals(i.ToDisplayString(), "System.IAsyncDisposable", StringComparison.Ordinal));
-
-                    // Build constructor parameters for the closed implementation (type args substituted by Roslyn)
-                    var ctor = closedImpl.InstanceConstructors
-                        .Where(static c => c.DeclaredAccessibility == Accessibility.Public)
-                        .OrderByDescending(static c => c.Parameters.Length)
-                        .FirstOrDefault();
-                    if (ctor == null) continue;
-
-                    var ctorParams = ImmutableArray.CreateBuilder<ConstructorParameterInfo>(ctor.Parameters.Length);
-                    foreach (var ctorParam in ctor.Parameters)
+                    var registrations = group.Registrations;
+                    var closedForm = new List<ClosedGenericFactoryInfo>(registrations.Count);
+                    var concreteUsages = new List<ConstructorParameterInfo>();
+                    for (int r = 0; r < registrations.Count; r++)
                     {
-                        var ctorParamFqn = ctorParam.Type.ToDisplayString(FullyQualifiedFormat);
-                        string? ctorUnboundFqn = null;
-                        ImmutableArray<string> ctorTypeArgReferenceIds = ImmutableArray<string>.Empty;
+                        var og = registrations[r];
 
-                        if (ctorParam.Type is INamedTypeSymbol namedCtorParam
-                            && namedCtorParam.IsGenericType && !namedCtorParam.IsUnboundGenericType)
+                        // Resolve impl symbol and close it
+                        var implSymbol = compilation.GetTypeByMetadataName(og.ImplementationMetadataName!);
+                        if (implSymbol == null) continue;
+
+                        var closedImpl = implSymbol.Construct(typeArgSymbols);
+                        var closedImplFqn = closedImpl.ToDisplayString(FullyQualifiedFormat);
+
+                        bool implementsDisposable = closedImpl.AllInterfaces.Any(static i =>
+                            i.SpecialType == SpecialType.System_IDisposable
+                            || string.Equals(i.ToDisplayString(), "System.IAsyncDisposable", StringComparison.Ordinal));
+
+                        // Build constructor parameters for the closed implementation (type args substituted by Roslyn)
+                        var ctor = closedImpl.InstanceConstructors
+                            .Where(static c => c.DeclaredAccessibility == Accessibility.Public)
+                            .OrderByDescending(static c => c.Parameters.Length)
+                            .FirstOrDefault();
+                        if (ctor == null) continue;
+
+                        var ctorParams = ImmutableArray.CreateBuilder<ConstructorParameterInfo>(ctor.Parameters.Length);
+                        foreach (var ctorParam in ctor.Parameters)
                         {
-                            var rawUnbound = namedCtorParam.ConstructedFrom.ToDisplayString(FullyQualifiedFormat);
-                            ctorUnboundFqn = ToUnboundGenericString(rawUnbound, namedCtorParam.TypeArguments.Length);
-                            ctorTypeArgReferenceIds = ToTypeArgumentReferenceIds(namedCtorParam);
+                            var ctorParamFqn = ctorParam.Type.ToDisplayString(FullyQualifiedFormat);
+                            string? ctorUnboundFqn = null;
+                            ImmutableArray<string> ctorTypeArgReferenceIds = ImmutableArray<string>.Empty;
+
+                            if (ctorParam.Type is INamedTypeSymbol namedCtorParam
+                                && namedCtorParam.IsGenericType && !namedCtorParam.IsUnboundGenericType)
+                            {
+                                var rawUnbound = namedCtorParam.ConstructedFrom.ToDisplayString(FullyQualifiedFormat);
+                                ctorUnboundFqn = ToUnboundGenericString(rawUnbound, namedCtorParam.TypeArguments.Length);
+                                ctorTypeArgReferenceIds = ToTypeArgumentReferenceIds(namedCtorParam);
+                            }
+
+                            var ctorParamInfo = new ConstructorParameterInfo(
+                                ctorParamFqn, ctorParam.Name, IsOptionalParameter(ctorParam), ctorUnboundFqn, ctorTypeArgReferenceIds);
+                            // Add to work queue for fixed-point iteration if it is a closed generic
+                            if (ctorUnboundFqn != null)
+                                workQueue.Enqueue(ctorParamInfo);
+                            ctorParams.Add(ctorParamInfo);
                         }
 
-                        var ctorParamInfo = new ConstructorParameterInfo(
-                            ctorParamFqn, ctorParam.Name, false, ctorUnboundFqn, ctorTypeArgReferenceIds);
-                        // Add to work queue for fixed-point iteration if it is a closed generic
-                        if (ctorUnboundFqn != null)
-                            workQueue.Enqueue(ctorParamInfo);
-                        ctorParams.Add(ctorParamInfo);
+                        closedForm.Add(new ClosedGenericFactoryInfo(
+                            closedFqn,
+                            closedImplFqn,
+                            param.UnboundGenericInterfaceFqn,
+                            group.Key,
+                            og.Lifetime,
+                            ctorParams.ToImmutable(),
+                            implementsDisposable,
+                            isResolved: r == registrations.Count - 1,
+                            hasValueTypeArgument));
+
+                        // A decorated closed form wraps the concrete closed form, so find that one too.
+                        if (group.Key == null && og.AsType == null && decoratedServiceTypes.Contains(param.UnboundGenericInterfaceFqn))
+                        {
+                            concreteUsages.Add(new ConstructorParameterInfo(
+                                closedImplFqn, "inner", false, og.FullyQualifiedName, ToTypeArgumentReferenceIds(closedImpl)));
+                        }
                     }
 
-                    closedForm.Add(new ClosedGenericFactoryInfo(
-                        closedFqn,
-                        closedImplFqn,
-                        og.Lifetime,
-                        ctorParams.ToImmutable(),
-                        implementsDisposable,
-                        isResolved: r == registrations.Count - 1,
-                        hasValueTypeArgument));
+                    // Every registration of the closed form has to close, or none is used: resolving it
+                    // would otherwise return a registration Microsoft DI does not.
+                    if (closedForm.Count == registrations.Count)
+                    {
+                        results.AddRange(closedForm);
+                        foreach (var usage in concreteUsages)
+                            workQueue.Enqueue(usage);
+                    }
                 }
-
-                // Every registration of the closed form has to close, or none is used: resolving it
-                // would otherwise return a registration Microsoft DI does not.
-                if (closedForm.Count == registrations.Count)
-                    results.AddRange(closedForm);
             }
 
             return results.ToImmutableArray();
         }
+    }
+
+    /// <summary>The open generic registrations of one service type under one key, in order.</summary>
+    internal sealed class KeyedRegistrations
+    {
+        public KeyedRegistrations(string? key) => Key = key;
+
+        public string? Key { get; }
+
+        public List<ServiceRegistrationInfo> Registrations { get; } = new List<ServiceRegistrationInfo>();
     }
 
     internal sealed class ServiceTypeGroupEntry

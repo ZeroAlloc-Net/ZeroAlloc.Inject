@@ -306,6 +306,40 @@ public class LoggingRetriever : IProductRetriever
 
 ---
 
+## Decorating Open Generics
+
+A decorator can itself be an open generic, and then decorates every closed form of an open generic service:
+
+```csharp
+public interface IRepository<T> { }
+
+[Scoped]
+public class Repository<T> : IRepository<T> { }
+
+[Decorator]
+public class LoggingRepository<T> : IRepository<T>
+{
+    public LoggingRepository(IRepository<T> inner) { }
+}
+```
+
+MS DI cannot decorate an open generic registration, so the generator decorates the closed forms it finds, the same ones the hybrid and standalone containers resolve: those a constructor in the assembly asks for, see [Open Generics](service-registration.md#open-generics). In place of the open `IRepository<>` registration, the generated `AddXxxServices()` registers each of them closed, with the service's lifetime:
+
+```csharp
+// Generated — simplified for illustration
+services.TryAddScoped<IRepository<Order>>(sp =>
+    new LoggingRepository<Order>(sp.GetRequiredService<Repository<Order>>()));
+services.TryAdd(ServiceDescriptor.Scoped(typeof(Repository<>), typeof(Repository<>)));
+```
+
+The decorator wraps the concrete registration, as it does for a non-generic service, so the inner has the service's lifetime and is disposed with it. With `As`, the concrete type is not registered, so the decorator wraps a new instance, which no container disposes.
+
+All three modes resolve the same decorated instance, and `IEnumerable<IRepository<Order>>` holds one decorated entry per registration. A closed form that no constructor asks for, such as one resolved with a `Type` built at runtime, is not resolvable in any mode: an open registration next to the decorated closed ones would add an undecorated entry to `IEnumerable<T>`.
+
+A keyed service is not decorated, open generic or not.
+
+---
+
 ## Real-World Example: Three-Layer Product Catalog Stack
 
 The following shows a complete, production-style registration for a product catalog service. The real implementation hits the database; a caching layer sits directly above it; a logging layer sits above that.
