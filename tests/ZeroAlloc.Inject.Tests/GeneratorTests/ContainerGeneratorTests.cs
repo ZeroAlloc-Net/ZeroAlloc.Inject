@@ -451,7 +451,7 @@ public class ContainerGeneratorTests
             public class RedisCache : ICache { }
             """;
         var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
-        Assert.Contains("IKeyedServiceProvider", output);
+        Assert.Contains("protected override object? ResolveKnownKeyed", output);
         Assert.Contains("\"redis\"", output);
     }
 
@@ -481,7 +481,7 @@ public class ContainerGeneratorTests
             public class FastCache : ICache { }
             """;
         var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
-        Assert.Contains("IKeyedServiceProvider", output);
+        Assert.Contains("protected override object? ResolveScopedKnownKeyed", output);
         Assert.Contains("\"fast\"", output);
     }
 
@@ -549,8 +549,8 @@ public class ContainerGeneratorTests
         var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
         // Should have a keyed scoped field
         Assert.Contains("_keyedScoped_0", output);
-        // Should have lazy-init pattern in scope's GetKeyedService
-        var scopeKeyedSection = output.Substring(output.IndexOf("public object? GetKeyedService"));
+        // Should have lazy-init pattern in scope's ResolveScopedKnownKeyed
+        var scopeKeyedSection = output.Substring(output.IndexOf("protected override object? ResolveScopedKnownKeyed"));
         Assert.Contains("if (_keyedScoped_0 == null) _keyedScoped_0 = new global::TestApp.PrimaryRepo();", scopeKeyedSection);
         Assert.Contains("return _keyedScoped_0;", scopeKeyedSection);
     }
@@ -567,8 +567,8 @@ public class ContainerGeneratorTests
             public class FastCache : ICache { public void Dispose() { } }
             """;
         var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
-        // In scope's GetKeyedService, disposable transients should be tracked
-        var scopeKeyedSection = output.Substring(output.IndexOf("public object? GetKeyedService"));
+        // In scope's ResolveScopedKnownKeyed, disposable transients should be tracked
+        var scopeKeyedSection = output.Substring(output.IndexOf("protected override object? ResolveScopedKnownKeyed"));
         Assert.Contains("TrackDisposable", scopeKeyedSection);
     }
 
@@ -648,11 +648,11 @@ public class ContainerGeneratorTests
         var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
         // Non-keyed should be in ResolveKnown
         var resolveKnownStart = output.IndexOf("protected override object? ResolveKnown");
-        var keyedStart = output.IndexOf("public object? GetKeyedService");
+        var keyedStart = output.IndexOf("protected override object? ResolveKnownKeyed");
         var resolveKnown = output.Substring(resolveKnownStart, keyedStart - resolveKnownStart);
         Assert.Contains("typeof(global::TestApp.ICache)", resolveKnown); // DefaultCache
 
-        // Keyed should be in GetKeyedService
+        // Keyed should be in ResolveKnownKeyed
         var keyedSection = output.Substring(keyedStart);
         Assert.Contains("\"redis\"", keyedSection);
     }
@@ -788,7 +788,7 @@ public class ContainerGeneratorTests
     }
 
     [Fact]
-    public void KeyedServices_GeneratesIKeyedServiceProviderSelfResolution()
+    public void KeyedServices_LeaveIKeyedServiceProviderToTheBaseClasses()
     {
         var source = """
             using ZeroAlloc.Inject;
@@ -801,8 +801,12 @@ public class ContainerGeneratorTests
             """;
 
         var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
-        Assert.Contains("typeof(IKeyedServiceProvider)", output);
-        Assert.Contains("return this;", output);
+        // The base classes implement IKeyedServiceProvider, resolve it as themselves, and fall
+        // back for a key the generated override does not know. See ZeroAlloc-Net/ZeroAlloc.Inject#181.
+        Assert.DoesNotContain("IKeyedServiceProvider", output);
+        Assert.DoesNotContain("public object? GetKeyedService", output);
+        Assert.Contains("protected override object? ResolveKnownKeyed(Type serviceType, object serviceKey)", output);
+        Assert.Contains("protected override object? ResolveScopedKnownKeyed(Type serviceType, object serviceKey)", output);
     }
 
     // --- Task 2: IServiceProviderIsService — IsKnownService ---
@@ -1277,7 +1281,7 @@ public class ContainerGeneratorTests
     }
 
     [Fact]
-    public void Hybrid_IsKnownService_IncludesIsKeyedServiceType()
+    public void Hybrid_IsKnownService_LeavesTheKeyedProviderTypesToTheBaseClass()
     {
         var source = """
             using ZeroAlloc.Inject;
@@ -1286,8 +1290,10 @@ public class ContainerGeneratorTests
             public class MemoryCache : ICache { }
             """;
 
+        // The base IsService answers for IServiceProviderIsKeyedService and IKeyedServiceProvider,
+        // with or without a keyed service the generator knows.
         var (output, _) = GeneratorTestHelper.RunGeneratorWithContainer(source);
-        Assert.Contains("IServiceProviderIsKeyedService", output);
+        Assert.DoesNotContain("IServiceProviderIsKeyedService", output);
     }
 
     [Fact]

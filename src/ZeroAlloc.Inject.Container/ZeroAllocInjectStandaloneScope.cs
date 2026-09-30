@@ -3,7 +3,7 @@ using ZeroAlloc.Collections;
 
 namespace ZeroAlloc.Inject.Container;
 
-public abstract class ZeroAllocInjectStandaloneScope : IServiceScope, IServiceProvider, IServiceProviderIsService, IServiceProviderIsKeyedService, IDisposable, IAsyncDisposable
+public abstract class ZeroAllocInjectStandaloneScope : IServiceScope, IServiceProvider, IServiceProviderIsService, IServiceProviderIsKeyedService, IKeyedServiceProvider, IDisposable, IAsyncDisposable
 {
     private readonly ZeroAllocInjectStandaloneProvider _root;
     private readonly object _trackLock = new object();
@@ -42,10 +42,32 @@ public abstract class ZeroAllocInjectStandaloneScope : IServiceScope, IServicePr
             return _root;
         }
 
+        if (serviceType == typeof(IKeyedServiceProvider))
+        {
+            return this;
+        }
+
         return ResolveScopedKnown(serviceType);
     }
 
+    /// <summary>
+    /// Resolves a keyed service this scope knows, or null. A null key resolves the unkeyed service,
+    /// as in Microsoft DI.
+    /// </summary>
+    public object? GetKeyedService(Type serviceType, object? serviceKey) =>
+        serviceKey is null ? GetService(serviceType) : ResolveScopedKnownKeyed(serviceType, serviceKey);
+
+    /// <summary>Resolves a keyed service as <see cref="GetKeyedService"/> does, and throws when it resolves none.</summary>
+    public object GetRequiredKeyedService(Type serviceType, object? serviceKey) =>
+        GetKeyedService(serviceType, serviceKey) ?? throw ZeroAllocInjectStandaloneProvider.NoKeyedService(serviceType, serviceKey);
+
     protected abstract object? ResolveScopedKnown(Type serviceType);
+
+    /// <summary>
+    /// The keyed service of this type and key that the generated scope knows, or null. The base
+    /// knows none.
+    /// </summary>
+    protected virtual object? ResolveScopedKnownKeyed(Type serviceType, object serviceKey) => null;
 
     public bool IsService(Type serviceType) => ((IServiceProviderIsService)_root).IsService(serviceType);
 

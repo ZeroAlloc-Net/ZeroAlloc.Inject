@@ -129,11 +129,13 @@ internal sealed class GeneratedApp
     /// <summary>
     /// The hybrid container. With <paramref name="addServices"/>, its Microsoft DI fallback holds the
     /// generated registrations, as in an application; without, only the generated type switch can
-    /// resolve the source's services.
+    /// resolve the source's services. <paramref name="before"/> adds the application's own
+    /// registrations first.
     /// </summary>
-    public IServiceProvider BuildHybrid(bool addServices = true)
+    public IServiceProvider BuildHybrid(bool addServices = true, Action<IServiceCollection>? before = null)
     {
         var services = new ServiceCollection();
+        before?.Invoke(services);
         if (addServices) AddServices(services);
         var build = Assembly.GetTypes()
             .First(t => string.Equals(t.Name, "ZeroAllocInjectServiceCollectionExtensions", StringComparison.Ordinal))

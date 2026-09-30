@@ -13,6 +13,12 @@ public sealed class Greeter : IGreeter
     public string Greet(string name) => $"Hello, {name}!";
 }
 
+// Registered by hand, keyed, in Program.cs: not a generated service.
+public sealed class ManualGreeter : IGreeter
+{
+    public string Greet(string name) => $"Hi, {name}.";
+}
+
 public interface IWelcomeService
 {
     string WelcomeUser(string name);
