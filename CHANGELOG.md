@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.10.0...v1.11.0) (2026-10-10)
+
+
+### Features
+
+* mark ZeroAlloc.Inject and Inject.Container as AOT-compatible ([#197](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/197)) ([e3f0029](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/e3f00296e7e144969e54b45fdb1a49b80a1f509a))
+
 ## [1.10.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.9.1...v1.10.0) (2026-09-30)
 
 
