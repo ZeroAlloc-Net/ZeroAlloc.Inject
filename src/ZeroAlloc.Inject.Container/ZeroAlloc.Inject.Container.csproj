@@ -3,6 +3,7 @@
     <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
     <RootNamespace>ZeroAlloc.Inject.Container</RootNamespace>
     <PackageId>ZeroAlloc.Inject.Container</PackageId>
+    <IsAotCompatible>true</IsAotCompatible>
     <NoWarn>$(NoWarn);MA0048;MA0158</NoWarn>
   </PropertyGroup>
   <ItemGroup>
