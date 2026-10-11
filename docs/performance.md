@@ -64,16 +64,19 @@ The Container row dropped from 10,998 ns / 11,192 B (v1.6 and earlier) to 1,034 
 | `IEnumerable<T>` (3 impls) | **67.8 ns** | 74.8 ns | 81.8 ns | 150.9 ns | 168 B |
 | Open generic (closed type) | 13.5 ns | not yet measured⁴ | **7.7 ns** | N/A³ | 24 B |
 | Create scope | 82 ns / 128 B | **60 ns / 96 B** | 58 ns / 88 B | **14 ns / 40 B** | — |
-| Resolve scoped (full lifecycle) | 7,181 ns / 304 B | 5,901 ns / 120 B | 4,851 ns / 120 B | **5,216 ns / 120 B** | — |
+| Resolve scoped, first in a new scope⁵ | 7,181 ns / 304 B | 5,901 ns / 120 B | 4,851 ns / 120 B | **5,216 ns / 120 B** | — |
+| Resolve scoped, cached⁶ | 72 ns | 19 ns | 21 ns | **15 ns** | 0 B |
 
 _¹ Jab is constructor-only — no property injection._
 _² Jab decorator wired via factory (no first-class decorator attribute)._
 _³ Jab 0.10.x requires closed types at the `[ServiceProvider]` attribute level._
 _⁴ The container used to delegate open generics to MS DI; it now resolves the closed forms constructors ask for from its type switch, and the benchmark was added with that change._
+_⁵ One resolve per fresh scope: BenchmarkDotNet runs one invocation per iteration, so this is the first, creating resolve, and the scope itself is created outside the measurement. The 120 B is the benchmark's `ScopedService`, a 24 B object plus its 96 B Guid string; ZA and Jab add nothing to it, MS DI adds 184 B._
+_⁶ A service already resolved in a scope created in `[GlobalSetup]`. Measured on .NET 9.0.20 on the same machine under load, so compare the columns, not these times against the rows above._
 
-ZA.Inject is **competitive across every scenario** and the clear winner where the generator's domain knowledge matters most: property injection (2× MS DI), decorators (2.1× MS DI), open generics (1.8× MS DI). Jab leads on scope creation (its scope is the lightest of the four, by an order of magnitude), with ZA Standalone close behind on the full scoped-resolution lifecycle.
+ZA.Inject is **competitive across every scenario** and the clear winner where the generator's domain knowledge matters most: property injection (2× MS DI), decorators (2.1× MS DI), open generics (1.8× MS DI). Jab leads on scope creation (its scope is the lightest of the four, by an order of magnitude), with ZA Standalone close behind on the first scoped resolve.
 
-In v1.6 the **ZA.Inject Container** scope creation dropped from 123 ns / 216 B to **60 ns / 96 B** — the MS DI fallback scope is no longer eagerly materialized; it's created on first fallback resolution via `Interlocked.CompareExchange`. For applications whose registrations are fully ZA-owned (the common case), the fallback scope is never created at all. **`IEnumerable<T>` resolutions are also cached** when every entry is `Singleton` (verified by `EnumerableCacheTests`); the benchmark row above shows the all-`Transient` registration path, which remains genuinely allocation-bound — the new cache fires for the singleton-multi-impl scenario.
+In v1.6 the **ZA.Inject Container** scope creation dropped from 123 ns / 216 B to **60 ns / 96 B** — the MS DI fallback scope is no longer eagerly materialized; it's created on first fallback resolution via `Interlocked.CompareExchange`. For applications whose registrations are fully ZA-owned (the common case), the fallback scope is never created at all, and creating a scope does not build the MS DI fallback provider either: it is built only if something asks for a service no registration provides. **`IEnumerable<T>` resolutions are also cached** when every entry is `Singleton` (verified by `EnumerableCacheTests`); the benchmark row above shows the all-`Transient` registration path, which remains genuinely allocation-bound — the new cache fires for the singleton-multi-impl scenario.
 
 <!-- BENCH:END -->
 
@@ -115,7 +118,7 @@ MS DI wins at 68 ns; ZA modes are 75–82 ns; Jab is 151 ns. MS DI's hot-path op
 
 Jab is in a class of its own here — its scope type is a struct-like value that allocates only a 40 B reference cell. ZA Standalone is 7× slower but still half MS DI's allocation. The ZA hybrid container pays for both its own scope and an MS DI fallback scope, hence 123 ns / 216 B.
 
-### Resolve scoped — full lifecycle
+### Resolve scoped — first resolve in a new scope
 
 | Mode | Time | Allocated |
 |---|---:|---:|
@@ -124,7 +127,11 @@ Jab is in a class of its own here — its scope type is a struct-like value that
 | ZA Container | 4,808 ns | 120 B |
 | MS DI | 8,225 ns | 304 B |
 
-ZA modes and Jab all allocate **120 B per scope lifecycle vs MS DI's 304 B** (~2.5× less). At high request throughput (>10k req/sec) this is the line that matters most.
+The 120 B is not container overhead: it is the benchmark's `ScopedService`, a 24 B object plus its 96 B Guid string, which every container has to create on the first resolve in a scope. ZA modes and Jab add **nothing** to it; MS DI adds 184 B, for 304 B in all. Creating the scope is measured separately under scope creation above.
+
+### Resolve scoped — cached
+
+Once a scope has resolved a service, every later resolve in that scope returns the cached instance. All four containers do that at **0 B**; ZA.Inject asserts it in `ResolutionAllocationTests`, for both the hybrid and the standalone container, alongside steady-state singleton resolution.
 
 ### Singleton resolution
 

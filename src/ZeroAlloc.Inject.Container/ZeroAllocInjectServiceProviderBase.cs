@@ -7,14 +7,24 @@ public abstract class ZeroAllocInjectServiceProviderBase : IServiceProvider, ISe
     private readonly IServiceCollection _fallbackServices;
     private IServiceProvider? _fallback;
     private readonly DisposableTracker _tracked = new DisposableTracker();
+    private readonly LazyFallbackScopeFactory _lazyFallbackScopeFactory;
     private int _disposed;
+
+    // 0: not computed yet; 1: this provider knows every registration; 2: some only the fallback knows.
+    private int _registrationOwnership;
 
     protected ZeroAllocInjectServiceProviderBase(IServiceCollection fallbackServices)
     {
         _fallbackServices = fallbackServices ?? throw new ArgumentNullException(nameof(fallbackServices));
+        _lazyFallbackScopeFactory = new LazyFallbackScopeFactory(this);
     }
 
-    /// <summary>The MS DI fallback provider. Materializes on first access via Interlocked.CompareExchange — applications whose registrations are fully ZA-owned never pay the BuildServiceProvider cost.</summary>
+    /// <summary>
+    /// The MS DI fallback provider. Materializes on first access via Interlocked.CompareExchange.
+    /// When this provider knows every registration, <see cref="CreateScope"/> does not access it
+    /// either, so such an application pays the BuildServiceProvider cost only if something asks
+    /// for a service no registration provides.
+    /// </summary>
     protected IServiceProvider Fallback => GetOrCreateFallbackProvider();
 
     private IServiceProvider GetOrCreateFallbackProvider()
@@ -132,10 +142,62 @@ public abstract class ZeroAllocInjectServiceProviderBase : IServiceProvider, ISe
         return iks?.IsKeyedService(serviceType, serviceKey) == true;
     }
 
+    /// <summary>
+    /// Creates a scope. When this provider knows every registration, the Microsoft DI fallback is
+    /// not built here: the scope builds it on its first fallback resolution. Otherwise the fallback
+    /// is built now, so <see cref="IsService"/> answers for the registrations only it knows.
+    /// </summary>
     public IServiceScope CreateScope()
     {
+        if (Volatile.Read(ref _fallback) is null && KnowsEveryRegistration())
+        {
+            return CreateScopeCore(_lazyFallbackScopeFactory);
+        }
+
         var fallbackScopeFactory = Fallback.GetRequiredService<IServiceScopeFactory>();
         return CreateScopeCore(fallbackScopeFactory);
+    }
+
+    private bool KnowsEveryRegistration()
+    {
+        var ownership = Volatile.Read(ref _registrationOwnership);
+        if (ownership == 0)
+        {
+            ownership = 1;
+            foreach (var descriptor in _fallbackServices)
+            {
+                var known = descriptor.IsKeyedService
+                    ? IsKnownKeyedService(descriptor.ServiceType, descriptor.ServiceKey)
+                    : IsKnownService(descriptor.ServiceType);
+                if (!known)
+                {
+                    ownership = 2;
+                    break;
+                }
+            }
+
+            Volatile.Write(ref _registrationOwnership, ownership);
+        }
+
+        return ownership == 1;
+    }
+
+    /// <summary>
+    /// The fallback scope factory a scope receives while the fallback is not built: it builds the
+    /// fallback when the scope first needs a fallback scope, and refuses once the provider is
+    /// disposed, as Microsoft DI does, instead of building a provider nothing would dispose.
+    /// </summary>
+    private sealed class LazyFallbackScopeFactory : IServiceScopeFactory
+    {
+        private readonly ZeroAllocInjectServiceProviderBase _root;
+
+        public LazyFallbackScopeFactory(ZeroAllocInjectServiceProviderBase root) => _root = root;
+
+        public IServiceScope CreateScope()
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _root._disposed) != 0, _root);
+            return _root.Fallback.GetRequiredService<IServiceScopeFactory>().CreateScope();
+        }
     }
 
     protected abstract ZeroAllocInjectScope CreateScopeCore(IServiceScopeFactory fallbackScopeFactory);
