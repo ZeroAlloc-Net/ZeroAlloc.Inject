@@ -163,7 +163,9 @@ public class ResolutionBenchmarks
     public ISingletonService Jab_ResolveSingleton()
         => _jabProvider.GetService<ISingletonService>();
 
-    // --- Scoped resolution ---
+    // --- Scoped resolution, first resolve in a fresh scope ---
+    // [IterationSetup] makes BenchmarkDotNet run one invocation per iteration, so each one measures
+    // the cold path: the first resolve in a new scope, which creates and caches the instance.
 
     private IServiceScope _msDiScope = null!;
     private IServiceScope _containerScope = null!;
@@ -188,25 +190,78 @@ public class ResolutionBenchmarks
         _jabScope.Dispose();
     }
 
-    [Benchmark(Description = "MS DI: Resolve scoped")]
+    [Benchmark(Description = "MS DI: Resolve scoped (first in scope)")]
     [BenchmarkCategory("Scoped")]
     public IScopedService MsDi_ResolveScoped()
         => _msDiScope.ServiceProvider.GetRequiredService<IScopedService>();
 
-    [Benchmark(Description = "ZeroAlloc.Inject Container: Resolve scoped")]
+    [Benchmark(Description = "ZeroAlloc.Inject Container: Resolve scoped (first in scope)")]
     [BenchmarkCategory("Scoped")]
     public IScopedService Container_ResolveScoped()
         => _containerScope.ServiceProvider.GetRequiredService<IScopedService>();
 
-    [Benchmark(Description = "Standalone: Resolve scoped")]
+    [Benchmark(Description = "Standalone: Resolve scoped (first in scope)")]
     [BenchmarkCategory("Scoped")]
     public IScopedService Standalone_ResolveScoped()
         => _standaloneScope.ServiceProvider.GetRequiredService<IScopedService>();
 
-    [Benchmark(Description = "Jab: Resolve scoped")]
+    [Benchmark(Description = "Jab: Resolve scoped (first in scope)")]
     [BenchmarkCategory("Scoped")]
     public IScopedService Jab_ResolveScoped()
         => _jabScope.GetService<IScopedService>();
+
+    // --- Scoped resolution, cached ---
+    // One scope per container for the whole run, created and primed in [GlobalSetup], so every
+    // invocation measures the steady state: a scoped service already resolved in this scope.
+
+    private IServiceScope _msDiCachedScope = null!;
+    private IServiceScope _containerCachedScope = null!;
+    private IServiceScope _standaloneCachedScope = null!;
+    private JabContainer.Scope _jabCachedScope = null!;
+
+    [GlobalSetup(Targets = [nameof(MsDi_ResolveScopedCached), nameof(Container_ResolveScopedCached), nameof(Standalone_ResolveScopedCached), nameof(Jab_ResolveScopedCached)])]
+    public void CachedScopeSetup()
+    {
+        Setup();
+        _msDiCachedScope = _msDiProvider.CreateScope();
+        _containerCachedScope = (_containerProvider as IServiceScopeFactory)!.CreateScope();
+        _standaloneCachedScope = (_standaloneProvider as IServiceScopeFactory)!.CreateScope();
+        _jabCachedScope = _jabProvider.CreateScope();
+        _ = _msDiCachedScope.ServiceProvider.GetRequiredService<IScopedService>();
+        _ = _containerCachedScope.ServiceProvider.GetRequiredService<IScopedService>();
+        _ = _standaloneCachedScope.ServiceProvider.GetRequiredService<IScopedService>();
+        _ = _jabCachedScope.GetService<IScopedService>();
+    }
+
+    [GlobalCleanup(Targets = [nameof(MsDi_ResolveScopedCached), nameof(Container_ResolveScopedCached), nameof(Standalone_ResolveScopedCached), nameof(Jab_ResolveScopedCached)])]
+    public void CachedScopeCleanup()
+    {
+        _msDiCachedScope.Dispose();
+        _containerCachedScope.Dispose();
+        _standaloneCachedScope.Dispose();
+        _jabCachedScope.Dispose();
+        Cleanup();
+    }
+
+    [Benchmark(Description = "MS DI: Resolve scoped (cached)")]
+    [BenchmarkCategory("ScopedCached")]
+    public IScopedService MsDi_ResolveScopedCached()
+        => _msDiCachedScope.ServiceProvider.GetRequiredService<IScopedService>();
+
+    [Benchmark(Description = "ZeroAlloc.Inject Container: Resolve scoped (cached)")]
+    [BenchmarkCategory("ScopedCached")]
+    public IScopedService Container_ResolveScopedCached()
+        => _containerCachedScope.ServiceProvider.GetRequiredService<IScopedService>();
+
+    [Benchmark(Description = "Standalone: Resolve scoped (cached)")]
+    [BenchmarkCategory("ScopedCached")]
+    public IScopedService Standalone_ResolveScopedCached()
+        => _standaloneCachedScope.ServiceProvider.GetRequiredService<IScopedService>();
+
+    [Benchmark(Description = "Jab: Resolve scoped (cached)")]
+    [BenchmarkCategory("ScopedCached")]
+    public IScopedService Jab_ResolveScopedCached()
+        => _jabCachedScope.GetService<IScopedService>();
 
     // --- IEnumerable<T> resolution ---
 
