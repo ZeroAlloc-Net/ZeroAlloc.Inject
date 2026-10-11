@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.11.0...v1.11.1) (2026-10-11)
+
+
+### Performance Improvements
+
+* defer the fallback provider build at CreateScope when every registration is generated ([#200](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/200)) ([a34eb5a](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/a34eb5af0f9827fbb8adc37370ce8bb8acc0ef89)), closes [#199](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/199)
+
 ## [1.11.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.10.0...v1.11.0) (2026-10-10)
 
 
