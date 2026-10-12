@@ -751,7 +751,7 @@ public class DiagnosticTests
             public class Second : IFoo { }
             """);
 
-        var diagnostic = AssertEx.One(found);
+        var diagnostic = Assert.Single(found);
         Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity);
         Assert.Contains("'Second'", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
         Assert.Contains("'IFoo'", diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
@@ -811,7 +811,7 @@ public class DiagnosticTests
             public class Unkeyed : IFoo { }
             """);
 
-        Assert.Contains("'A2'", AssertEx.One(found).GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains("'A2'", Assert.Single(found).GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -828,7 +828,7 @@ public class DiagnosticTests
             public class Consumer { public Consumer(IRepo<int> repo) { } }
             """);
 
-        Assert.Contains("'Second'", AssertEx.One(found).GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains("'Second'", Assert.Single(found).GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -865,6 +865,6 @@ public class DiagnosticTests
             """);
 
         // Narrow registers only IFoo, which Foo already does.
-        Assert.Contains("'Narrow'", AssertEx.One(found).GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.Contains("'Narrow'", Assert.Single(found).GetMessage(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 }

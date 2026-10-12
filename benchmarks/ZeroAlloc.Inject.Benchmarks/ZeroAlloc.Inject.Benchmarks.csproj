@@ -4,7 +4,7 @@
     <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
     <RootNamespace>ZeroAlloc.Inject.Benchmarks</RootNamespace>
     <IsPackable>false</IsPackable>
-    <NoWarn>$(NoWarn);MA0048;ZAI007;HLQ003;HLQ012</NoWarn>
+    <NoWarn>$(NoWarn);MA0048;ZAI007</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />

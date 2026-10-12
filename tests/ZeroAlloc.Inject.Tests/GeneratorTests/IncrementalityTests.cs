@@ -100,13 +100,13 @@ public class IncrementalityTests
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.ZeroAllocInjectGenerator());
         driver = driver.RunGenerators(compilation);
-        var before = AssertEx.One(
+        var before = Assert.Single(
             driver.GetRunResult().Diagnostics, d => string.Equals(d.Id, "ZAI007", StringComparison.Ordinal));
 
         var moved = services.WithChangedText(Microsoft.CodeAnalysis.Text.SourceText.From(
             ServicesSource.Replace("namespace TestApp;", "namespace TestApp;\n\n// two\n// more lines", StringComparison.Ordinal)));
         driver = driver.RunGenerators(compilation.ReplaceSyntaxTree(services, moved));
-        var after = AssertEx.One(
+        var after = Assert.Single(
             driver.GetRunResult().Diagnostics, d => string.Equals(d.Id, "ZAI007", StringComparison.Ordinal));
 
         Assert.Equal(
