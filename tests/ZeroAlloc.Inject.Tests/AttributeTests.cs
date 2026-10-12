@@ -61,7 +61,7 @@ public class AttributeTests
         var usage = typeof(TransientAttribute)
             .GetCustomAttributes(typeof(AttributeUsageAttribute), false)
             .Cast<AttributeUsageAttribute>()
-            .First();
+            .Single();
 
         Assert.Equal(AttributeTargets.Class, usage.ValidOn);
         Assert.False(usage.AllowMultiple);
@@ -81,7 +81,7 @@ public class AttributeTests
         var usage = typeof(DecoratorAttribute)
             .GetCustomAttributes(typeof(AttributeUsageAttribute), false)
             .Cast<AttributeUsageAttribute>()
-            .First();
+            .Single();
 
         Assert.Equal(AttributeTargets.Class, usage.ValidOn);
         Assert.False(usage.AllowMultiple);

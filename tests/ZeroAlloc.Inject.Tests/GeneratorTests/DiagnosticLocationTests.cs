@@ -160,8 +160,8 @@ public class DiagnosticLocationTests
 
         var (_, diagnostics) = GeneratorTestHelper.RunGeneratorOnFile(source);
 
-        var diagnostic = AssertEx.One(diagnostics, d => string.Equals(d.Id, id, StringComparison.Ordinal));
-        AssertAt(diagnostic.Location, source, AssertEx.One(spans));
+        var diagnostic = Assert.Single(diagnostics, d => string.Equals(d.Id, id, StringComparison.Ordinal));
+        AssertAt(diagnostic.Location, source, Assert.Single(spans));
     }
 
     [Fact]
@@ -179,9 +179,9 @@ public class DiagnosticLocationTests
 
         var (_, diagnostics) = GeneratorTestHelper.RunGeneratorOnFile(source);
 
-        var diagnostic = AssertEx.One(diagnostics, d => string.Equals(d.Id, "ZAI014", StringComparison.Ordinal));
+        var diagnostic = Assert.Single(diagnostics, d => string.Equals(d.Id, "ZAI014", StringComparison.Ordinal));
         AssertAt(diagnostic.Location, source, spans[0]);
-        AssertAt(AssertEx.One(diagnostic.AdditionalLocations), source, spans[1]);
+        AssertAt(Assert.Single(diagnostic.AdditionalLocations), source, spans[1]);
     }
 
     [Fact]
@@ -206,9 +206,9 @@ public class DiagnosticLocationTests
 
         var (_, diagnostics) = GeneratorTestHelper.RunGeneratorOnFile(source);
 
-        var diagnostic = AssertEx.One(diagnostics, d => string.Equals(d.Id, "ZAI017", StringComparison.Ordinal));
+        var diagnostic = Assert.Single(diagnostics, d => string.Equals(d.Id, "ZAI017", StringComparison.Ordinal));
         AssertAt(diagnostic.Location, source, spans[1]);
-        AssertAt(AssertEx.One(diagnostic.AdditionalLocations), source, spans[0]);
+        AssertAt(Assert.Single(diagnostic.AdditionalLocations), source, spans[0]);
     }
 
     [Fact]
@@ -225,9 +225,9 @@ public class DiagnosticLocationTests
 
         var (_, diagnostics) = GeneratorTestHelper.RunGeneratorOnFile(source);
 
-        var diagnostic = AssertEx.One(diagnostics, d => string.Equals(d.Id, "ZAI021", StringComparison.Ordinal));
+        var diagnostic = Assert.Single(diagnostics, d => string.Equals(d.Id, "ZAI021", StringComparison.Ordinal));
         AssertAt(diagnostic.Location, source, spans[1]);
-        AssertAt(AssertEx.One(diagnostic.AdditionalLocations), source, spans[0]);
+        AssertAt(Assert.Single(diagnostic.AdditionalLocations), source, spans[0]);
     }
 
     [Fact]
@@ -244,8 +244,8 @@ public class DiagnosticLocationTests
 
         var (_, diagnostics) = GeneratorTestHelper.RunGeneratorOnFile(source);
 
-        var diagnostic = AssertEx.One(diagnostics, d => string.Equals(d.Id, "ZAI001", StringComparison.Ordinal));
-        AssertAt(diagnostic.Location, source, AssertEx.One(spans));
+        var diagnostic = Assert.Single(diagnostics, d => string.Equals(d.Id, "ZAI001", StringComparison.Ordinal));
+        AssertAt(diagnostic.Location, source, Assert.Single(spans));
     }
 
     [Fact]
@@ -260,7 +260,7 @@ public class DiagnosticLocationTests
             """,
             includeDependencyInjection: false);
 
-        var diagnostic = AssertEx.One(diagnostics, d => string.Equals(d.Id, "ZAI008", StringComparison.Ordinal));
+        var diagnostic = Assert.Single(diagnostics, d => string.Equals(d.Id, "ZAI008", StringComparison.Ordinal));
         Assert.Equal(Location.None, diagnostic.Location);
     }
 
@@ -276,7 +276,7 @@ public class DiagnosticLocationTests
             """,
             accessibilityValue: "Protected");
 
-        var diagnostic = AssertEx.One(diagnostics, d => string.Equals(d.Id, "ZAI020", StringComparison.Ordinal));
+        var diagnostic = Assert.Single(diagnostics, d => string.Equals(d.Id, "ZAI020", StringComparison.Ordinal));
         Assert.Equal(Location.None, diagnostic.Location);
     }
 
@@ -306,11 +306,11 @@ public class DiagnosticLocationTests
         Assert.True(Single(zai007, "Quiet").IsSuppressed);
         Assert.False(Single(zai007, "Loud").IsSuppressed);
 
-        var zai006 = AssertEx.One(diagnostics, d => string.Equals(d.Id, "ZAI006", StringComparison.Ordinal));
+        var zai006 = Assert.Single(diagnostics, d => string.Equals(d.Id, "ZAI006", StringComparison.Ordinal));
         Assert.False(zai006.IsSuppressed);
 
         static Diagnostic Single(List<Diagnostic> list, string className) =>
-            AssertEx.One(list, d => d.GetMessage(System.Globalization.CultureInfo.InvariantCulture)
+            Assert.Single(list, d => d.GetMessage(System.Globalization.CultureInfo.InvariantCulture)
                 .Contains("'" + className + "'", StringComparison.Ordinal));
     }
 
