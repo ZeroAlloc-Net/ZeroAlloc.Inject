@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.11.1...v1.11.2) (2026-10-12)
+
+
+### Code Refactoring
+
+* remove NetFabric.Hyperlinq.Analyzer and its workarounds ([#203](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/203)) ([a54019e](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/a54019ed2f507072ffe1b054f0958c906edb6fd2))
+
 ## [1.11.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.11.0...v1.11.1) (2026-10-11)
 
 
