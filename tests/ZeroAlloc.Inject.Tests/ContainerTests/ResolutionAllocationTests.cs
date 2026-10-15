@@ -22,6 +22,11 @@ public class ResolutionAllocationTests
         public interface IDbContext { }
         [Scoped]
         public class DbContext : IDbContext { }
+        public interface IPlugin { }
+        [Singleton(AllowMultiple = true)]
+        public class PluginA : IPlugin { }
+        [Singleton(AllowMultiple = true)]
+        public class PluginB : IPlugin { }
         """;
 
     private static readonly GeneratedApp App = GeneratedApp.Compile(Source);
@@ -66,6 +71,26 @@ public class ResolutionAllocationTests
         Assert.NotNull(scope.ServiceProvider.GetService(db));
 
         AllocationGate.AssertBudget(0, Iterations, () => scope.ServiceProvider.GetService(db), "standalone cached scoped");
+    }
+
+    [Fact]
+    public void Hybrid_AllSingletonEnumerable_SteadyState_IsZeroAlloc()
+    {
+        var provider = App.BuildHybrid();
+        var plugins = typeof(IEnumerable<>).MakeGenericType(App.Type("IPlugin"));
+        Assert.NotNull(provider.GetService(plugins));
+
+        AllocationGate.AssertBudget(0, Iterations, () => provider.GetService(plugins), "hybrid all-singleton IEnumerable");
+    }
+
+    [Fact]
+    public void Standalone_AllSingletonEnumerable_SteadyState_IsZeroAlloc()
+    {
+        var provider = App.BuildStandalone();
+        var plugins = typeof(IEnumerable<>).MakeGenericType(App.Type("IPlugin"));
+        Assert.NotNull(provider.GetService(plugins));
+
+        AllocationGate.AssertBudget(0, Iterations, () => provider.GetService(plugins), "standalone all-singleton IEnumerable");
     }
 
     [Fact]

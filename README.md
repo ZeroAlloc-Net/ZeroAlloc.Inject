@@ -2,7 +2,7 @@
 
 [![NuGet](https://img.shields.io/nuget/v/ZeroAlloc.Inject.svg)](https://www.nuget.org/packages/ZeroAlloc.Inject)
 [![Build](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/actions/workflows/ci.yml/badge.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/LICENSE)
 [![AOT](https://img.shields.io/badge/AOT--Compatible-passing-brightgreen)](https://learn.microsoft.com/dotnet/core/deploying/native-aot/)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/MarcelRoozekrans?style=flat&logo=githubsponsors&color=ea4aaa&label=Sponsor)](https://github.com/sponsors/MarcelRoozekrans)
 
@@ -63,16 +63,16 @@ The generator derives the method name from the assembly name: `MyApp` → `AddMy
 | Transient (1 property dep) | 44 ns | 27 ns | **22 ns** | N/A¹ |
 | Decorated transient | 44 ns | **21 ns** | 22 ns | 29 ns² |
 | `IEnumerable<T>` (3 impls) | **68 ns** | 75 ns | 82 ns | 151 ns |
-| Open generic (closed type) | 14 ns | (via MS DI) | **8 ns** | N/A³ |
+| Open generic (closed type) | 14 ns | not yet measured³ | **8 ns** | N/A³ |
 | Create scope | 82 ns / 128 B | **60 ns / 96 B** | 58 ns / 88 B | **14 ns / 40 B** |
-| Resolve scoped, first in a new scope⁴ | 7,181 ns / 304 B | 5,901 ns / 120 B | 4,851 ns / 120 B | **5,216 ns / 120 B** |
+| Resolve scoped, first in a new scope⁴ | 7,181 ns / 304 B | 5,901 ns / 120 B | **4,851 ns / 120 B** | 5,216 ns / 120 B |
 | Resolve scoped, cached⁵ | 72 ns / 0 B | 19 ns / 0 B | 21 ns / 0 B | **15 ns / 0 B** |
 
-_¹ Jab is constructor-only. ² Jab decorator wired via factory. ³ Jab 0.10.x requires closed types. ⁴ One resolve per fresh scope, so it measures the first, creating resolve; the scope is created outside the measurement. The 120 B is the benchmark's `ScopedService` itself, a 24 B object plus its 96 B Guid string: ZA and Jab add nothing to it, MS DI adds 184 B. ⁵ The steady state: a service already resolved in a scope created in setup. Every container returns its cached instance without allocating._
+_¹ Jab is constructor-only. ² Jab decorator wired via factory. ³ Jab 0.10.x requires closed types. The ZA Container now resolves open generics from its own type switch instead of delegating to MS DI, and its benchmark has not been run yet. ⁴ One resolve per fresh scope, so it measures the first, creating resolve; the scope is created outside the measurement. The 120 B is the benchmark's `ScopedService` itself, a 24 B object plus its 96 B Guid string: ZA and Jab add nothing to it, MS DI adds 184 B. ⁵ The steady state: a service already resolved in a scope created in setup. Every container returns its cached instance without allocating._
 
-**ZA wins** where the generator's domain knowledge matters: property injection (2× MS DI), decorators (2.1× MS DI), open generics (1.8× MS DI). **Jab wins** on scope creation and pure scoped lifecycle. **MS DI wins** on `IEnumerable<T>` (its cached multi-registration enumeration is excellent).
+**ZA wins** where the generator's domain knowledge matters: property injection (2× MS DI), decorators (2.1× MS DI), open generics (1.8× MS DI). **Jab wins** on scope creation and cached scoped resolves; **ZA Standalone** is fastest on the first resolve in a new scope. **MS DI wins** on `IEnumerable<T>` (its cached multi-registration enumeration is excellent).
 
-In v1.6 the **ZA Container scope creation** dropped 50% on allocation (216 B → 96 B) and 2× faster — the MS DI fallback scope is no longer eagerly created; it materializes on first fallback resolution. For ZA-owned registrations (the common case), it never materializes at all, and when every registration is ZA-owned, creating a scope does not build the MS DI fallback provider either. The IEnumerable row above shows the all-Transient registration path; **all-Singleton `IEnumerable<T>` resolutions are now cached** (0 B on subsequent calls — verified by tests).
+In v1.6 the **ZA Container scope creation** dropped 50% on allocation (216 B → 96 B) and 2× faster — the MS DI fallback scope is no longer eagerly created; it materializes on first fallback resolution. For ZA-owned registrations (the common case), it never materializes at all, and when every registration is ZA-owned, creating a scope does not build the MS DI fallback provider either. The IEnumerable row above shows the all-Transient registration path; **all-Singleton `IEnumerable<T>` resolutions are now cached**: repeat resolutions allocate 0 B in both modes, asserted with `AllocationGate` in `ResolutionAllocationTests`.
 
 Full methodology, all scenarios, and analysis: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/performance.md).
 
@@ -110,7 +110,7 @@ Full methodology, all scenarios, and analysis: [docs/performance.md](https://git
 | Discovery | Compile-time source gen | Runtime assembly scanning |
 | Reflection | None | Yes |
 | Native AOT | ✅ Standalone mode | ❌ |
-| Startup cost | Zero | Scales with assembly size |
+| Startup cost | No scanning: 8 ns Standalone, ~1 µs Container | Scales with assembly size |
 | IDE support | Compile errors + warnings | Runtime exceptions |
 | Configuration | Attributes on classes | Fluent API in `Program.cs` |
 
