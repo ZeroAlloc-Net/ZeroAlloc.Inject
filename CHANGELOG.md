@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.11.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.11.2...v1.11.3) (2026-10-15)
+
+
+### Documentation
+
+* correct the scoped benchmark winners and stale performance tables ([#207](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/207)) ([020b525](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/020b5251d6a8223c2ca883c7fa24ac1fe9c1f424))
+
+
+### Tests
+
+* pin patched system.security.cryptography.pkcs for cve-2026-84008 ([#209](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/209)) ([2e92367](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/2e92367b16e095abdc46f67953e4e4baf371d51d))
+
 ## [1.11.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.11.1...v1.11.2) (2026-10-12)
 
 
