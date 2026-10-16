@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.11.3...v1.11.4) (2026-10-16)
+
+
+### Documentation
+
+* rewrite the readme as a product page ([#213](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/213)) ([08088a8](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/08088a8679c3f629af575488fa145ec09ae942b3))
+
 ## [1.11.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.11.2...v1.11.3) (2026-10-15)
 
 
