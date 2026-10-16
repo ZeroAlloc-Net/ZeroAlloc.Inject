@@ -6,119 +6,96 @@
 [![AOT](https://img.shields.io/badge/AOT--Compatible-passing-brightgreen)](https://learn.microsoft.com/dotnet/core/deploying/native-aot/)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/MarcelRoozekrans?style=flat&logo=githubsponsors&color=ea4aaa&label=Sponsor)](https://github.com/sponsors/MarcelRoozekrans)
 
-Compile-time DI registration for .NET. A Roslyn source generator that auto-discovers services via attributes and generates `IServiceCollection` extension methods and a **Native AOT-compatible** `IServiceProvider`. No reflection, no runtime scanning — misconfigured dependencies surface as build errors before the application ever starts.
+Compile-time dependency injection for .NET: put `[Transient]`, `[Scoped]` or `[Singleton]` on a class
+and the generator writes the registrations, with no reflection, no assembly scanning and NativeAOT-ready.
+
+## Why ZeroAlloc.Inject
+
+- **Starts almost instantly.** The standalone provider is built in 8 ns and 48 B, against 6,413 ns and
+  6,944 B for Microsoft DI's `BuildServiceProvider()` in the same run.
+- **About 2× faster than Microsoft DI where the generator knows your graph.** Decorated services and
+  property injection resolve in 0.47× and 0.50× of its time. Singleton and cached scoped resolves
+  allocate 0 B, asserted by `AllocationGate` tests in both container modes.
+- **Works under NativeAOT and trimming.** Every PR publishes and runs an AOT sample with trim warnings
+  as errors.
+- **Compile-time diagnostics instead of runtime surprises.** An ambiguous constructor, a decorator over
+  an unregistered interface or a circular dependency is a build error, from `ZAI001` to `ZAI021`.
 
 ## Install
-
-For ASP.NET Core and Generic Host projects (MS DI runtime):
-
-```bash
-dotnet add package ZeroAlloc.Inject
-dotnet add package ZeroAlloc.Inject.Generator
-```
-
-For standalone or hybrid container mode (no separate attribute package needed):
 
 ```bash
 dotnet add package ZeroAlloc.Inject.Container
 ```
 
-`ZeroAlloc.Inject.Container` bundles the generator, attributes, and the container base classes in a single package.
+The container package bundles the attributes, the generator and both generated containers. ASP.NET Core
+apps that keep Microsoft DI can reference `ZeroAlloc.Inject` and `ZeroAlloc.Inject.Generator` instead.
 
-## 30-Second Example
+## Quick start
 
 ```csharp
-// 1. Annotate your service with a lifetime attribute
+using Microsoft.Extensions.DependencyInjection;
 using ZeroAlloc.Inject;
 
-[Transient]                                    // registered as IOrderService + OrderService
-public class OrderService : IOrderService
+var services = new ServiceCollection();
+services.AddMyAppServices();                 // generated from the assembly name, MyApp
+using var provider = services.BuildServiceProvider();
+
+provider.GetRequiredService<IGreeter>().Greet("Ada");
+
+public interface IClock { DateTime Now { get; } }
+public interface IGreeter { void Greet(string name); }
+
+[Singleton]
+public sealed class SystemClock : IClock { public DateTime Now => DateTime.Now; }
+
+[Transient]
+public sealed class Greeter(IClock clock) : IGreeter
 {
-    private readonly IProductRepository _repo;
-
-    public OrderService(IProductRepository repo) => _repo = repo;
-
-    public Order PlaceOrder(int productId) => /* ... */
+    public void Greet(string name) => Console.WriteLine($"Hello {name}, it is {clock.Now:t}.");
 }
-
-// 2. Register all attributed services in one generated call
-var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddMyAppServices();           // generated at compile time from assembly name
-
-// 3. Resolve the service — or let the framework inject it for you
-var app = builder.Build();
-var service = app.Services.GetRequiredService<IOrderService>();
 ```
 
-The generator derives the method name from the assembly name: `MyApp` → `AddMyAppServices()`, `MyApp.Domain` → `AddMyAppDomainServices()`. Override with `[assembly: ZeroAllocInject("AddDomainServices")]`.
+For a container with no Microsoft DI at runtime, replace the first three lines with
+`using var provider = new ZeroAlloc.Inject.Generated.MyAppStandaloneServiceProvider();`. Either way,
+resolution is a generated type switch over direct `new` calls.
+
+## What you get
+
+- **Lifetime attributes** that register a class under its interfaces, with `As` to pick the service type.
+- **Three container modes:** generated `IServiceCollection` extensions for Microsoft DI, a hybrid
+  container that falls back to Microsoft DI for framework services, and a standalone container.
+  See [container modes](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/container-modes.md).
+- **Decorators** with ordering, conditional application and optional dependencies.
+  See [decorators](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/decorators.md).
+- **Keyed services**, **open generics** and **property injection**.
+- **Safe defaults:** `TryAdd` semantics, with `AllowMultiple = true` for `IHostedService` and other
+  multi-registrations.
+- **Multi-assembly** composition: each assembly generates its own `Add…Services()` method.
 
 ## Performance
 
-.NET 10 host / .NET 9.0.15 runtime, BenchmarkDotNet v0.15.8, Intel Core i9-12900HK. Compared against MS DI (reflection) and **Jab** (the other source-gen DI library).
+BenchmarkDotNet, same run. Time is the ratio against Microsoft DI; allocations are exact.
 
-| Scenario | MS DI | ZA Container | ZA Standalone | Jab |
+| Scenario | Microsoft DI | ZA Container | ZA Standalone | Jab |
 |---|---:|---:|---:|---:|
-| Startup / registration | 6,413 ns / 6,944 B | **1,034 ns / 2,664 B** | **8 ns / 48 B** | 8 ns / 40 B |
-| Transient (1 dep) | 31 ns | 27 ns | **24 ns** | 47 ns |
-| Transient (1 property dep) | 44 ns | 27 ns | **22 ns** | N/A¹ |
-| Decorated transient | 44 ns | **21 ns** | 22 ns | 29 ns² |
-| `IEnumerable<T>` (3 impls) | **68 ns** | 75 ns | 82 ns | 151 ns |
-| Open generic (closed type) | 14 ns | not yet measured³ | **8 ns** | N/A³ |
-| Create scope | 82 ns / 128 B | **60 ns / 96 B** | 58 ns / 88 B | **14 ns / 40 B** |
-| Resolve scoped, first in a new scope⁴ | 7,181 ns / 304 B | 5,901 ns / 120 B | **4,851 ns / 120 B** | 5,216 ns / 120 B |
-| Resolve scoped, cached⁵ | 72 ns / 0 B | 19 ns / 0 B | 21 ns / 0 B | **15 ns / 0 B** |
+| Build the provider | 1.00× / 6,944 B | 0.16× / 2,664 B | <0.01× / 48 B | <0.01× / 40 B |
+| Decorated transient | 1.00× / 48 B | 0.47× / 48 B | 0.50× / 48 B | 0.65× / 48 B |
+| First scoped resolve in a new scope | 1.00× / 304 B | 0.82× / 120 B | 0.68× / 120 B | 0.73× / 120 B |
 
-_¹ Jab is constructor-only. ² Jab decorator wired via factory. ³ Jab 0.10.x requires closed types. The ZA Container now resolves open generics from its own type switch instead of delegating to MS DI, and its benchmark has not been run yet. ⁴ One resolve per fresh scope, so it measures the first, creating resolve; the scope is created outside the measurement. The 120 B is the benchmark's `ScopedService` itself, a 24 B object plus its 96 B Guid string: ZA and Jab add nothing to it, MS DI adds 184 B. ⁵ The steady state: a service already resolved in a scope created in setup. Every container returns its cached instance without allocating._
+Jab is ahead on scope creation and cached scoped resolves, and Microsoft DI on `IEnumerable<T>`. Every
+scenario, with the full numbers: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/performance.md).
 
-**ZA wins** where the generator's domain knowledge matters: property injection (2× MS DI), decorators (2.1× MS DI), open generics (1.8× MS DI). **Jab wins** on scope creation and cached scoped resolves; **ZA Standalone** is fastest on the first resolve in a new scope. **MS DI wins** on `IEnumerable<T>` (its cached multi-registration enumeration is excellent).
+## Learn more
 
-In v1.6 the **ZA Container scope creation** dropped 50% on allocation (216 B → 96 B) and 2× faster — the MS DI fallback scope is no longer eagerly created; it materializes on first fallback resolution. For ZA-owned registrations (the common case), it never materializes at all, and when every registration is ZA-owned, creating a scope does not build the MS DI fallback provider either. The IEnumerable row above shows the all-Transient registration path; **all-Singleton `IEnumerable<T>` resolutions are now cached**: repeat resolutions allocate 0 B in both modes, asserted with `AllocationGate` in `ResolutionAllocationTests`.
-
-Full methodology, all scenarios, and analysis: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/performance.md).
-
-## Features
-
-- **Compile-time registration** — `[Transient]`, `[Scoped]`, `[Singleton]` attributes; the generator emits all `IServiceCollection.Add*` calls
-- **Zero reflection** — generated code uses direct `new ClassName(...)` constructor calls and `typeof(T)` type switches
-- **Native AOT compatible** — standalone container is 100% AOT-safe including open generics
-- **Three container modes** — MS DI extension method, Hybrid (wraps MS DI), and Standalone (no runtime MS DI dependency)
-- **Decorators** — `[Decorator]` / `[DecoratorOf]` with ordering, conditional application (`WhenRegistered`), and optional dependencies
-- **Keyed services** — `Key = "redis"` on any lifetime attribute (.NET 8+)
-- **Open generics** — single attribute covers all closed forms; standalone mode enumerates closed usages at compile time
-- **Compile-time diagnostics** — ZAI001–ZAI021 reported as build errors/warnings, including circular dependency detection
-- **`TryAdd` by default** — prevents duplicate registrations; opt in to `AllowMultiple = true` for `IHostedService` scenarios
-- **Multi-assembly** — each assembly generates its own extension method; call them in sequence at the composition root
-
-## Documentation
-
-| Page | Description |
-|---|---|
-| [Getting Started](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/getting-started.md) | Install, annotate services, call the generated method |
-| [Service Registration](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/service-registration.md) | Lifetime attributes, `As`, keyed services, open generics |
-| [Container Modes](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/container-modes.md) | MS DI Extension, Hybrid, and Standalone — trade-offs and setup |
-| [Decorators](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/decorators.md) | `[Decorator]`, `[DecoratorOf]`, ordering, conditional decorators |
-| [Native AOT](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/native-aot.md) | Trimmer safety, publishing, ASP.NET Core AOT setup |
-| [Advanced Patterns](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/advanced.md) | Multi-assembly, constructor disambiguation, collection injection |
-| [Compiler Diagnostics](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/diagnostics.md) | ZAI001–ZAI021 reference with triggers and fixes |
-| [Performance](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/performance.md) | Full benchmark tables and analysis |
-| [Testing](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/testing.md) | Unit testing without the container, integration test setup per mode |
-
-## How It Compares to Scrutor
-
-| | ZeroAlloc.Inject | Scrutor |
-|---|---|---|
-| Discovery | Compile-time source gen | Runtime assembly scanning |
-| Reflection | None | Yes |
-| Native AOT | ✅ Standalone mode | ❌ |
-| Startup cost | No scanning: 8 ns Standalone, ~1 µs Container | Scales with assembly size |
-| IDE support | Compile errors + warnings | Runtime exceptions |
-| Configuration | Attributes on classes | Fluent API in `Program.cs` |
-
-## Requirements
-
-- .NET 8.0, .NET 9.0, or .NET 10.0
-- C# 12+
+- Documentation: [inject.zeroalloc.net](https://inject.zeroalloc.net), including
+  [getting started](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/getting-started.md), [Native AOT](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/native-aot.md),
+  [diagnostics](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/diagnostics.md) and [testing](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/testing.md).
+- Related packages: [ZeroAlloc.Mediator](https://github.com/ZeroAlloc-Net/ZeroAlloc.Mediator),
+  [ZeroAlloc.Collections](https://github.com/ZeroAlloc-Net/ZeroAlloc.Collections) and
+  [ZeroAlloc.Templates](https://github.com/ZeroAlloc-Net/ZeroAlloc.Templates).
+- Contributing: issues and pull requests are welcome on [GitHub](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues).
+- [CHANGELOG](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/CHANGELOG.md).
 
 ## License
 
-MIT
+MIT. See [LICENSE](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/LICENSE).

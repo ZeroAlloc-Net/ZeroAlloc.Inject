@@ -12,6 +12,17 @@ sidebar_position: 1
 
 ZeroAlloc.Inject is a compile-time Roslyn source generator for .NET that eliminates the need for reflection-based dependency injection wiring. Instead of scanning assemblies at runtime, it auto-discovers your services through attributes (`[Transient]`, `[Scoped]`, `[Singleton]`) placed directly on your classes, and at build time it generates strongly-typed `IServiceCollection` extension methods along with both a Hybrid and a fully Standalone `IServiceProvider` implementation. Because the generator emits plain `new ClassName(...)` constructor calls — with all dependencies resolved statically — there is no runtime reflection, no assembly scanning, and no startup overhead. The generated providers are fully compatible with .NET Native AOT publishing, making ZeroAlloc.Inject suitable for applications where startup speed and binary size are critical.
 
+### How it compares to Scrutor
+
+| | ZeroAlloc.Inject | Scrutor |
+|---|---|---|
+| Discovery | Compile-time source gen | Runtime assembly scanning |
+| Reflection | None | Yes |
+| Native AOT | ✅ Standalone mode | ❌ |
+| Startup cost | No scanning: 8 ns Standalone, ~1 µs Container | Scales with assembly size |
+| IDE support | Compile errors + warnings | Runtime exceptions |
+| Configuration | Attributes on classes | Fluent API in `Program.cs` |
+
 ---
 
 ## Installation
