@@ -1,11 +1,10 @@
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ZeroAlloc.Inject.Benchmarks;
 
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net90)]
+[SimpleJob]
 public class ResolutionBenchmarks
 {
     private ServiceProvider _msDiProvider = null!;

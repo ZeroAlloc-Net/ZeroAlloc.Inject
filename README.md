@@ -12,10 +12,10 @@ and the generator writes the registrations, with no reflection, no assembly scan
 
 ## Why ZeroAlloc.Inject
 
-- **Starts almost instantly.** The standalone provider is built in 8 ns and 48 B, against 6,413 ns and
-  6,944 B for Microsoft DI's `BuildServiceProvider()` in the same run.
+- **Starts almost instantly.** Building the standalone provider takes about 1% of the time and 112 B,
+  against 4,384 B for Microsoft DI's `BuildServiceProvider()`.
 - **About 2× faster than Microsoft DI where the generator knows your graph.** Decorated services and
-  property injection resolve in 0.47× and 0.50× of its time. Singleton and cached scoped resolves
+  property injection resolve in 0.59× and 0.45× of its time. Singleton and cached scoped resolves
   allocate 0 B, asserted by `AllocationGate` tests in both container modes.
 - **Works under NativeAOT and trimming.** Every PR publishes and runs an AOT sample with trim warnings
   as errors.
@@ -75,15 +75,15 @@ resolution is a generated type switch over direct `new` calls.
 
 ## Performance
 
-BenchmarkDotNet, same run. Time is the ratio against Microsoft DI; allocations are exact.
+BenchmarkDotNet, .NET 10, same run. Time is the ratio against Microsoft DI; allocations are exact.
 
 | Scenario | Microsoft DI | ZA Container | ZA Standalone | Jab |
-|---|---:|---:|---:|---:|
-| Build the provider | 1.00× / 6,944 B | 0.16× / 2,664 B | <0.01× / 48 B | <0.01× / 40 B |
-| Decorated transient | 1.00× / 48 B | 0.47× / 48 B | 0.50× / 48 B | 0.65× / 48 B |
-| First scoped resolve in a new scope | 1.00× / 304 B | 0.82× / 120 B | 0.68× / 120 B | 0.73× / 120 B |
+|---|---|---|---|---|
+| Build the provider | 1.00× / 4,384 B | 0.67× / 2,720 B | 0.01× / 112 B | <0.01× / 40 B |
+| Decorated transient | 1.00× / 48 B | 0.59× / 48 B | 0.56× / 48 B | 0.26× / 48 B |
+| First scoped resolve in a new scope | 1.00× / 304 B | 0.66× / 120 B | 0.54× / 120 B | 0.54× / 120 B |
 
-Jab is ahead on scope creation and cached scoped resolves, and Microsoft DI on `IEnumerable<T>`. Every
+On .NET 10 Jab is the fastest in every scenario it supports; it has no property injection, no decorator attribute and no open generics. Microsoft DI is ahead of ZA with two constructor dependencies and for open generics. Every
 scenario, with the full numbers: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/blob/main/docs/performance.md).
 
 ## Learn more
