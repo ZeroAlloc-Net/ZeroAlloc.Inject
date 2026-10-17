@@ -12,12 +12,19 @@ sidebar_position: 8
 
 All benchmarks were collected with the following configuration:
 
-- **BenchmarkDotNet** v0.15.8
-- **.NET** 10 host, .NET 9.0.15 runtime (job)
-- **OS** Windows 11 (10.0.26200.8246 / 25H2)
+- **BenchmarkDotNet** v0.15.8, measured 2026-10-17 on an otherwise idle machine
+- **.NET** 10.0.13, SDK 10.0.402
+- **OS** Windows 11 (10.0.26300.9711)
 - **CPU** Intel Core i9-12900HK 2.50 GHz, 1 CPU, 20 logical and 14 physical cores
 - **JIT** X64 RyuJIT x86-64-v3
 - **Source** `benchmarks/ZeroAlloc.Inject.Benchmarks/`
+
+> Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published.
+
+Every benchmark ran out of process in three launches, pinned to two performance cores
+(`--affinity 20`). Each table gives each container's mean time relative to MS DI in the same
+scenario and the same run, with the lowest and highest ratio of the three launches in brackets.
+A ratio below 1 is faster than MS DI.
 
 Four containers participate in every scenario where applicable:
 
@@ -40,92 +47,93 @@ Four containers participate in every scenario where applicable:
 ## Registration / Startup Benchmarks
 
 <!-- BENCH:START -->
-_Last refreshed: 2026-05-18_
+_Last refreshed: 2026-10-17_
 
-| Method | Mean | Allocated |
+| Method | Ratio | Allocated |
 |---|---:|---:|
-| MS DI — `BuildServiceProvider()` | 6,413 ns | 6,944 B |
-| ZA.Inject Container — `BuildZeroAllocInjectServiceProvider()` | **1,034 ns** | **2,664 B** |
-| ZA.Inject Standalone — `new …StandaloneServiceProvider()` | **8 ns** | 48 B |
-| Jab — `new JabContainer()` | 8 ns | **40 B** |
+| MS DI — `BuildServiceProvider()` | 1.00 | 4,384 B |
+| ZA.Inject Container — `BuildZeroAllocInjectServiceProvider()` | **0.67** (0.63–0.74) | **2,720 B** |
+| ZA.Inject Standalone — `new …StandaloneServiceProvider()` | **0.01** (0.01–0.01) | 112 B |
+| Jab — `new JabContainer()` | <0.01 | **40 B** |
 
-The Container row dropped from 10,998 ns / 11,192 B (v1.6 and earlier) to 1,034 ns / 2,664 B in v1.7: `BuildZeroAllocInjectServiceProvider()` now snapshots the `IServiceCollection` and **lazy-builds the MS DI fallback `IServiceProvider` on first need** via `Interlocked.CompareExchange`. Applications whose registrations are fully ZA-owned (the common case for `[Singleton]`/`[Transient]`/`[Scoped]`-attributed services) never pay the `BuildServiceProvider()` cost at all. The MS DI baseline above was also corrected — it previously returned `IServiceCollection` without calling `BuildServiceProvider()`, making the comparison meaningless.
+`BuildZeroAllocInjectServiceProvider()` snapshots the `IServiceCollection` and **lazy-builds the MS DI fallback `IServiceProvider` on first need** via `Interlocked.CompareExchange`. Applications whose registrations are fully ZA-owned (the common case for `[Singleton]`/`[Transient]`/`[Scoped]`-attributed services) never pay the `BuildServiceProvider()` cost at all. The standalone provider and Jab are plain constructor calls, two orders of magnitude cheaper still.
 
 ## Resolution Benchmarks
 
 | Scenario | MS DI | ZA Container | ZA Standalone | Jab | Allocated |
 |---|---:|---:|---:|---:|---:|
-| Transient (no deps) | 19.9 ns | **15.9 ns** | 19.6 ns | 20.6 ns | 24 B |
-| Transient (1 dep) | 30.9 ns | 27.3 ns | **24.1 ns** | 47.5 ns | 48 B |
-| Transient (1 property dep) | 43.7 ns | 26.9 ns | **21.9 ns** | N/A¹ | 48 B |
-| Transient (2 deps) | **39.4 ns** | 58.3 ns | 53.1 ns | 101.1 ns | 104 B |
-| Singleton | 6.3 ns | 6.9 ns | **5.4 ns** | 5.5 ns | 0 B |
-| Decorated transient | 44.5 ns | **21.1 ns** | 22.3 ns | 28.8 ns² | 48 B |
-| `IEnumerable<T>` (3 impls) | **67.8 ns** | 74.8 ns | 81.8 ns | 150.9 ns | 168 B |
-| Open generic (closed type) | 13.5 ns | not yet measured⁴ | **7.7 ns** | N/A³ | 24 B |
-| Create scope | 82 ns / 128 B | **60 ns / 96 B** | 58 ns / 88 B | **14 ns / 40 B** | — |
-| Resolve scoped, first in a new scope⁵ | 7,181 ns / 304 B | 5,901 ns / 120 B | **4,851 ns / 120 B** | 5,216 ns / 120 B | — |
-| Resolve scoped, cached⁶ | 72 ns | 19 ns | 21 ns | **15 ns** | 0 B |
+| Transient (no deps) | 1.00 | 0.62 (0.54–0.68) | 0.58 (0.51–0.69) | **0.30** (0.25–0.36) | 24 B |
+| Transient (1 dep) | 1.00 | 0.98 (0.87–1.11) | 0.92 (0.83–1.02) | **0.54** (0.52–0.55) | 48 B |
+| Transient (1 property dep) | 1.00 | **0.45** (0.43–0.47) | **0.45** (0.44–0.46) | N/A¹ | 48 B |
+| Transient (2 deps) | 1.00 | 1.09 (1.03–1.13) | 1.14 (1.07–1.21) | **0.62** (0.57–0.67) | 104 B |
+| Singleton | 1.00 | 0.85 (0.74–1.03) | 0.83 (0.71–1.10) | **0.19** (0.15–0.21) | 0 B |
+| Decorated transient | 1.00 | 0.59 (0.57–0.62) | 0.56 (0.51–0.60) | **0.26**² (0.23–0.28) | 48 B |
+| `IEnumerable<T>` (3 impls) | 1.00 | 0.96 (0.88–1.01) | 0.90 (0.75–0.99) | **0.62** (0.50–0.70) | 168 B |
+| Open generic (closed type) | **1.00** | 1.12 (1.07–1.21) | 1.08 (1.07–1.09) | N/A³ | 24 B |
+| Create scope | 1.00 / 128 B | 1.09 (1.05–1.13) / 96 B | 0.85 (0.84–0.86) / 88 B | **0.16** (0.16–0.17) / **40 B** | — |
+| Resolve scoped, first in a new scope⁴ | 1.00 / 304 B | 0.66 (0.59–0.78) / 120 B | **0.54** (0.49–0.63) / 120 B | **0.54** (0.52–0.57) / 120 B | — |
+| Resolve scoped, cached⁵ | 1.00 | 0.23 (0.22–0.24) | 0.22 (0.21–0.23) | **0.04** (0.03–0.04) | 0 B |
 
 _¹ Jab is constructor-only — no property injection._
 _² Jab decorator wired via factory (no first-class decorator attribute)._
 _³ Jab 0.10.x requires closed types at the `[ServiceProvider]` attribute level._
-_⁴ The container used to delegate open generics to MS DI; it now resolves the closed forms constructors ask for from its type switch, and the benchmark was added with that change._
-_⁵ One resolve per fresh scope: BenchmarkDotNet runs one invocation per iteration, so this is the first, creating resolve, and the scope itself is created outside the measurement. The 120 B is the benchmark's `ScopedService`, a 24 B object plus its 96 B Guid string; ZA and Jab add nothing to it, MS DI adds 184 B._
-_⁶ A service already resolved in a scope created in `[GlobalSetup]`. Measured on .NET 9.0.20 on the same machine under load, so compare the columns, not these times against the rows above._
+_⁴ One resolve per fresh scope: BenchmarkDotNet runs one invocation per iteration, so this is the first, creating resolve, and the scope itself is created outside the measurement. The 120 B is the benchmark's `ScopedService`, a 24 B object plus its 96 B Guid string; ZA and Jab add nothing to it, MS DI adds 184 B._
+_⁵ A service already resolved in a scope created in `[GlobalSetup]`._
 
-ZA.Inject is **competitive across every scenario** and the clear winner where the generator's domain knowledge matters most: property injection (2× MS DI), decorators (2.1× MS DI), open generics (1.8× MS DI). Jab leads on scope creation (its scope is the lightest of the four: 14 ns / 40 B) and on cached scoped resolves. ZA Standalone is fastest on the first resolve in a new scope, 7% ahead of Jab.
+On .NET 10, **Jab is the fastest container in every scenario it supports**, and the lightest on scope creation. ZA.Inject's clear wins over MS DI are where the generator's domain knowledge matters: property injection (2.2× faster), decorators (1.7×), cached scoped resolves (4.3×) and the first resolve in a new scope (1.5–1.9×), all of which also allocate no more than MS DI. With two dependencies, for open generics and, in hybrid mode, for scope creation, ZA is up to 14% slower than MS DI.
 
-In v1.6 the **ZA.Inject Container** scope creation dropped from 123 ns / 216 B to **60 ns / 96 B** — the MS DI fallback scope is no longer eagerly materialized; it's created on first fallback resolution via `Interlocked.CompareExchange`. For applications whose registrations are fully ZA-owned (the common case), the fallback scope is never created at all, and creating a scope does not build the MS DI fallback provider either: it is built only if something asks for a service no registration provides. **`IEnumerable<T>` resolutions are also cached** when every entry is `Singleton`: `EnumerableCacheTests` checks that the same array comes back, and `ResolutionAllocationTests` asserts 0 B for repeat resolutions in both modes; the benchmark row above shows the all-`Transient` registration path, which remains genuinely allocation-bound — the new cache fires for the singleton-multi-impl scenario.
+The **ZA.Inject Container** creates the MS DI fallback scope only on first fallback resolution, via `Interlocked.CompareExchange`. For applications whose registrations are fully ZA-owned (the common case), the fallback scope is never created at all, and creating a scope does not build the MS DI fallback provider either: it is built only if something asks for a service no registration provides. **`IEnumerable<T>` resolutions are also cached** when every entry is `Singleton`: `EnumerableCacheTests` checks that the same array comes back, and `ResolutionAllocationTests` asserts 0 B for repeat resolutions in both modes; the benchmark row above shows the all-`Transient` registration path, which remains genuinely allocation-bound — the cache fires for the singleton-multi-impl scenario.
 
 <!-- BENCH:END -->
 
 ### Transients with dependencies
 
-A simple transient with no dependencies resolves in 16–21 ns across all four containers (within noise). With one dependency the picture splits: **ZA Standalone wins at 24 ns**, MS DI lands at 31 ns, ZA Container at 27 ns, and Jab trails at 47 ns. With two dependencies MS DI's cached-constructor metadata pays off (39 ns); ZA modes pay a small per-dependency type-switch cost (53–58 ns); Jab's factory-driven resolution costs 101 ns. This is the one scenario where reflection-based MS DI's hot-path caching wins, and it converges as dependency count grows further.
+Without dependencies both ZA modes resolve a transient in about 0.6× MS DI's time, and Jab in 0.3×. With one dependency the ZA modes and MS DI land within the launch spread of each other, and with two dependencies MS DI's cached constructor metadata puts it 9–14% ahead of ZA, which pays a small per-dependency type-switch cost. Jab stays ahead of all three at 0.54–0.62×.
 
 ### Property injection (~2× faster than MS DI, Jab N/A)
 
-ZA's `[Inject]` property injection costs **22 ns standalone / 27 ns hybrid** versus **44 ns MS DI** — roughly 2× faster in both ZA modes. MS DI must evaluate a registered factory delegate through its service-descriptor dispatch layer on every call. ZA's generated code reaches the same `new T()` + property-assignment IL via a direct type-switch branch that JITs inline.
+ZA's `[Inject]` property injection takes **0.45× MS DI's time in both modes**, a 2.2× speedup. MS DI must evaluate a registered factory delegate through its service-descriptor dispatch layer on every call. ZA's generated code reaches the same `new T()` + property-assignment IL via a direct type-switch branch that JITs inline.
 
 Jab does not support property injection; users must restructure as constructor injection.
 
-**Property injection vs constructor injection (same 1 dep):**
+**Property injection vs constructor injection (same 1 dep),** each as a ratio of MS DI's constructor-injection time in the same run:
 
-| Mode | Constructor | Property | Overhead |
-|---|---:|---:|---:|
-| MS DI | 31 ns | 44 ns | +41% |
-| ZA Container | 27 ns | 27 ns | ~0% |
-| ZA Standalone | 24 ns | 22 ns | ~0% |
-| Jab | 47 ns | N/A | — |
+| Mode | Constructor | Property |
+|---|---:|---:|
+| MS DI | 1.00 | 2.18 |
+| ZA Container | 0.98 | 0.98 |
+| ZA Standalone | 0.92 | 0.98 |
+| Jab | 0.54 | N/A |
 
-### Decorated transients (~2.1× faster than MS DI)
+MS DI's property injection costs about twice its constructor injection; in both ZA modes the two cost the same.
 
-Decorated services resolve in **21–22 ns in both ZA modes versus 44 ns in MS DI** — a 2.1× speedup. Jab needs a factory binding (no `[Decorator]` attribute) and lands at 29 ns — between ZA and MS DI. ZA's `[Decorator]` attribute emits a direct `new OuterDecorator(new InnerService())` call in the type-switch with no dictionary access.
+### Decorated transients (~1.7× faster than MS DI)
 
-### `IEnumerable<T>` resolution (MS DI's strength)
+Decorated services resolve in **0.56–0.59× MS DI's time in both ZA modes**, a 1.7× speedup. ZA's `[Decorator]` attribute emits a direct `new OuterDecorator(new InnerService())` call in the type-switch with no dictionary access. Jab needs a factory binding (no `[Decorator]` attribute) and is faster still, at 0.26×.
 
-MS DI wins at 68 ns; ZA modes are 75–82 ns; Jab is 151 ns. MS DI's hot-path optimisation for multi-registration enumeration is excellent; ZA materialises a fresh array per call (24 B header + 3 instances × ~48 B = 168 B identical across all four). Jab's enumeration appears to do extra work.
+### `IEnumerable<T>` resolution
+
+The ZA modes resolve close to MS DI (0.90–0.96×), and Jab in 0.62×. Every container materialises a fresh array per call, so all four allocate the same 168 B (24 B header + 3 instances × ~48 B).
 
 ### Scope creation (Jab's strength)
 
-| Mode | Time | Allocated |
+| Mode | Ratio | Allocated |
 |---|---:|---:|
-| Jab | **14 ns** | **40 B** |
-| ZA Standalone | 58 ns | 88 B |
-| ZA Container | 60 ns | 96 B |
-| MS DI | 82 ns | 128 B |
+| Jab | **0.16** (0.16–0.17) | **40 B** |
+| ZA Standalone | 0.85 (0.84–0.86) | 88 B |
+| MS DI | 1.00 | 128 B |
+| ZA Container | 1.09 (1.05–1.13) | 96 B |
 
-Jab is in a class of its own here, about 4× faster than either ZA mode. Both ZA modes allocate less than MS DI. The ZA hybrid container creates the MS DI fallback scope only when a resolve needs it, so when every registration is ZA-owned its scope costs about the same as the standalone one.
+Jab is in a class of its own here, 5–7× faster than the ZA modes. Both ZA modes allocate less than MS DI. The ZA hybrid container creates the MS DI fallback scope only when a resolve needs it, so its scope allocates nearly as little as the standalone one, though it costs slightly more time than MS DI's.
 
 ### Resolve scoped — first resolve in a new scope
 
-| Mode | Time | Allocated |
+| Mode | Ratio | Allocated |
 |---|---:|---:|
-| ZA Standalone | **4,851 ns** | 120 B |
-| Jab | 5,216 ns | 120 B |
-| ZA Container | 5,901 ns | 120 B |
-| MS DI | 7,181 ns | 304 B |
+| ZA Standalone | **0.54** (0.49–0.63) | 120 B |
+| Jab | **0.54** (0.52–0.57) | 120 B |
+| ZA Container | 0.66 (0.59–0.78) | 120 B |
+| MS DI | 1.00 | 304 B |
 
 The 120 B is not container overhead: it is the benchmark's `ScopedService`, a 24 B object plus its 96 B Guid string, which every container has to create on the first resolve in a scope. ZA modes and Jab add **nothing** to it; MS DI adds 184 B, for 304 B in all. Creating the scope is measured separately under scope creation above.
 
@@ -135,7 +143,7 @@ Once a scope has resolved a service, every later resolve in that scope returns t
 
 ### Singleton resolution
 
-All four containers land within noise (5–7 ns, 0 B). This is the JIT-inlined fast path — there's no daylight between source-gen and reflection-cached implementations once the singleton instance is cached on first access.
+All four containers allocate 0 B. The ZA modes take 0.83–0.85× MS DI's time, within the launch spread of it, and Jab takes 0.19×.
 
 ---
 
@@ -150,8 +158,8 @@ See [Native AOT](native-aot.md) for the `<PublishAot>true</PublishAot>` setup.
 ## Running the Benchmarks Yourself
 
 ```bash
-# All benchmarks
-dotnet run -c Release --project benchmarks/ZeroAlloc.Inject.Benchmarks -- --filter "*"
+# All benchmarks, as measured above
+dotnet run -c Release --project benchmarks/ZeroAlloc.Inject.Benchmarks -f net10.0 -- --filter "*" --launchCount 3
 
 # Only resolution
 dotnet run -c Release --project benchmarks/ZeroAlloc.Inject.Benchmarks -- --filter "*Resolution*"
@@ -168,9 +176,9 @@ dotnet run -c Release --project benchmarks/ZeroAlloc.Inject.Benchmarks -- --filt
 
 | Scenario | Recommended | Reason |
 |---|---|---|
-| Startup time critical (serverless, CLI) | ZA Standalone or Jab | 8 ns startup vs 6,413 ns for MS DI `BuildServiceProvider()` |
-| Decorators, property injection, open generics | ZA (either mode) | Features Jab lacks; 2× faster than MS DI |
+| Startup time critical (serverless, CLI) | ZA Standalone or Jab | Building the provider takes about 1% of MS DI `BuildServiceProvider()` |
+| Decorators, property injection, open generics | ZA (either mode) | Features Jab lacks; decorators and property injection 1.7–2.2× faster than MS DI |
 | ASP.NET Core with framework services | ZA Container (hybrid) | Required for framework service resolution |
-| Pure scope lifecycle throughput | Jab or ZA Standalone | Jab creates scopes ~6× faster than MS DI; ZA Standalone has the fastest first scoped resolve, ~1.5× MS DI |
+| Pure scope lifecycle throughput | Jab or ZA Standalone | Jab creates scopes ~6× faster than MS DI; ZA Standalone and Jab tie on the first scoped resolve, ~1.9× faster than MS DI |
 | AOT publishing | ZA Standalone or Jab | Zero reflection |
 | Gradual migration / third-party DI compatibility | MS DI extension method | No behaviour change, compile-time registration only |
