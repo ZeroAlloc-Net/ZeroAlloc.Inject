@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.11.4...v1.11.5) (2026-10-18)
+
+
+### Documentation
+
+* re-run the benchmarks on .NET 10, pinned, with three launches ([#225](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/225)) ([7d16daa](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/7d16daa996e9d91508c702d91ff19ff3d6974779))
+
 ## [1.11.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.11.3...v1.11.4) (2026-10-16)
 
 
