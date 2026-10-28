@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.11.5...v1.11.6) (2026-10-28)
+
+
+### Bug Fixes
+
+* always emit the Add&lt;Assembly&gt;Services extension ([#236](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/236)) ([5309af1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/5309af1ac1438ed6197f684499e4f95f8e2358ae))
+
 ## [1.11.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.11.4...v1.11.5) (2026-10-18)
 
 
