@@ -3,7 +3,7 @@ namespace ZeroAlloc.Inject.Tests.GeneratorTests;
 public class BasicRegistrationTests
 {
     [Fact]
-    public void NoAttributedClasses_GeneratesNothing()
+    public void NoAttributedClasses_GeneratesEmptyAddServicesExtension()
     {
         var source = """
             namespace TestApp;
@@ -13,6 +13,23 @@ public class BasicRegistrationTests
         var (output, diagnostics) = GeneratorTestHelper.RunGenerator(source);
 
         Assert.DoesNotContain("Error", diagnostics.AsEnumerable().Select(d => d.Severity.ToString()), StringComparer.Ordinal);
+        Assert.Contains("AddTestAssemblyServices(this IServiceCollection services)", output);
+        Assert.Contains("return services;", output);
+        Assert.DoesNotContain("TryAdd", output);
+        Assert.DoesNotContain("TestAssemblyServiceProvider", output);
+    }
+
+    [Fact]
+    public void NoAttributedClasses_GeneratedExtensionCompilesAndIsCallable()
+    {
+        var source = """
+            namespace TestApp;
+            public class PlainService { }
+            """;
+
+        var errors = GeneratorTestHelper.CompileWithGenerator(source, includeContainer: false);
+
+        Assert.Empty(errors);
     }
 
     [Fact]
