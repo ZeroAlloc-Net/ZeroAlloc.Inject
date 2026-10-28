@@ -199,11 +199,6 @@ namespace ZeroAlloc.Inject.Generator
             AddRegistrable(allServices, input.Scopeds, null, null);
             AddRegistrable(allServices, input.Singletons, null, null);
 
-            if (allServices.Count == 0)
-            {
-                return;
-            }
-
             var decoratorsByInterface = GroupDecorators(ValidDecorators(allServices, input.Decorators, null));
 
             string? methodNameOverride = null;

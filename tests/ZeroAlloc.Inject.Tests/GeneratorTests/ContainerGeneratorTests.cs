@@ -2,6 +2,35 @@ namespace ZeroAlloc.Inject.Tests.GeneratorTests;
 
 public class ContainerGeneratorTests
 {
+    [Fact]
+    public void NoAttributedClasses_WithContainer_GeneratesEmptyProvidersAndExtension()
+    {
+        var source = """
+            namespace TestApp;
+            public class PlainService { }
+            """;
+
+        var (output, diagnostics) = GeneratorTestHelper.RunGeneratorWithContainer(source);
+
+        Assert.DoesNotContain("Error", diagnostics.AsEnumerable().Select(d => d.Severity.ToString()), StringComparer.Ordinal);
+        Assert.Contains("AddTestAssemblyServices(this IServiceCollection services)", output);
+        Assert.Contains("TestAssemblyServiceProvider", output);
+        Assert.Contains("TestAssemblyStandaloneServiceProvider", output);
+    }
+
+    [Fact]
+    public void NoAttributedClasses_WithContainer_GeneratedCodeCompiles()
+    {
+        var source = """
+            namespace TestApp;
+            public class PlainService { }
+            """;
+
+        var errors = GeneratorTestHelper.CompileWithGenerator(source, includeContainer: true);
+
+        Assert.Empty(errors);
+    }
+
     // --- Task 5: Detection ---
 
     [Fact]

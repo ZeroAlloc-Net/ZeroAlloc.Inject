@@ -14,6 +14,20 @@ internal static class GeneratorTestHelper
     }
 
     /// <summary>
+    /// Runs the generator and returns the compile errors of the output compilation, so a test can
+    /// assert that the generated code itself is valid.
+    /// </summary>
+    public static ImmutableArray<Diagnostic> CompileWithGenerator(string source, bool includeContainer)
+    {
+        var compilation = CreateCompilation([CSharpSyntaxTree.ParseText(source)], includeContainer);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.ZeroAllocInjectGenerator());
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out _);
+        return outputCompilation.GetDiagnostics()
+            .Where(static d => d.Severity == DiagnosticSeverity.Error)
+            .ToImmutableArray();
+    }
+
+    /// <summary>
     /// Runs the generator against a compilation that references no Microsoft.Extensions.DependencyInjection
     /// assembly, as in a consumer project that references ZeroAlloc.Inject but not the DI abstractions package.
     /// </summary>
