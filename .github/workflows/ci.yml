@@ -70,6 +70,13 @@ jobs:
       - name: Test
         run: dotnet test ZeroAlloc.Inject.slnx --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" --settings coverage.runsettings --results-directory TestResults
 
+      # Merges the Cobertura reports and fails below 80 percent line coverage, or when codecov.yml would let a drop in
+      # coverage pass quietly.
+      - name: Coverage gate
+        uses: MarcelRoozekrans/ci-baseline/actions/coverage-gate@v1
+        with:
+          reports: TestResults/**/coverage.cobertura.xml
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
