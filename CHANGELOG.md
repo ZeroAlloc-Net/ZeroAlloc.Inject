@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.12.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.11.6...v1.12.0) (2026-11-11)
+
+
+### Features
+
+* add .NET 11 support ([#251](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/251)) ([8608b16](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/8608b169c02381a553c9c9e0d72c8fcbe2c55215))
+
+
+### Documentation
+
+* add context7.json to claim the library on Context7 ([#250](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/250)) ([b27711b](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/b27711b9421c382010c9a13dcac6102ea0ca1eb1))
+
 ## [1.11.6](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.11.5...v1.11.6) (2026-10-28)
 
 
