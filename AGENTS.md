@@ -29,13 +29,14 @@ CI job `build` in `.github/workflows/ci.yml`:
 
 ```bash
 dotnet tool restore
+SEMVER=$(dotnet dotnet-gitversion /output json /showvariable SemVer)
 dotnet restore ZeroAlloc.Inject.slnx
 dotnet build ZeroAlloc.Inject.slnx --configuration Release --no-restore -p:Version=$SEMVER
 dotnet test ZeroAlloc.Inject.slnx --configuration Release --no-build --verbosity normal --logger "trx;LogFilePrefix=test-results" --collect "XPlat Code Coverage" --settings coverage.runsettings --results-directory TestResults
 dotnet pack ZeroAlloc.Inject.slnx --configuration Release --no-build --output ./artifacts -p:Version=$SEMVER
 ```
 
-`$SEMVER` comes from `dotnet dotnet-gitversion /output json /showvariable SemVer`. Pack fails with
+`$SEMVER` is set by the third command of the block. Pack fails with
 `ZAVERSION001` or `ZAVERSION002` unless the same `-p:Version` was passed to the build that produced the
 assemblies. The test step also feeds the coverage gate, which fails below 80 percent line coverage.
 
