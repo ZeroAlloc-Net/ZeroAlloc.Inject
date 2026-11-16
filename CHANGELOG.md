@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.12.0...v1.12.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* embed PDBs so Go to Definition shows the package source ([#268](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/268)) ([f6ad257](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/f6ad257b20a27810810084574cfe8d1adf14febd))
+
 ## [1.12.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.11.6...v1.12.0) (2026-11-11)
 
 
