@@ -33,6 +33,6 @@
     <PackageReference Include="ZeroAlloc.Inject" Version="[$(ZeroAllocInjectVersion)]" />
     <PackageReference Include="ZeroAlloc.Inject.Generator" Version="[$(ZeroAllocInjectVersion)]"
                       PrivateAssets="all" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.15" />
   </ItemGroup>
 </Project>
