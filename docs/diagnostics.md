@@ -773,7 +773,7 @@ These IDs were declared and documented but never reported. They are retired rath
 | ID | Title | Why it was retired |
 |----|-------|--------------------|
 | ZAI002 | Attribute on non-class type | Redundant. The lifetime attributes are declared with `[AttributeUsage(AttributeTargets.Class)]`, so the compiler already rejects them on a `struct`, `record struct`, `interface`, `enum` or delegate with error CS0592. |
-| ZAI005 | Keyed services require .NET 8+ | Unreachable as specified. `ZeroAlloc.Inject` targets `net8.0` and later only, so NuGet will not install it into a project below .NET 8. Keyed registrations need `Microsoft.Extensions.DependencyInjection.Abstractions` 8.0 or later, which is a package version, not a target framework; if an older version is referenced, the compiler reports the missing `AddKeyed*` methods. |
+| ZAI005 | Keyed services require .NET 8+ | Unreachable as specified. `ZeroAlloc.Inject` targets `net10.0` and later only, so NuGet will not install it into a project below .NET 10. Keyed registrations need `Microsoft.Extensions.DependencyInjection.Abstractions` 8.0 or later, which is a package version, not a target framework; if an older version is referenced, the compiler reports the missing `AddKeyed*` methods. |
 
 ## Release tracking
 

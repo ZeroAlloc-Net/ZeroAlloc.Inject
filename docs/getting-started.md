@@ -73,7 +73,7 @@ dotnet add package ZeroAlloc.Inject.Container
 | Class library that exposes services to a host application | `ZeroAlloc.Inject` + `ZeroAlloc.Inject.Generator` |
 | You want Hybrid mode (generated provider wrapping MS DI) | `ZeroAlloc.Inject.Container` |
 
-> **Targets:** .NET 8, 9, and 10 / C# 12 or later.
+> **Targets:** .NET 10 and .NET 11 / C# 12 or later. The generator itself is a `netstandard2.0` analyzer and loads in any current compiler.
 
 ---
 

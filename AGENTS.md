@@ -14,7 +14,7 @@ container base classes).
 - `ZeroAlloc.Inject.Container` references the generator without its output and copies the built generator
   DLL into `analyzers/dotnet/cs` through the `IncludeGeneratorInPackage` target, so a package check must
   build first.
-- `src/ZeroAlloc.Inject` and `src/ZeroAlloc.Inject.Container` target `net8.0;net9.0;net10.0;net11.0`.
+- `src/ZeroAlloc.Inject` and `src/ZeroAlloc.Inject.Container` target `net10.0;net11.0`.
 - `samples/ZeroAlloc.Inject.AotSmoke` is a NativeAOT publish fixture, not a demo. It gets its own CI job.
   `samples/Directory.Build.props` silences `MA0048`, `ZAI007` and `ZAI018` there on purpose.
 - `docs/` is user documentation. `docs/plans/` holds design notes.
@@ -22,8 +22,8 @@ container base classes).
 ## Build and test
 
 The SDK is pinned by `global.json` to 11.0.100 (`rollForward: latestMinor`). The test project targets
-`net10.0` and `net11.0`, so running it needs the .NET 10 and .NET 11 runtimes. The library targets
-`net8.0` and `net9.0` only compile, which any SDK 11 does without those runtimes.
+`net10.0` and `net11.0`, so running it needs the .NET 10 and .NET 11 runtimes, the same two frameworks
+the libraries ship.
 
 CI job `build` in `.github/workflows/ci.yml`:
 

@@ -152,7 +152,7 @@ Add the `PublishAot` property to your `.csproj`. `InvariantGlobalization` is rec
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
@@ -197,13 +197,13 @@ dotnet publish -c Release -r osx-arm64
 
 > **Note:** `PublishAot` implies self-contained publishing — you do not need to pass `--self-contained` explicitly. The resulting binary carries its own runtime and requires no .NET installation on the target machine.
 
-The output is a single self-contained native binary in `bin/Release/net9.0/<rid>/publish/`. No `.NET` runtime installation is required on the target machine.
+The output is a single self-contained native binary in `bin/Release/net10.0/<rid>/publish/`. No `.NET` runtime installation is required on the target machine.
 
 Expected output for a typical service application:
 
 ```
 Build succeeded.
-  MyApp -> bin/Release/net9.0/win-x64/publish/MyApp.exe
+  MyApp -> bin/Release/net10.0/win-x64/publish/MyApp.exe
 ```
 
 ### Full Example: Order Processing Worker
@@ -291,7 +291,7 @@ One limitation remains with plain MS DI: `GetServices<IRepository<int>>()`, or a
 
 ### AOT-Incompatible Frameworks
 
-The following project types do not support Native AOT as of .NET 9:
+The following project types do not support Native AOT as of .NET 10:
 
 - Windows Forms (`<UseWindowsForms>true</UseWindowsForms>`)
 - WPF (`<UseWPF>true</UseWPF>`)

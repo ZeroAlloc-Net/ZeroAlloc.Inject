@@ -272,7 +272,7 @@ public class ReportService
 }
 ```
 
-> **Requirement:** `Key` uses the keyed-service APIs of `Microsoft.Extensions.DependencyInjection.Abstractions` 8.0 or later. `ZeroAlloc.Inject` itself targets .NET 8 and later, so this only matters if a project pins an older version of that package; the generated `AddKeyed*` calls then fail to compile.
+> **Requirement:** `Key` uses the keyed-service APIs of `Microsoft.Extensions.DependencyInjection.Abstractions` 8.0 or later. `ZeroAlloc.Inject` itself targets .NET 10 and later, so this only matters if a project pins an older version of that package; the generated `AddKeyed*` calls then fail to compile.
 
 ## Allowing Multiple Registrations
 
