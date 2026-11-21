@@ -48,7 +48,20 @@ dotnet publish samples/ZeroAlloc.Inject.AotSmoke/ZeroAlloc.Inject.AotSmoke.cspro
 timeout --kill-after=10s 120s ./aot-out/ZeroAlloc.Inject.AotSmoke
 ```
 
-The binary prints `AOT smoke: PASS`. The `Benchmarks` workflow smoke-runs
+The binary prints `AOT smoke: PASS`.
+
+CI job `sdk10-consumer` (needs the .NET 10.0.1xx SDK; the smoke folder's own `global.json` pins
+10.0.100 with `rollForward: latestPatch`, so a newer band cannot stand in for it). It builds two
+consumers of the packed packages with Roslyn 5.0: `Generator` references `ZeroAlloc.Inject` and
+`ZeroAlloc.Inject.Generator`, `Container` references `ZeroAlloc.Inject.Container` alone and so loads
+the generator copy that package bundles:
+
+```bash
+dotnet pack ZeroAlloc.Inject.slnx -c Release -o artifacts -p:Version=9.9.9-local.<sha>
+cd tests/ZeroAlloc.Inject.Sdk10Smoke
+dotnet run --project Generator -c Release -p:ZeroAllocInjectVersion=9.9.9-local.<sha>
+dotnet run --project Container -c Release -p:ZeroAllocInjectVersion=9.9.9-local.<sha>
+``` The `Benchmarks` workflow smoke-runs
 `benchmarks/ZeroAlloc.Inject.Benchmarks` on `net10.0` through a shared workflow.
 
 Fast inner loop, verified locally and run by no CI job:
@@ -73,6 +86,10 @@ dotnet test tests/ZeroAlloc.Inject.Tests -c Release -f net10.0 --filter "FullyQu
   a case in each mode.
 - Generator and container tests compile source strings through `GeneratorTestHelper` and `GeneratedApp`
   and load the result into a separate context. Add a test source there, not a new sample project.
+- The generator references `Microsoft.CodeAnalysis.CSharp` 5.0.0, the compiler of SDK band 10.0.1xx,
+  the oldest supported SDK. Raise it only together with the documented minimum SDK: a compiler older
+  than the Roslyn the generator references skips it with `CS9057`, and nothing is generated.
+  `renovate.json` holds it below 5.1 for that reason; the test projects may use a newer Roslyn.
 - `Version` in `Directory.Build.props` is a `1.0.0` fallback and is never a release version.
 
 <!-- org-core:start sha256=8faf417fa86f11bd8ad9bc98dfa4683fba44e440291e84c6cb9b0ec3ca0c0e7e (generated from docker-nuc scripts/agents-md/org-core-zeroalloc.md; do not edit here) -->

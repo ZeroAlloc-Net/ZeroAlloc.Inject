@@ -159,7 +159,7 @@ Add the `PublishAot` property to your `.csproj`. `InvariantGlobalization` is rec
 </Project>
 ```
 
-> **Note:** `PublishAot` requires .NET 8 or later and is currently supported for console applications and ASP.NET Core. Windows Forms and WPF are not supported.
+> **Note:** `PublishAot` needs .NET 8 or later, and ZeroAlloc.Inject itself needs .NET 10 or later, so target `net10.0` or `net11.0`. NativeAOT is currently supported for console applications and ASP.NET Core. Windows Forms and WPF are not supported.
 
 ### Step 4: Use the Standalone Container in Program.cs
 
