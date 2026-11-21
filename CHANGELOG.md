@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.0.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.12.1...v2.0.0) (2026-11-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* ZeroAlloc.Inject and ZeroAlloc.Inject.Container no longer ship net8.0 and net9.0 assets, so consuming projects must target net10.0 or later. See the Behaviour change section of the release notes for migration steps.
+
+### Features
+
+* target net10.0 and net11.0, drop net8.0 and net9.0 ([0e30683](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/0e30683a437920448ee21fe2e63acce805b5594a))
+
+
+### Bug Fixes
+
+* build the generator against Roslyn 5.0 so every .NET 10 SDK loads it ([0e30683](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/0e30683a437920448ee21fe2e63acce805b5594a))
+
 ## [1.12.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.12.0...v1.12.1) (2026-11-16)
 
 
