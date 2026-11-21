@@ -125,9 +125,9 @@ var app = builder.Build();
 ### How It Works
 
 1. `services.AddMyAppServices()` populates the `IServiceCollection` with descriptors for all annotated services.
-2. `BuildZeroAllocInjectServiceProvider()` (or the factory's `CreateServiceProvider`) calls `services.BuildServiceProvider()` to create the MS DI inner provider, then wraps it in the generated provider subclass.
-3. Every `GetService` call checks `ResolveKnown` first. Annotated services are resolved via generated `new` calls. Everything else is delegated to the inner MS DI provider.
-4. `CreateScope()` creates both a generated scope and a corresponding MS DI fallback scope, then wraps them together so that scoped framework services are also available within the scope.
+2. `BuildZeroAllocInjectServiceProvider()` (or the factory's `CreateServiceProvider`) creates the generated provider subclass around a snapshot of the `IServiceCollection`. It does not call `services.BuildServiceProvider()` yet: the MS DI inner provider is built on first need, as described below.
+3. Every `GetService` call checks `ResolveKnown` first. Annotated services are resolved via generated `new` calls. Everything else is delegated to the inner MS DI provider, which the first such call builds.
+4. `CreateScope()` creates a generated scope paired with an MS DI fallback scope, so that scoped framework services are also available within the scope. When the generator knows every registration in the collection, the fallback scope, and the inner provider with it, is created only when the scope first resolves something the generator does not know. When the collection holds any registration the generator does not know, as a host's framework services are, `CreateScope()` builds the inner provider if it does not exist yet and creates the fallback scope right away.
 
 ### Open Generics
 
@@ -135,7 +135,7 @@ The generated type switch has a branch for every closed form of an open generic 
 
 ### Startup Cost
 
-`BuildZeroAllocInjectServiceProvider()` takes 0.67× the time of MS DI's `BuildServiceProvider()` and allocates 2,720 B against 4,384 B in the benchmarks. It snapshots the `IServiceCollection` and builds the MS DI fallback provider only when a resolve first needs it, so an application whose services are all generator-owned never pays for that build. See the [performance page](performance.md#registration--startup-benchmarks).
+`BuildZeroAllocInjectServiceProvider()` takes 0.67× the time of MS DI's `BuildServiceProvider()` and allocates 2,720 B against 4,384 B in the benchmarks. It snapshots the `IServiceCollection` and builds the MS DI fallback provider on first need: the first resolve of a service the generator does not know, or the first `CreateScope()` when the collection holds a registration the generator does not know. An application whose registrations are all generator-owned never pays for that build. See the [performance page](performance.md#registration--startup-benchmarks).
 
 ---
 
