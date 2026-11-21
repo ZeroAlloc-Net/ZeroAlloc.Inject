@@ -129,15 +129,18 @@ jobs:
           # so a newer feature band on the runner image cannot stand in for this one.
           dotnet-version: 10.0.1xx
 
-      - name: Build and run the consumer
+      - name: Build and run the consumers
         working-directory: tests/ZeroAlloc.Inject.Sdk10Smoke
+        # Generator consumes ZeroAlloc.Inject plus ZeroAlloc.Inject.Generator; Container consumes
+        # ZeroAlloc.Inject.Container alone, which bundles its own copy of the generator.
         run: |
           dotnet --version
           pkg=$(ls ../../artifacts/ZeroAlloc.Inject.Generator.*.nupkg)
           version=$(basename "$pkg" .nupkg)
           version=${version#ZeroAlloc.Inject.Generator.}
           echo "Consuming packages at $version"
-          dotnet run -c Release -p:ZeroAllocInjectVersion="$version"
+          dotnet run --project Generator -c Release -p:ZeroAllocInjectVersion="$version"
+          dotnet run --project Container -c Release -p:ZeroAllocInjectVersion="$version"
 
   aot-smoke:
     runs-on: ubuntu-latest
