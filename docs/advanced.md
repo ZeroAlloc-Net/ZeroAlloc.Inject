@@ -342,7 +342,7 @@ Constructor injection is the preferred pattern for required dependencies. Proper
 
 ### Performance
 
-Property injection adds a negligible overhead in the generated containers. A transient with one property-injected dependency resolves in **19–22 ns** versus **15–17 ns** for an equivalent constructor-injected dependency — a ~12–47% increase that is imperceptible at normal service resolution rates. Allocation is identical in both cases.
+Property injection adds no measurable overhead in the generated containers. In the .NET 10 benchmarks a transient with one property-injected dependency resolves in 0.98× MS DI's constructor-injection time in both ZA modes, against 0.92–0.98× for the constructor-injected equivalent: within the launch spread. Allocation is identical in both cases. See the [performance page](performance.md).
 
 MS DI is more affected: its factory-lambda approach for property injection costs about twice its constructor injection in the same run, because MS DI cannot cache the factory delegate the same way it caches constructor metadata. This makes property injection in ZeroAlloc.Inject generated containers **~2× faster than MS DI's equivalent** even though the generated code follows the same block-lambda pattern.
 

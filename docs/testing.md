@@ -275,7 +275,7 @@ Use `GeneratorTestHelper.RunGeneratorWithContainer(source)` when the generated o
 
 - **Prefer direct construction over the container.** Unit tests that call `new OrderService(fakeRepo)` run in microseconds. Tests that build a `ServiceProvider` pay a one-time startup cost per test or test class.
 - **Share a single provider across a test class.** Use a class-level `IServiceProvider` fixture or a static factory method so the provider is built once and reused across all tests in the class.
-- **Use the standalone container for pure service tests.** It has a ~5 ns startup cost and no MS DI runtime dependency. For tests that don't need framework services (`IOptions<T>`, `ILogger`, etc.), the standalone container is the fastest option.
+- **Use the standalone container for pure service tests.** It is a plain constructor call, about 0.01× the cost of `BuildServiceProvider()`, with no MS DI runtime dependency. For tests that don't need framework services (`IOptions<T>`, `ILogger`, etc.), the standalone container is the fastest option.
 - **Use `ValidateScopes = true` and `ValidateOnBuild = true` for integration tests.** These options, available on `ServiceProviderOptions` when calling `BuildServiceProvider()`, catch captive dependency bugs (scoped service injected into singleton) at container-build time rather than at runtime.
 
 ```csharp
@@ -286,4 +286,4 @@ var provider = services.BuildServiceProvider(new ServiceProviderOptions
 });
 ```
 
-- **Do not use the hybrid container when the standalone container is sufficient.** The hybrid container's ~4,477 ns build cost is negligible in production, but in a test suite with hundreds of tests it adds up. If your tests don't exercise framework services, use the standalone container or the plain `BuildServiceProvider()`.
+- **Do not use the hybrid container when the standalone container is sufficient.** The hybrid container builds faster than `BuildServiceProvider()`, but the standalone provider is a plain constructor call and about 60 times cheaper still. In a test suite with hundreds of tests that adds up, so if your tests don't exercise framework services, use the standalone container.

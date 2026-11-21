@@ -125,9 +125,9 @@ var app = builder.Build();
 ### How It Works
 
 1. `services.AddMyAppServices()` populates the `IServiceCollection` with descriptors for all annotated services.
-2. `BuildZeroAllocInjectServiceProvider()` (or the factory's `CreateServiceProvider`) calls `services.BuildServiceProvider()` to create the MS DI inner provider, then wraps it in the generated provider subclass.
-3. Every `GetService` call checks `ResolveKnown` first. Annotated services are resolved via generated `new` calls. Everything else is delegated to the inner MS DI provider.
-4. `CreateScope()` creates both a generated scope and a corresponding MS DI fallback scope, then wraps them together so that scoped framework services are also available within the scope.
+2. `BuildZeroAllocInjectServiceProvider()` (or the factory's `CreateServiceProvider`) creates the generated provider subclass around a snapshot of the `IServiceCollection`. It does not call `services.BuildServiceProvider()` yet: the MS DI inner provider is built on first need, as described below.
+3. Every `GetService` call checks `ResolveKnown` first. Annotated services are resolved via generated `new` calls. Everything else is delegated to the inner MS DI provider, which the first such call builds.
+4. `CreateScope()` creates a generated scope paired with an MS DI fallback scope, so that scoped framework services are also available within the scope. When the generator knows every registration in the collection, the fallback scope, and the inner provider with it, is created only when the scope first resolves something the generator does not know. When the collection holds any registration the generator does not know, as a host's framework services are, `CreateScope()` builds the inner provider if it does not exist yet and creates the fallback scope right away.
 
 ### Open Generics
 
@@ -135,7 +135,7 @@ The generated type switch has a branch for every closed form of an open generic 
 
 ### Startup Cost
 
-The hybrid container has a one-time build cost (~4,477 ns / 9,368 B in benchmarks) because it must both populate MS DI's internal structures and set up the generated wrapper. This cost is paid once at startup, not on every resolution.
+`BuildZeroAllocInjectServiceProvider()` takes 0.67× the time of MS DI's `BuildServiceProvider()` and allocates 2,720 B against 4,384 B in the benchmarks. It snapshots the `IServiceCollection` and builds the MS DI fallback provider on first need: the first resolve of a service the generator does not know, or the first `CreateScope()` when the collection holds a registration the generator does not know. An application whose registrations are all generator-owned never pays for that build. See the [performance page](performance.md#registration--startup-benchmarks).
 
 ---
 
@@ -269,12 +269,12 @@ As with MS DI, a disposable transient resolved from the root stays referenced un
 |                              | MS DI Extension         | Hybrid Container           | Standalone Container          |
 |------------------------------|-------------------------|----------------------------|-------------------------------|
 | Runtime dependency           | MS DI                   | MS DI                      | None                          |
-| Startup cost                 | Normal MS DI (~139 ns)  | Higher (~4,477 ns)         | ~5 ns                         |
-| Memory per scope             | MS DI baseline (~128 B) | ~216 B                     | ~88 B                         |
+| Startup cost (vs MS DI)      | 1.00× / 4,384 B         | 0.67× / 2,720 B            | 0.01× / 112 B                 |
+| Memory per scope             | 128 B                   | 96 B                       | 88 B                          |
 | Framework services           | ✅                      | ✅                         | ❌ (returns null)             |
 | Native AOT (known services)  | ✅                      | ✅                         | ✅                            |
 | Native AOT (unknown services)| N/A                     | ⚠️ reflection via MS DI   | N/A                           |
 | Open generics                | ✅ MS DI handles        | compile-time closed, rest via MS DI | compile-time closed  |
 | Best for                     | Gradual adoption        | ASP.NET Core apps          | Owned-service apps, AOT       |
 
-Benchmark numbers are from .NET 9.0, BenchmarkDotNet v0.15.8, Windows 11 (Intel Core i9-12900HK), x64 RyuJIT AVX2. See the [performance page](performance.md) for full resolution tables.
+Benchmark numbers are from .NET 10, BenchmarkDotNet v0.15.8, Windows 11 (Intel Core i9-12900HK), x64 RyuJIT x86-64-v3: time as a ratio against MS DI in the same run, allocations exact. See the [performance page](performance.md) for the full tables and the methodology.
