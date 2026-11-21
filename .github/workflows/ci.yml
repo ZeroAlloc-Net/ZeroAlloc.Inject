@@ -104,6 +104,41 @@ jobs:
           name: nuget-package
           path: ./artifacts/*.nupkg
 
+  # The generator ships inside the packages and runs in the consumer's compiler. A generator
+  # built against a newer Roslyn than that compiler is skipped with CS9057, and the generated
+  # registration methods go missing. This builds a net10.0 consumer of the packages from the
+  # build job with the oldest supported SDK band, 10.0.1xx, whose compiler is Roslyn 5.0.
+  sdk10-consumer:
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download packages
+        uses: actions/download-artifact@v8
+        with:
+          name: nuget-package
+          path: artifacts
+
+      - name: Setup .NET 10.0.1xx
+        uses: actions/setup-dotnet@v6
+        with:
+          # The smoke project's own global.json pins 10.0.100 with rollForward latestPatch,
+          # so a newer feature band on the runner image cannot stand in for this one.
+          dotnet-version: 10.0.1xx
+
+      - name: Build and run the consumer
+        working-directory: tests/ZeroAlloc.Inject.Sdk10Smoke
+        run: |
+          dotnet --version
+          pkg=$(ls ../../artifacts/ZeroAlloc.Inject.Generator.*.nupkg)
+          version=$(basename "$pkg" .nupkg)
+          version=${version#ZeroAlloc.Inject.Generator.}
+          echo "Consuming packages at $version"
+          dotnet run -c Release -p:ZeroAllocInjectVersion="$version"
+
   aot-smoke:
     runs-on: ubuntu-latest
     # Typical run is under a few minutes. The bound makes a NativeAOT hang, like

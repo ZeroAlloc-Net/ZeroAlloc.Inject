@@ -135,7 +135,7 @@ The generated type switch has a branch for every closed form of an open generic 
 
 ### Startup Cost
 
-The hybrid container has a one-time build cost (~4,477 ns / 9,368 B in benchmarks) because it must both populate MS DI's internal structures and set up the generated wrapper. This cost is paid once at startup, not on every resolution.
+`BuildZeroAllocInjectServiceProvider()` takes 0.67× the time of MS DI's `BuildServiceProvider()` and allocates 2,720 B against 4,384 B in the benchmarks. It snapshots the `IServiceCollection` and builds the MS DI fallback provider only when a resolve first needs it, so an application whose services are all generator-owned never pays for that build. See the [performance page](performance.md#registration--startup-benchmarks).
 
 ---
 
@@ -269,12 +269,12 @@ As with MS DI, a disposable transient resolved from the root stays referenced un
 |                              | MS DI Extension         | Hybrid Container           | Standalone Container          |
 |------------------------------|-------------------------|----------------------------|-------------------------------|
 | Runtime dependency           | MS DI                   | MS DI                      | None                          |
-| Startup cost                 | Normal MS DI (~139 ns)  | Higher (~4,477 ns)         | ~5 ns                         |
-| Memory per scope             | MS DI baseline (~128 B) | ~216 B                     | ~88 B                         |
+| Startup cost (vs MS DI)      | 1.00× / 4,384 B         | 0.67× / 2,720 B            | 0.01× / 112 B                 |
+| Memory per scope             | 128 B                   | 96 B                       | 88 B                          |
 | Framework services           | ✅                      | ✅                         | ❌ (returns null)             |
 | Native AOT (known services)  | ✅                      | ✅                         | ✅                            |
 | Native AOT (unknown services)| N/A                     | ⚠️ reflection via MS DI   | N/A                           |
 | Open generics                | ✅ MS DI handles        | compile-time closed, rest via MS DI | compile-time closed  |
 | Best for                     | Gradual adoption        | ASP.NET Core apps          | Owned-service apps, AOT       |
 
-Benchmark numbers are from .NET 9.0, BenchmarkDotNet v0.15.8, Windows 11 (Intel Core i9-12900HK), x64 RyuJIT AVX2. See the [performance page](performance.md) for full resolution tables.
+Benchmark numbers are from .NET 10, BenchmarkDotNet v0.15.8, Windows 11 (Intel Core i9-12900HK), x64 RyuJIT x86-64-v3: time as a ratio against MS DI in the same run, allocations exact. See the [performance page](performance.md) for the full tables and the methodology.

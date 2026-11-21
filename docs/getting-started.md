@@ -19,7 +19,7 @@ ZeroAlloc.Inject is a compile-time Roslyn source generator for .NET that elimina
 | Discovery | Compile-time source gen | Runtime assembly scanning |
 | Reflection | None | Yes |
 | Native AOT | ✅ Standalone mode | ❌ |
-| Startup cost | No scanning: 8 ns Standalone, ~1 µs Container | Scales with assembly size |
+| Startup cost | No scanning: 0.01× MS DI's build time Standalone, 0.67× Container | Scales with assembly size |
 | IDE support | Compile errors + warnings | Runtime exceptions |
 | Configuration | Attributes on classes | Fluent API in `Program.cs` |
 
@@ -73,7 +73,7 @@ dotnet add package ZeroAlloc.Inject.Container
 | Class library that exposes services to a host application | `ZeroAlloc.Inject` + `ZeroAlloc.Inject.Generator` |
 | You want Hybrid mode (generated provider wrapping MS DI) | `ZeroAlloc.Inject.Container` |
 
-> **Targets:** .NET 10 and .NET 11 / C# 12 or later. The generator itself is a `netstandard2.0` analyzer and loads in any current compiler.
+> **Targets:** .NET 10 and .NET 11 / C# 12 or later. The generator is a `netstandard2.0` analyzer built against Roslyn 5.0, so it needs the .NET 10 SDK 10.0.100 or later, or Visual Studio 2026 or later. An older compiler skips it with warning CS9057, and the generated registration methods are then missing.
 
 ---
 

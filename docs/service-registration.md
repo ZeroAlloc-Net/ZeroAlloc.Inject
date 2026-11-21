@@ -226,7 +226,7 @@ The generator validates that the `As` type is the class itself, one of its base 
 
 `As` also accepts open generic type arguments. See [Open Generics](#open-generics) for details.
 
-## Keyed Services (.NET 8+)
+## Keyed Services
 
 When multiple implementations of the same interface must coexist in the container simultaneously, keyed registration lets consumers select the specific implementation they want by name. This is built on top of the `IKeyedServiceProvider` API introduced in .NET 8.
 
