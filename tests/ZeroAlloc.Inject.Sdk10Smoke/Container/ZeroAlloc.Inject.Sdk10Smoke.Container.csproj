@@ -16,7 +16,7 @@
 
     Run locally with a 10.0.1xx SDK installed, after packing as described in the Generator project:
       cd tests/ZeroAlloc.Inject.Sdk10Smoke/Container
-      dotnet run -c Release -p:ZeroAllocInjectVersion=9.9.9-local.sha$(git rev-parse --short HEAD)
+      dotnet run -c Release -p:ZeroAllocInjectVersion=9.9.9-local.sha$(git rev-parse HEAD | cut -c1-7)
     Not part of ZeroAlloc.Inject.slnx; the sdk10-consumer job in ci.yml runs it.
   -->
   <PropertyGroup>
