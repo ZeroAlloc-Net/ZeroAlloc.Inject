@@ -14,8 +14,9 @@
     visible in the build log; it is tracked in ZeroAlloc-Net/.github#77. Once a ZeroAlloc.Collections
     release loads on SDK 10.0.1xx and the Container package depends on it, add CS9057 back.
 
-    Run locally with a 10.0.1xx SDK installed, in the shell that packed as described in the Generator project, so $v is set:
-      cd tests/ZeroAlloc.Inject.Sdk10Smoke/Container
+    Run locally with a 10.0.1xx SDK installed, in the shell that ran the Generator project's steps, so $v
+    is set and the shell is in tests/ZeroAlloc.Inject.Sdk10Smoke/Generator:
+      cd ../Container
       dotnet run -c Release -p:ZeroAllocInjectVersion=$v
     Not part of ZeroAlloc.Inject.slnx; the sdk10-consumer job in ci.yml runs it.
   -->
