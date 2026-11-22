@@ -57,10 +57,10 @@ consumers of the packed packages with Roslyn 5.0: `Generator` references `ZeroAl
 the generator copy that package bundles:
 
 ```bash
-dotnet pack ZeroAlloc.Inject.slnx -c Release -o artifacts -p:Version=9.9.9-local.<sha>
+dotnet pack ZeroAlloc.Inject.slnx -c Release -o artifacts -p:Version=9.9.9-local.sha$(git rev-parse --short HEAD)
 cd tests/ZeroAlloc.Inject.Sdk10Smoke
-dotnet run --project Generator -c Release -p:ZeroAllocInjectVersion=9.9.9-local.<sha>
-dotnet run --project Container -c Release -p:ZeroAllocInjectVersion=9.9.9-local.<sha>
+dotnet run --project Generator -c Release -p:ZeroAllocInjectVersion=9.9.9-local.sha$(git rev-parse --short HEAD)
+dotnet run --project Container -c Release -p:ZeroAllocInjectVersion=9.9.9-local.sha$(git rev-parse --short HEAD)
 ```
 
 CI job `roslyn-floor` calls the shared `roslyn-floor.yml` from ZeroAlloc-Net/.github: it packs the

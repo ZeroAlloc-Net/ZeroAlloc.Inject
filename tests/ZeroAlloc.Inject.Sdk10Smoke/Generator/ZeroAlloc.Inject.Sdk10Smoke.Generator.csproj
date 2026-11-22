@@ -10,9 +10,9 @@
 
     The parent folder's global.json pins the 10.0.1xx band with rollForward latestPatch, so a
     newer band cannot stand in for it. Run locally with a 10.0.1xx SDK installed:
-      dotnet pack ZeroAlloc.Inject.slnx -c Release -o artifacts -p:Version=9.9.9-local.<sha>
+      dotnet pack ZeroAlloc.Inject.slnx -c Release -o artifacts -p:Version=9.9.9-local.sha$(git rev-parse --short HEAD)
       cd tests/ZeroAlloc.Inject.Sdk10Smoke/Generator
-      dotnet run -c Release -p:ZeroAllocInjectVersion=9.9.9-local.<sha>
+      dotnet run -c Release -p:ZeroAllocInjectVersion=9.9.9-local.sha$(git rev-parse --short HEAD)
     Not part of ZeroAlloc.Inject.slnx; the sdk10-consumer job in ci.yml runs it.
   -->
   <PropertyGroup>
