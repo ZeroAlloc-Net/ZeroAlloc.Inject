@@ -61,7 +61,12 @@ dotnet pack ZeroAlloc.Inject.slnx -c Release -o artifacts -p:Version=9.9.9-local
 cd tests/ZeroAlloc.Inject.Sdk10Smoke
 dotnet run --project Generator -c Release -p:ZeroAllocInjectVersion=9.9.9-local.<sha>
 dotnet run --project Container -c Release -p:ZeroAllocInjectVersion=9.9.9-local.<sha>
-``` The `Benchmarks` workflow smoke-runs
+```
+
+CI job `roslyn-floor` calls the shared `roslyn-floor.yml` from ZeroAlloc-Net/.github: it packs the
+solution and fails when a packed DLL references Roslyn above 5.0.0.
+
+The `Benchmarks` workflow smoke-runs
 `benchmarks/ZeroAlloc.Inject.Benchmarks` on `net10.0` through a shared workflow.
 
 Fast inner loop, verified locally and run by no CI job:
@@ -90,6 +95,9 @@ dotnet test tests/ZeroAlloc.Inject.Tests -c Release -f net10.0 --filter "FullyQu
   the oldest supported SDK. Raise it only together with the documented minimum SDK: a compiler older
   than the Roslyn the generator references skips it with `CS9057`, and nothing is generated.
   `renovate.json` holds it below 5.1 for that reason; the test projects may use a newer Roslyn.
+- `tests/ZeroAlloc.Inject.Sdk10Smoke/global.json` stays on 10.0.100 with `rollForward: latestPatch`.
+  Moving it to a newer patch makes the smoke build with a newer compiler and check nothing; the shared
+  Renovate preset ignores that file.
 - `Version` in `Directory.Build.props` is a `1.0.0` fallback and is never a release version.
 
 <!-- org-core:start sha256=8faf417fa86f11bd8ad9bc98dfa4683fba44e440291e84c6cb9b0ec3ca0c0e7e (generated from docker-nuc scripts/agents-md/org-core-zeroalloc.md; do not edit here) -->
