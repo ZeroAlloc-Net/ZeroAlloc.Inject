@@ -8,11 +8,9 @@
     AddZeroAllocInjectSdk10SmokeContainerServices and BuildZeroAllocInjectServiceProvider methods
     do not exist and the build fails with CS1061.
 
-    Unlike the Generator project, CS9057 is not an error here. The package also pulls in
-    ZeroAlloc.Collections, whose own generator references a newer Roslyn and is skipped on this
-    SDK with CS9057. That warning is about ZeroAlloc.Collections, not this package, and stays
-    visible in the build log; it is tracked in ZeroAlloc-Net/.github#77. Once a ZeroAlloc.Collections
-    release loads on SDK 10.0.1xx and the Container package depends on it, add CS9057 back.
+    CS9057 is an error here as in the Generator project. ZeroAlloc.Collections 1.3.2, a dependency
+    of the package, also ships a generator built against Roslyn 5.0, so no package in this build
+    may be skipped.
 
     Run locally with a 10.0.1xx SDK installed, in the shell that ran the Generator project's steps, so $v
     is set and the shell is in tests/ZeroAlloc.Inject.Sdk10Smoke/Generator:
@@ -26,7 +24,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
-    <WarningsAsErrors>$(WarningsAsErrors);CS8032</WarningsAsErrors>
+    <WarningsAsErrors>$(WarningsAsErrors);CS8032;CS9057</WarningsAsErrors>
   </PropertyGroup>
 
   <Target Name="RequireZeroAllocInjectVersion" BeforeTargets="CollectPackageReferences">
