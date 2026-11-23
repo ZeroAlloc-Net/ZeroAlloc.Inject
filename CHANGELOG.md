@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v2.0.0...v2.0.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* depend on ZeroAlloc.Collections 1.3.2, which loads on SDK 10.0.1xx ([#283](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/issues/283)) ([f15684a](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/commit/f15684a4b1a16369fdd114e20ceb0a339602eec4))
+
 ## [2.0.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.Inject/compare/v1.12.1...v2.0.0) (2026-11-21)
 
 
