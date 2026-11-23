@@ -73,7 +73,7 @@ dotnet add package ZeroAlloc.Inject.Container
 | Class library that exposes services to a host application | `ZeroAlloc.Inject` + `ZeroAlloc.Inject.Generator` |
 | You want Hybrid mode (generated provider wrapping MS DI) | `ZeroAlloc.Inject.Container` |
 
-> **Targets:** .NET 10 and .NET 11 / C# 12 or later. The generator is a `netstandard2.0` analyzer built against Roslyn 5.0, so it needs the .NET 10 SDK 10.0.100 or later, or Visual Studio 2026 or later. An older compiler skips it with warning CS9057, and the generated registration methods are then missing. `ZeroAlloc.Inject.Container` also depends on `ZeroAlloc.Collections`, whose own generator currently needs SDK 10.0.4xx; an older .NET 10 SDK reports CS9057 for that generator only, and ZeroAlloc.Inject's generated code is unaffected (tracked in ZeroAlloc-Net/.github#77).
+> **Targets:** .NET 10 and .NET 11 / C# 12 or later. The generator is a `netstandard2.0` analyzer built against Roslyn 5.0, so it needs the .NET 10 SDK 10.0.100 or later, or Visual Studio 2026 or later. An older compiler skips it with warning CS9057, and the generated registration methods are then missing. `ZeroAlloc.Inject.Container` also depends on `ZeroAlloc.Collections` 1.3.2 or later, whose generator is built against Roslyn 5.0 too.
 
 ---
 
