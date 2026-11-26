@@ -11,7 +11,7 @@
     <PackageReference Include="Jab" Version="0.12.0" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.15" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\ZeroAlloc.Inject\ZeroAlloc.Inject.csproj" />
